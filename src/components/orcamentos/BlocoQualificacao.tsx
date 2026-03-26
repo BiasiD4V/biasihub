@@ -12,6 +12,7 @@ import {
   NIVEL_AMAB_LABELS,
   NIVEL_AMAB_CORES,
 } from '../../domain/value-objects/QualificacaoOportunidade';
+import { calcularScoreABC, PRIORIDADE_ABC_CONFIG } from '../../utils/prioridade';
 
 interface Props {
   orc: OrcamentoCard;
@@ -23,6 +24,7 @@ interface FormQual {
   clarezaDocumentos: NivelAltaMediaBaixa | '';
   urgencia: NivelAltaMediaBaixa | '';
   chanceFechamento: NivelAltaMediaBaixa | '';
+  valorEstrategico: NivelAltoMedioBaixo | '';
   clienteEstrategico: SimNao | '';
   prazoResposta: string;
   observacaoComercial: string;
@@ -69,6 +71,23 @@ function formatarData(dateStr?: string): string {
   return new Date(dateStr + 'T12:00:00').toLocaleDateString('pt-BR');
 }
 
+function BadgeABC({ orc }: { orc: OrcamentoCard }) {
+  const resultado = calcularScoreABC(orc);
+  if (!resultado) return null;
+  const cfg = PRIORIDADE_ABC_CONFIG[resultado.classe];
+  return (
+    <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${cfg.bg} ${cfg.border}`}>
+      <span className={`text-lg font-bold leading-none ${cfg.text}`}>{resultado.classe}</span>
+      <div>
+        <p className="text-xs text-slate-400 leading-none mb-0.5">Score</p>
+        <p className={`text-sm font-semibold leading-none ${cfg.text}`}>
+          {resultado.score}<span className="text-xs font-normal text-slate-400">/10</span>
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export function BlocoQualificacao({ orc, onAtualizar }: Props) {
   const [editando, setEditando] = useState(false);
   const [form, setForm] = useState<FormQual>({
@@ -76,6 +95,7 @@ export function BlocoQualificacao({ orc, onAtualizar }: Props) {
     clarezaDocumentos: orc.clarezaDocumentos ?? '',
     urgencia: orc.urgencia ?? '',
     chanceFechamento: orc.chanceFechamento ?? '',
+    valorEstrategico: orc.valorEstrategico ?? '',
     clienteEstrategico: orc.clienteEstrategico ?? '',
     prazoResposta: orc.prazoResposta ?? '',
     observacaoComercial: orc.observacaoComercial ?? '',
@@ -87,6 +107,7 @@ export function BlocoQualificacao({ orc, onAtualizar }: Props) {
       clarezaDocumentos: orc.clarezaDocumentos ?? '',
       urgencia: orc.urgencia ?? '',
       chanceFechamento: orc.chanceFechamento ?? '',
+      valorEstrategico: orc.valorEstrategico ?? '',
       clienteEstrategico: orc.clienteEstrategico ?? '',
       prazoResposta: orc.prazoResposta ?? '',
       observacaoComercial: orc.observacaoComercial ?? '',
@@ -104,6 +125,7 @@ export function BlocoQualificacao({ orc, onAtualizar }: Props) {
     if (form.clarezaDocumentos) input.clarezaDocumentos = form.clarezaDocumentos;
     if (form.urgencia) input.urgencia = form.urgencia;
     if (form.chanceFechamento) input.chanceFechamento = form.chanceFechamento;
+    if (form.valorEstrategico) input.valorEstrategico = form.valorEstrategico;
     if (form.clienteEstrategico) input.clienteEstrategico = form.clienteEstrategico;
     input.prazoResposta = form.prazoResposta || undefined;
     input.observacaoComercial = form.observacaoComercial.trim() || undefined;
@@ -116,6 +138,7 @@ export function BlocoQualificacao({ orc, onAtualizar }: Props) {
     !orc.clarezaDocumentos &&
     !orc.urgencia &&
     !orc.chanceFechamento &&
+    !orc.valorEstrategico &&
     !orc.clienteEstrategico;
 
   return (
@@ -156,6 +179,13 @@ export function BlocoQualificacao({ orc, onAtualizar }: Props) {
         )}
       </div>
 
+      {/* Score ABC — sempre visível no topo */}
+      {!semQualificacao && !editando && (
+        <div className="mb-4">
+          <BadgeABC orc={orc} />
+        </div>
+      )}
+
       {/* Modo visualização */}
       {!editando && (
         <>
@@ -171,34 +201,42 @@ export function BlocoQualificacao({ orc, onAtualizar }: Props) {
             </div>
           ) : (
             <div className="space-y-2.5">
-              {/* Linha 1: campos principais */}
+              {/* Linha 1: Chance fechamento + Valor estratégico */}
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <p className="text-xs text-slate-400 mb-1">Chance fechamento</p>
                   <BadgeAMAB nivel={orc.chanceFechamento} />
                 </div>
                 <div>
-                  <p className="text-xs text-slate-400 mb-1">Urgência</p>
-                  <BadgeAMAB nivel={orc.urgencia} />
+                  <p className="text-xs text-slate-400 mb-1">Valor estratégico</p>
+                  <BadgeAMB nivel={orc.valorEstrategico} />
                 </div>
               </div>
 
+              {/* Linha 2: Urgência / Prazo + Fit técnico */}
               <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <p className="text-xs text-slate-400 mb-1">Urgência / Prazo</p>
+                  <BadgeAMAB nivel={orc.urgencia} />
+                </div>
                 <div>
                   <p className="text-xs text-slate-400 mb-1">Fit técnico</p>
                   <BadgeAMB nivel={orc.fitTecnico} />
                 </div>
-                <div>
-                  <p className="text-xs text-slate-400 mb-1">Clareza docs</p>
-                  <BadgeAMAB nivel={orc.clarezaDocumentos} />
-                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
+                  <p className="text-xs text-slate-400 mb-1">Clareza docs</p>
+                  <BadgeAMAB nivel={orc.clarezaDocumentos} />
+                </div>
+                <div>
                   <p className="text-xs text-slate-400 mb-1">Estratégico</p>
                   <BadgeSimNao valor={orc.clienteEstrategico} />
                 </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
                 <div>
                   <p className="text-xs text-slate-400 mb-1">Prazo resposta</p>
                   <span className="text-xs font-medium text-slate-700">
@@ -223,6 +261,17 @@ export function BlocoQualificacao({ orc, onAtualizar }: Props) {
       {/* Modo edição */}
       {editando && (
         <div className="space-y-3">
+          {/* Score preview em tempo real */}
+          <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
+            <p className="text-xs text-slate-400 mb-1.5">Score ABC (prévia)</p>
+            <BadgeABC orc={{
+              ...orc,
+              chanceFechamento: (form.chanceFechamento || undefined) as typeof orc.chanceFechamento,
+              valorEstrategico: (form.valorEstrategico || undefined) as typeof orc.valorEstrategico,
+              urgencia: (form.urgencia || undefined) as typeof orc.urgencia,
+            }} />
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={labelCls}>Chance fechamento</label>
@@ -237,13 +286,34 @@ export function BlocoQualificacao({ orc, onAtualizar }: Props) {
                 className={selectCls}
               >
                 <option value="">—</option>
-                <option value="alta">Alta</option>
-                <option value="media">Média</option>
-                <option value="baixa">Baixa</option>
+                <option value="alta">Alta (+5)</option>
+                <option value="media">Média (+3)</option>
+                <option value="baixa">Baixa (+1)</option>
               </select>
             </div>
             <div>
-              <label className={labelCls}>Urgência</label>
+              <label className={labelCls}>Valor estratégico</label>
+              <select
+                value={form.valorEstrategico}
+                onChange={(e) =>
+                  setForm((p) => ({
+                    ...p,
+                    valorEstrategico: e.target.value as NivelAltoMedioBaixo | '',
+                  }))
+                }
+                className={selectCls}
+              >
+                <option value="">—</option>
+                <option value="alto">Alto (+3)</option>
+                <option value="medio">Médio (+2)</option>
+                <option value="baixo">Baixo (+1)</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelCls}>Urgência / Prazo</label>
               <select
                 value={form.urgencia}
                 onChange={(e) =>
@@ -255,14 +325,11 @@ export function BlocoQualificacao({ orc, onAtualizar }: Props) {
                 className={selectCls}
               >
                 <option value="">—</option>
-                <option value="alta">Alta</option>
-                <option value="media">Média</option>
-                <option value="baixa">Baixa</option>
+                <option value="alta">Alta — Prazo curto (+2)</option>
+                <option value="media">Média — Prazo médio (+1)</option>
+                <option value="baixa">Baixa — Prazo longo (+0)</option>
               </select>
             </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={labelCls}>Fit técnico</label>
               <select
@@ -281,6 +348,9 @@ export function BlocoQualificacao({ orc, onAtualizar }: Props) {
                 <option value="baixo">Baixo</option>
               </select>
             </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={labelCls}>Clareza docs</label>
               <select
@@ -299,9 +369,6 @@ export function BlocoQualificacao({ orc, onAtualizar }: Props) {
                 <option value="baixa">Baixa</option>
               </select>
             </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={labelCls}>Cliente estratégico</label>
               <select
@@ -319,15 +386,16 @@ export function BlocoQualificacao({ orc, onAtualizar }: Props) {
                 <option value="nao">Não</option>
               </select>
             </div>
-            <div>
-              <label className={labelCls}>Prazo resposta</label>
-              <input
-                type="date"
-                value={form.prazoResposta}
-                onChange={(e) => setForm((p) => ({ ...p, prazoResposta: e.target.value }))}
-                className={selectCls}
-              />
-            </div>
+          </div>
+
+          <div>
+            <label className={labelCls}>Prazo resposta</label>
+            <input
+              type="date"
+              value={form.prazoResposta}
+              onChange={(e) => setForm((p) => ({ ...p, prazoResposta: e.target.value }))}
+              className={selectCls}
+            />
           </div>
 
           <div>

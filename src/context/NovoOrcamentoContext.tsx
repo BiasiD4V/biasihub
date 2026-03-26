@@ -59,9 +59,12 @@ export interface OrcamentoCard {
   clarezaDocumentos?: NivelAltaMediaBaixa;
   urgencia?: NivelAltaMediaBaixa;
   chanceFechamento?: NivelAltaMediaBaixa;
+  valorEstrategico?: NivelAltoMedioBaixo;
   clienteEstrategico?: SimNao;
   prazoResposta?: string;
   observacaoComercial?: string;
+  // Campos Fase 1
+  linkArquivo?: string;
 }
 
 export interface CriarOrcamentoInput {
@@ -80,6 +83,7 @@ export interface AtualizarComercialInput {
   dataEnvioProposta?: string;
   dataFechamento?: string;
   valorProposta?: number;
+  linkArquivo?: string;
 }
 
 interface NovoOrcamentoContextType {
@@ -132,6 +136,11 @@ const RESPONSAVEL_SEED: Record<string, string> = {
 const VALOR_PROPOSTA_SEED: Record<string, number> = {
   orc1: 142500,
   orc3: 87300,
+};
+
+const LINK_ARQUIVO_SEED: Record<string, string> = {
+  orc1: '\\\\FILESERVER\\COMERCIAL\\1 - ORÇAMENTOS\\2024\\ORC-2024-001 - Reforma Galpão 2',
+  orc3: '\\\\FILESERVER\\COMERCIAL\\1 - ORÇAMENTOS\\2024\\ORC-2024-003 - Subestação',
 };
 
 function construirSeeds(
@@ -209,11 +218,13 @@ function construirSeeds(
       dataEnvioProposta: mudancaProposta?.data.slice(0, 10),
       dataFechamento: mudancaFechamento?.data.slice(0, 10),
       valorProposta: VALOR_PROPOSTA_SEED[orc.id],
+      linkArquivo: LINK_ARQUIVO_SEED[orc.id],
       // Qualificação
       fitTecnico: qual?.fitTecnico,
       clarezaDocumentos: qual?.clarezaDocumentos,
       urgencia: qual?.urgencia,
       chanceFechamento: qual?.chanceFechamento,
+      valorEstrategico: qual?.valorEstrategico,
       clienteEstrategico: qual?.clienteEstrategico,
       prazoResposta: qual?.prazoResposta,
       observacaoComercial: qual?.observacaoComercial,
@@ -276,9 +287,11 @@ export function NovoOrcamentoProvider({ children }: { children: ReactNode }) {
       clarezaDocumentos: undefined,
       urgencia: undefined,
       chanceFechamento: undefined,
+      valorEstrategico: undefined,
       clienteEstrategico: undefined,
       prazoResposta: undefined,
       observacaoComercial: undefined,
+      linkArquivo: undefined,
     };
 
     // Registra mudança inicial de etapa

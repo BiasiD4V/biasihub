@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Calendar, User, Building, Tag, Clock, CheckCircle, XCircle } from 'lucide-react';
+import { ArrowLeft, Calendar, User, Building, Tag, Clock, CheckCircle, XCircle, FolderOpen, Edit2, Save, X, Copy } from 'lucide-react';
 import { useNovoOrcamento } from '../context/NovoOrcamentoContext';
 import { useAuth } from '../context/AuthContext';
 import { StatusBadgeNovo } from '../components/ui/StatusBadgeNovo';
@@ -13,7 +13,7 @@ import { AlertasOrcamento } from '../components/orcamentos/AlertasOrcamento';
 import { ModalNovoFollowUp } from '../components/orcamentos/ModalNovoFollowUp';
 import type { DadosFechamento } from '../components/orcamentos/ModalFechamentoComercial';
 import type { AtualizarQualificacaoInput } from '../context/NovoOrcamentoContext';
-import { calcularPrioridade, PRIORIDADE_CONFIG } from '../utils/prioridade';
+import { calcularPrioridade, PRIORIDADE_CONFIG, calcularScoreABC, PRIORIDADE_ABC_CONFIG } from '../utils/prioridade';
 import type { StatusRevisao } from '../domain/value-objects/StatusRevisao';
 import type { EtapaFunil } from '../domain/value-objects/EtapaFunil';
 
@@ -32,6 +32,8 @@ export function OrcamentoDetalhe() {
     atualizarQualificacao,
   } = useNovoOrcamento();
   const [modalFollowUpAberto, setModalFollowUpAberto] = useState(false);
+  const [editandoLink, setEditandoLink] = useState(false);
+  const [linkInput, setLinkInput] = useState('');
 
   const orc = id ? buscarOrcamento(id) : null;
   const followUps = id ? buscarFollowUps(id) : [];
@@ -72,6 +74,12 @@ export function OrcamentoDetalhe() {
     atualizarQualificacao(id, dados);
   }
 
+  function handleSalvarLink() {
+    if (!id) return;
+    atualizarComercial(id, { linkArquivo: linkInput.trim() });
+    setEditandoLink(false);
+  }
+
   function handleFechamento(dados: DadosFechamento) {
     if (!id) return;
     if (dados.resultado === 'ganho') {
@@ -108,6 +116,18 @@ export function OrcamentoDetalhe() {
           label={orc.statusLabel}
         />
         <h1 className="text-lg font-bold text-slate-800 truncate">{orc.titulo}</h1>
+        {/* Badge A/B/C */}
+        {(() => {
+          const abc = calcularScoreABC(orc);
+          if (!abc) return null;
+          const cfg = PRIORIDADE_ABC_CONFIG[abc.classe];
+          return (
+            <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border flex-shrink-0 ${cfg.bg} ${cfg.border}`}>
+              <span className={`text-base font-bold leading-none ${cfg.text}`}>{abc.classe}</span>
+              <span className={`text-xs font-medium ${cfg.text}`}>{abc.score}/10</span>
+            </div>
+          );
+        })()}
         <div className="ml-auto flex-shrink-0">
           <AlertasOrcamento orc={orc} />
         </div>
@@ -277,6 +297,65 @@ export function OrcamentoDetalhe() {
                   <div>
                     <p className="text-xs text-slate-400">Responsável</p>
                     <p className="text-sm font-medium text-slate-700">{orc.responsavel || '—'}</p>
+                  </div>
+                </div>
+
+                {/* Link do Arquivo */}
+                <div className="flex items-start gap-3">
+                  <FolderOpen size={14} className="text-slate-400 flex-shrink-0 mt-0.5" />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between mb-1">
+                      <p className="text-xs text-slate-400">Link do Arquivo</p>
+                      {!editandoLink ? (
+                        <button
+                          onClick={() => { setLinkInput(orc.linkArquivo ?? ''); setEditandoLink(true); }}
+                          className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700"
+                        >
+                          <Edit2 size={10} />
+                          {orc.linkArquivo ? 'Editar' : 'Adicionar'}
+                        </button>
+                      ) : (
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => setEditandoLink(false)}
+                            className="text-slate-400 hover:text-slate-600"
+                          >
+                            <X size={12} />
+                          </button>
+                          <button
+                            onClick={handleSalvarLink}
+                            className="flex items-center gap-1 text-xs bg-blue-600 text-white px-2 py-0.5 rounded"
+                          >
+                            <Save size={10} />
+                            Salvar
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    {editandoLink ? (
+                      <input
+                        type="text"
+                        value={linkInput}
+                        onChange={(e) => setLinkInput(e.target.value)}
+                        placeholder="Ex: \\FILESERVER\COMERCIAL\ORC-2024-001"
+                        className="w-full border border-slate-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
+                        autoFocus
+                        onKeyDown={(e) => { if (e.key === 'Enter') handleSalvarLink(); if (e.key === 'Escape') setEditandoLink(false); }}
+                      />
+                    ) : orc.linkArquivo ? (
+                      <div className="flex items-center gap-1 group">
+                        <p className="text-xs font-mono text-slate-600 truncate">{orc.linkArquivo}</p>
+                        <button
+                          onClick={() => navigator.clipboard.writeText(orc.linkArquivo!)}
+                          className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-slate-600 flex-shrink-0"
+                          title="Copiar caminho"
+                        >
+                          <Copy size={10} />
+                        </button>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-slate-300 italic">Não informado</p>
+                    )}
                   </div>
                 </div>
               </div>

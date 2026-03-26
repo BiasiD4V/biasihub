@@ -8,6 +8,7 @@ export interface QualificacaoOportunidade {
   clarezaDocumentos: NivelAltaMediaBaixa;
   urgencia: NivelAltaMediaBaixa;
   chanceFechamento: NivelAltaMediaBaixa;
+  valorEstrategico?: NivelAltoMedioBaixo;
   clienteEstrategico: SimNao;
   prazoResposta?: string;        // YYYY-MM-DD
   observacaoComercial?: string;
