@@ -29,6 +29,7 @@ import { Composicoes } from './pages/Composicoes';
 import { Templates } from './pages/Templates';
 import { Aprovacoes } from './pages/Aprovacoes';
 import { Relatorios } from './pages/Relatorios';
+import { Propostas } from './pages/Propostas';
 
 export function App() {
   return (
@@ -61,6 +62,7 @@ export function App() {
                   <Route path="/templates" element={<Templates />} />
                   <Route path="/aprovacoes" element={<Aprovacoes />} />
                   <Route path="/relatorios" element={<Relatorios />} />
+                  <Route path="/operacao/orcamentos" element={<Propostas />} />
                 </Route>
 
                 {/* Fallback */}
