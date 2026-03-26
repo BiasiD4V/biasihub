@@ -35,11 +35,11 @@ export function ConfiguradorUUIDs() {
         'ryan.stradioto@biasiengenharia.com'
       ];
 
-      const usuariosFiltrados = dados
+      const usuariosFiltrados: User[] = dados
         .filter((u: any) => emailsEsperados.includes(u.email))
         .map((u: any) => ({
-          email: u.email,
-          id: u.id
+          email: u.email as string,
+          id: u.id as string
         }));
 
       if (usuariosFiltrados.length === 0) {

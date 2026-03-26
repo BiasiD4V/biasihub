@@ -36,7 +36,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // Escutar mudanças na autenticação
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      async (_event, session) => {
         if (session?.user) {
           await loadUserProfile(session.user.id);
         } else {
@@ -86,23 +86,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     try {
       setLoading(true);
+      
+      console.log('🔐 Tentando login com:', email);
+      
       const { data, error } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password: senha,
       });
 
+      console.log('📊 Resposta do Supabase:', { 
+        temData: !!data, 
+        temErro: !!error, 
+        temUsuario: !!data?.user,
+        erro: error?.message 
+      });
+
       if (error) {
+        console.error('❌ Erro na autenticação:', error.message);
         return { sucesso: false, erro: 'E-mail ou senha incorretos.' };
       }
 
       if (data.user) {
+        console.log('✅ Usuário autenticado:', data.user.id);
         // O perfil será carregado automaticamente pelo onAuthStateChange
         return { sucesso: true };
       }
 
+      console.warn('⚠️ Nenhum usuário retornado');
       return { sucesso: false, erro: 'Erro inesperado no login.' };
     } catch (error) {
-      console.error('Erro no login:', error);
+      console.error('💥 Erro fatal no login:', error);
       return { sucesso: false, erro: 'Erro ao fazer login. Tente novamente.' };
     } finally {
       setLoading(false);
