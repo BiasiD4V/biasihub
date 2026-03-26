@@ -1,7 +1,9 @@
 import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Building2, Eye, EyeOff } from 'lucide-react';
+import { Building2, Eye, EyeOff, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+
+const ADMIN_EMAIL = 'guilherme@biasiengenharia.com.br';
 
 export function Login() {
   const navigate = useNavigate();
@@ -12,6 +14,21 @@ export function Login() {
   const [mostrarSenha, setMostrarSenha] = useState(false);
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState('');
+
+  const [modalCriar, setModalCriar] = useState(false);
+  const [nomeNovo, setNomeNovo] = useState('');
+  const [emailNovo, setEmailNovo] = useState('');
+  const [solicitacaoEnviada, setSolicitacaoEnviada] = useState(false);
+
+  function handleSolicitarAcesso(e: FormEvent) {
+    e.preventDefault();
+    const subject = encodeURIComponent('Solicitação de acesso — OrcaBiasi');
+    const body = encodeURIComponent(
+      `Olá,\n\nO usuário abaixo está solicitando acesso ao OrcaBiasi:\n\nNome: ${nomeNovo}\nE-mail: ${emailNovo}\n\nPor favor, crie a conta e envie as credenciais.\n\nAtt.`
+    );
+    window.location.href = `mailto:${ADMIN_EMAIL}?subject=${subject}&body=${body}`;
+    setSolicitacaoEnviada(true);
+  }
 
   if (isAuthenticated) {
     navigate('/dashboard', { replace: true });
@@ -112,9 +129,84 @@ export function Login() {
 
         <p className="text-center text-sm text-slate-500 mt-6">
           Não tem conta?{' '}
-          <span className="text-blue-600 font-medium cursor-default">Criar</span>
+          <button
+            onClick={() => { setModalCriar(true); setSolicitacaoEnviada(false); setNomeNovo(''); setEmailNovo(''); }}
+            className="text-blue-600 font-medium hover:underline"
+          >
+            Criar
+          </button>
         </p>
       </div>
+
+      {/* Modal solicitar acesso */}
+      {modalCriar && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-lg w-full max-w-sm p-8 relative">
+            <button
+              onClick={() => setModalCriar(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"
+            >
+              <X size={18} />
+            </button>
+
+            {solicitacaoEnviada ? (
+              <div className="text-center py-4">
+                <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-6 h-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <h2 className="text-lg font-bold text-slate-800 mb-2">Solicitação enviada!</h2>
+                <p className="text-sm text-slate-500">Um administrador vai criar sua conta e entrar em contato.</p>
+                <button
+                  onClick={() => setModalCriar(false)}
+                  className="mt-6 w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 rounded-lg text-sm transition-colors"
+                >
+                  Fechar
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="mb-6">
+                  <h2 className="text-xl font-bold text-slate-800">Solicitar acesso</h2>
+                  <p className="text-sm text-slate-500 mt-1">Preencha seus dados e um administrador criará sua conta.</p>
+                </div>
+
+                <form onSubmit={handleSolicitarAcesso} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1.5">Nome</label>
+                    <input
+                      type="text"
+                      value={nomeNovo}
+                      onChange={(e) => setNomeNovo(e.target.value)}
+                      placeholder="Seu nome completo"
+                      required
+                      className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1.5">E-mail</label>
+                    <input
+                      type="email"
+                      value={emailNovo}
+                      onChange={(e) => setEmailNovo(e.target.value)}
+                      placeholder="seu@email.com.br"
+                      required
+                      className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 rounded-lg text-sm transition-colors mt-2"
+                  >
+                    Enviar solicitação
+                  </button>
+                </form>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
