@@ -9,6 +9,7 @@ import { OrcamentosProvider } from './context/OrcamentosContext';
 
 // Layout autenticado
 import { LayoutAutenticado } from './components/layout/LayoutAutenticado';
+import { RedirectToDashboard } from './components/RedirectToDashboard';
 
 // Páginas públicas
 import { Login } from './pages/Login';
@@ -39,8 +40,8 @@ export function App() {
                 {/* Rota pública */}
                 <Route path="/login" element={<Login />} />
 
-                {/* Raiz → redireciona para dashboard */}
-                <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                {/* Raiz → redireciona baseado na autenticação */}
+                <Route path="/" element={<RedirectToDashboard />} />
 
                 {/* Rotas autenticadas — verificação feita no LayoutAutenticado */}
                 <Route element={<LayoutAutenticado />}>
