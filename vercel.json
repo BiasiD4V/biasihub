@@ -1,6 +1,10 @@
 {
-  "buildCommand": "npm run build",
-  "outputDirectory": "dist",
+  "version": 2,
+  "buildCommand": "tsc && npm run build",
+  "outputDirectory": "./dist",
+  "env": {
+    "BUILD_CMD": "tsc && vite build"
+  },
   "rewrites": [
     {
       "source": "/(.*)",
