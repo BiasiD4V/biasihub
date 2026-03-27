@@ -18,6 +18,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Timeout de segurança: se Supabase não responder em 5s, libera a tela
+    const timeout = setTimeout(() => setLoading(false), 5000);
+
     // Verificar se já existe uma sessão ativa
     const checkUser = async () => {
       try {
@@ -28,6 +31,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } catch (error) {
         console.error('Erro ao verificar sessão:', error);
       } finally {
+        clearTimeout(timeout);
         setLoading(false);
       }
     };
@@ -46,7 +50,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     );
 
-    return () => subscription.unsubscribe();
+    return () => {
+      clearTimeout(timeout);
+      subscription.unsubscribe();
+    };
   }, []);
 
   const loadUserProfile = async (userId: string) => {
