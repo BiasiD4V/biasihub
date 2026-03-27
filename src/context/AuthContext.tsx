@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useRef, type ReactNode } from 'react';
 import { supabase } from '../infrastructure/supabase/client';
 import type { Usuario } from '../domain/entities/Usuario';
 import type { PapelUsuario } from '../domain/value-objects/PapelUsuario';
@@ -7,6 +7,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   usuario: Usuario | null;
   loading: boolean;
+  erroConexao: string | null;
   login: (email: string, senha: string) => Promise<{ sucesso: boolean; erro?: string }>;
   logout: () => void;
 }
@@ -16,47 +17,61 @@ const AuthContext = createContext<AuthContextType | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [usuario, setUsuario] = useState<Usuario | null>(null);
   const [loading, setLoading] = useState(true);
+  const [erroConexao, setErroConexao] = useState<string | null>(null);
+  const inicializado = useRef(false);
 
   useEffect(() => {
-    // Timeout de segurança: se Supabase não responder em 5s, libera a tela
-    const timeout = setTimeout(() => setLoading(false), 5000);
-
-    // Verificar se já existe uma sessão ativa
-    const checkUser = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user) {
-          await loadUserProfile(session.user.id);
-        }
-      } catch (error) {
-        console.error('Erro ao verificar sessão:', error);
-      } finally {
-        clearTimeout(timeout);
+    // Timeout de segurança: se Supabase não responder em 5s, libera a tela de login
+    const timeout = setTimeout(() => {
+      if (!inicializado.current) {
+        inicializado.current = true;
+        console.warn('Supabase não respondeu em 5s — liberando tela de login');
         setLoading(false);
       }
-    };
+    }, 5000);
 
-    checkUser();
+    let subscription: { unsubscribe: () => void } | null = null;
 
-    // Escutar mudanças na autenticação
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        if (session?.user) {
-          await loadUserProfile(session.user.id);
-        } else {
-          setUsuario(null);
+    try {
+      const { data } = supabase.auth.onAuthStateChange(
+        async (_event, session) => {
+          if (inicializado.current && _event === 'INITIAL_SESSION') return;
+
+          clearTimeout(timeout);
+          inicializado.current = true;
+          setErroConexao(null);
+
+          if (_event === 'INITIAL_SESSION') {
+            if (session?.user) {
+              await loadUserProfile(session.user.id);
+            } else {
+              setUsuario(null);
+            }
+            setLoading(false);
+          } else if (_event === 'SIGNED_IN') {
+            setLoading(false);
+          } else if (_event === 'SIGNED_OUT') {
+            setUsuario(null);
+            setLoading(false);
+          }
         }
-        setLoading(false);
-      }
-    );
+      );
+      subscription = data.subscription;
+    } catch (err) {
+      clearTimeout(timeout);
+      inicializado.current = true;
+      console.error('Erro ao conectar com Supabase Auth:', err);
+      setErroConexao('Não foi possível conectar ao servidor de autenticação.');
+      setLoading(false);
+    }
 
     return () => {
       clearTimeout(timeout);
-      subscription.unsubscribe();
+      subscription?.unsubscribe();
     };
   }, []);
 
-  const loadUserProfile = async (userId: string) => {
+  const loadUserProfile = async (userId: string): Promise<boolean> => {
     try {
       const { data, error } = await supabase
         .from('usuarios')
@@ -66,7 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (error) {
         console.error('Erro ao carregar perfil:', error);
-        return;
+        return false;
       }
 
       if (data) {
@@ -77,9 +92,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           papel: data.papel as PapelUsuario,
           ativo: data.ativo,
         });
+        return true;
       }
+      return false;
     } catch (error) {
       console.error('Erro ao carregar perfil do usuário:', error);
+      return false;
     }
   };
 
@@ -98,18 +116,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       if (error) {
-        return { sucesso: false, erro: 'E-mail ou senha incorretos.' };
+        if (error.message.includes('Invalid login credentials')) {
+          return { sucesso: false, erro: 'E-mail ou senha incorretos.' };
+        }
+        return { sucesso: false, erro: `Erro ao fazer login: ${error.message}` };
       }
 
       if (data.user) {
-        // Carrega o perfil diretamente sem depender do onAuthStateChange
-        await loadUserProfile(data.user.id);
+        const ok = await loadUserProfile(data.user.id);
+        if (!ok) {
+          await supabase.auth.signOut();
+          return { sucesso: false, erro: 'Perfil de usuário não encontrado. Contate o administrador.' };
+        }
         return { sucesso: true };
       }
 
       return { sucesso: false, erro: 'Erro inesperado no login.' };
     } catch (error) {
-      return { sucesso: false, erro: 'Erro ao fazer login. Tente novamente.' };
+      return { sucesso: false, erro: 'Erro de conexão. Verifique sua internet e tente novamente.' };
     }
   }
 
@@ -127,6 +151,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isAuthenticated: !!usuario,
       usuario,
       loading,
+      erroConexao,
       login,
       logout
     }}>
