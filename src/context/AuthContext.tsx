@@ -18,27 +18,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Timeout de segurança: se Supabase não responder em 5s, libera a tela
-    const timeout = setTimeout(() => setLoading(false), 5000);
-
-    // Verificar se já existe uma sessão ativa
-    const checkUser = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user) {
-          await loadUserProfile(session.user.id);
-        }
-      } catch (error) {
-        console.error('Erro ao verificar sessão:', error);
-      } finally {
-        clearTimeout(timeout);
-        setLoading(false);
-      }
-    };
-
-    checkUser();
-
-    // Escutar mudanças na autenticação
+    const timeout = setTimeout(() => setLoading(false), 10000);
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
         if (session?.user) {
@@ -46,90 +26,61 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } else {
           setUsuario(null);
         }
+        clearTimeout(timeout);
         setLoading(false);
       }
     );
-
     return () => {
       clearTimeout(timeout);
       subscription.unsubscribe();
     };
   }, []);
 
-  const loadUserProfile = async (userId: string) => {
+  const loadUserProfile = async (userId: string): Promise<boolean> => {
     try {
       const { data, error } = await supabase
         .from('usuarios')
         .select('*')
         .eq('id', userId)
         .single();
-
-      if (error) {
-        console.error('Erro ao carregar perfil:', error);
-        return;
-      }
-
+      if (error) { console.error('Erro ao carregar perfil:', error); return false; }
       if (data) {
-        setUsuario({
-          id: data.id,
-          nome: data.nome,
-          email: data.email,
-          papel: data.papel as PapelUsuario,
-          ativo: data.ativo,
-        });
+        setUsuario({ id: data.id, nome: data.nome, email: data.email, papel: data.papel as PapelUsuario, ativo: data.ativo });
+        return true;
       }
+      return false;
     } catch (error) {
       console.error('Erro ao carregar perfil do usuário:', error);
+      return false;
     }
   };
 
-  async function login(
-    email: string,
-    senha: string
-  ): Promise<{ sucesso: boolean; erro?: string }> {
-    if (!email.trim() || !senha.trim()) {
-      return { sucesso: false, erro: 'Preencha e-mail e senha.' };
-    }
-
+  async function login(email: string, senha: string): Promise<{ sucesso: boolean; erro?: string }> {
+    if (!email.trim() || !senha.trim()) return { sucesso: false, erro: 'Preencha e-mail e senha.' };
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password: senha,
-      });
-
+      const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password: senha });
       if (error) {
-        return { sucesso: false, erro: 'E-mail ou senha incorretos.' };
+        if (error.message.includes('Invalid login credentials')) return { sucesso: false, erro: 'E-mail ou senha incorretos.' };
+        return { sucesso: false, erro: 'Erro ao fazer login: ' + error.message };
       }
-
       if (data.user) {
-        // Carrega o perfil diretamente sem depender do onAuthStateChange
-        await loadUserProfile(data.user.id);
+        const ok = await loadUserProfile(data.user.id);
+        if (!ok) { await supabase.auth.signOut(); return { sucesso: false, erro: 'Perfil não encontrado. Contate o administrador.' }; }
         return { sucesso: true };
       }
-
       return { sucesso: false, erro: 'Erro inesperado no login.' };
     } catch (error) {
-      return { sucesso: false, erro: 'Erro ao fazer login. Tente novamente.' };
+      return { sucesso: false, erro: 'Erro de conexão. Tente novamente.' };
     }
   }
 
   async function logout() {
-    try {
-      await supabase.auth.signOut();
-      setUsuario(null);
-    } catch (error) {
-      console.error('Erro no logout:', error);
-    }
+    try { await supabase.auth.signOut(); setUsuario(null); }
+    catch (error) { console.error('Erro no logout:', error); }
   }
 
   return (
-    <AuthContext.Provider value={{
-      isAuthenticated: !!usuario,
-      usuario,
-      loading,
-      login,
-      logout
-    }}>
+    <AuthContext.Provider value={{ isAuthenticated: !!usuario, usuario, loading, login, logout }}>
       {children}
     </AuthContext.Provider>
   );
