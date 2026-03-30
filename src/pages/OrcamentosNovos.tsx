@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { PlusCircle, Search, FileText, LayoutGrid, List, TrendingUp, CheckCircle, DollarSign, BarChart2, AlertTriangle } from 'lucide-react';
+import { PlusCircle, Search, FileText, LayoutGrid, List, TrendingUp, CheckCircle, DollarSign, BarChart2, AlertTriangle, Edit2 } from 'lucide-react';
 import { useNovoOrcamento } from '../context/NovoOrcamentoContext';
 import { ModalNovoOrcamento } from '../components/orcamentos/ModalNovoOrcamento';
 import { KanbanFunil } from '../components/orcamentos/KanbanFunil';
@@ -392,6 +392,7 @@ export function OrcamentosNovos() {
                       <th className="px-4 py-3 text-center">Etapa</th>
                       <th className="px-4 py-3 text-center">Prior.</th>
                       <th className="px-4 py-3 text-center">Alertas</th>
+                      <th className="px-2 py-3 text-center w-10"></th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -408,7 +409,7 @@ export function OrcamentosNovos() {
                       const prio = calcularPrioridadeProposta(p);
                       const alertas = getAlertasProposta(p);
                       return (
-                        <tr key={p.id} onClick={() => setPropostaEditando(p)} className={`hover:bg-slate-50 transition-colors border-l-4 ${statusCor} cursor-pointer`}>
+                        <tr key={p.id} onClick={() => navigate(`/orcamentos/${p.id}`)} className={`hover:bg-slate-50 transition-colors border-l-4 ${statusCor} cursor-pointer`}>
                           <td className="px-4 py-3 font-mono text-xs text-slate-600 whitespace-nowrap">
                             {p.numero_composto}
                           </td>
@@ -467,6 +468,15 @@ export function OrcamentosNovos() {
                             ) : (
                               <span className="text-slate-300">—</span>
                             )}
+                          </td>
+                          <td className="px-2 py-3 text-center">
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setPropostaEditando(p); }}
+                              className="p-1.5 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
+                              title="Editar proposta"
+                            >
+                              <Edit2 size={14} />
+                            </button>
                           </td>
                         </tr>
                       );
