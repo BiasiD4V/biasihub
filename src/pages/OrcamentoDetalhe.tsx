@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Calendar, User, Building, Tag, Clock, CheckCircle, XCircle, FolderOpen, Edit2, Save, X, Copy } from 'lucide-react';
 import { useNovoOrcamento } from '../context/NovoOrcamentoContext';
@@ -11,11 +11,49 @@ import { BlocoQualificacao } from '../components/orcamentos/BlocoQualificacao';
 import { HistoricoEtapas } from '../components/orcamentos/HistoricoEtapas';
 import { AlertasOrcamento } from '../components/orcamentos/AlertasOrcamento';
 import { ModalNovoFollowUp } from '../components/orcamentos/ModalNovoFollowUp';
+
+import { propostasRepository, type PropostaSupabase } from '../infrastructure/supabase/propostasRepository';
 import type { DadosFechamento } from '../components/orcamentos/ModalFechamentoComercial';
 import type { AtualizarQualificacaoInput } from '../context/NovoOrcamentoContext';
+import type { OrcamentoCard } from '../context/NovoOrcamentoContext';
 import { calcularPrioridade, PRIORIDADE_CONFIG, calcularScoreABC, PRIORIDADE_ABC_CONFIG } from '../utils/prioridade';
 import type { StatusRevisao } from '../domain/value-objects/StatusRevisao';
 import type { EtapaFunil } from '../domain/value-objects/EtapaFunil';
+import type { ResultadoComercial } from '../domain/value-objects/ResultadoComercial';
+
+/* Helper: converte PropostaSupabase → OrcamentoCard (parcial) */
+function propostaParaOrc(p: PropostaSupabase): OrcamentoCard {
+  return {
+    id: p.id,
+    numero: p.numero_composto,
+    titulo: [p.cliente, p.obra].filter(Boolean).join(' — ') || p.numero_composto,
+    clienteId: '',
+    clienteNome: p.cliente || '—',
+    tiposObraIds: [],
+    tiposObraNomes: p.tipo ? [p.tipo] : [],
+    disciplinaIds: [],
+    disciplinaNomes: p.disciplina ? [p.disciplina] : [],
+    dataBase: p.data_entrada || '',
+    responsavel: p.responsavel || '',
+    status: (p.status === 'FECHADO' ? 'aprovado' : p.status === 'ENVIADO' ? 'enviado' : 'rascunho') as StatusRevisao | 'rascunho',
+    statusLabel: p.status || 'Rascunho',
+    criadoEm: p.created_at,
+    etapaAtual: p.etapa_funil || 'qualificacao',
+    proximaAcao: p.proxima_acao || '',
+    dataProximaAcao: p.data_proxima_acao || '',
+    ultimaInteracao: p.ultima_interacao || '',
+    pendenciasAbertas: 0,
+    etapaFunil: (p.etapa_funil || 'qualificacao') as EtapaFunil,
+    resultadoComercial: (p.resultado_comercial || 'em_andamento') as ResultadoComercial,
+    motivoPerda: undefined,
+    dataEnvioProposta: undefined,
+    dataFechamento: undefined,
+    valorProposta: p.valor_orcado ?? undefined,
+    chanceFechamento: (p.chance_fechamento as any) ?? undefined,
+    urgencia: (p.urgencia as any) ?? undefined,
+    observacaoComercial: p.observacao_comercial ?? undefined,
+  };
+}
 
 export function OrcamentoDetalhe() {
   const { id } = useParams<{ id: string }>();
@@ -35,10 +73,43 @@ export function OrcamentoDetalhe() {
   const [editandoLink, setEditandoLink] = useState(false);
   const [linkInput, setLinkInput] = useState('');
 
-  const orc = id ? buscarOrcamento(id) : null;
-  const followUps = id ? buscarFollowUps(id) : [];
-  const pendencias = id ? buscarPendencias(id) : [];
-  const mudancasEtapa = id ? buscarMudancasEtapa(id) : [];
+  // Tentar do mock primeiro
+  const orcMock = id ? buscarOrcamento(id) : null;
+
+  // Se não achou no mock, buscar do Supabase
+  const [propostaSupa, setPropostaSupa] = useState<PropostaSupabase | null>(null);
+  const [carregando, setCarregando] = useState(false);
+
+  useEffect(() => {
+    if (orcMock || !id) return;
+    setCarregando(true);
+    propostasRepository.buscarPorId(id).then((p) => {
+      setPropostaSupa(p);
+      setCarregando(false);
+    });
+  }, [id, orcMock]);
+
+  const orc: OrcamentoCard | null = orcMock ?? (propostaSupa ? propostaParaOrc(propostaSupa) : null);
+  const isSupa = !orcMock && !!propostaSupa;
+
+  const followUps = id && !isSupa ? buscarFollowUps(id) : [];
+  const pendencias = id && !isSupa ? buscarPendencias(id) : [];
+  const mudancasEtapa = id && !isSupa ? buscarMudancasEtapa(id) : [];
+
+  if (carregando) {
+    return (
+      <div className="flex flex-col h-full">
+        <div className="px-8 py-6 border-b border-slate-200 bg-white flex items-center gap-4">
+          <button onClick={() => navigate('/orcamentos')} className="flex items-center gap-2 text-slate-500 hover:text-slate-700 text-sm transition-colors">
+            <ArrowLeft size={16} /> Voltar
+          </button>
+        </div>
+        <div className="flex-1 flex items-center justify-center">
+          <p className="text-slate-500">Carregando...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!orc) {
     return (

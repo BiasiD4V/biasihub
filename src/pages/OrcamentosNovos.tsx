@@ -409,7 +409,7 @@ export function OrcamentosNovos() {
                       const prio = calcularPrioridadeProposta(p);
                       const alertas = getAlertasProposta(p);
                       return (
-                        <tr key={p.id} onClick={() => setPropostaEditando(p)} className={`hover:bg-slate-50 transition-colors border-l-4 ${statusCor} cursor-pointer`}>
+                        <tr key={p.id} onClick={() => navigate(`/orcamentos/${p.id}`)} className={`hover:bg-slate-50 transition-colors border-l-4 ${statusCor} cursor-pointer`}>
                           <td className="px-4 py-3 font-mono text-xs text-slate-600 whitespace-nowrap">
                             {p.numero_composto}
                           </td>
