@@ -4,6 +4,7 @@ import { PlusCircle, Search, FileText, LayoutGrid, List, TrendingUp, CheckCircle
 import { useNovoOrcamento } from '../context/NovoOrcamentoContext';
 import { ModalNovoOrcamento } from '../components/orcamentos/ModalNovoOrcamento';
 import { KanbanFunil } from '../components/orcamentos/KanbanFunil';
+import { ModalEditarProposta } from '../components/orcamentos/ModalEditarProposta';
 import {
   propostasRepository,
   type PropostaSupabase,
@@ -61,6 +62,7 @@ export function OrcamentosNovos() {
   const [disciplinaOpcoes, setDisciplinaOpcoes] = useState<string[]>([]);
   const [responsavelOpcoes, setResponsavelOpcoes] = useState<string[]>([]);
   const [kpis, setKpis] = useState({ total: 0, fechadas: 0, valorTotal: 0 });
+  const [propostaEditando, setPropostaEditando] = useState<PropostaSupabase | null>(null);
 
   const POR_PAGINA = 50;
   const totalPaginas = Math.ceil(propostasTotal / POR_PAGINA);
@@ -129,6 +131,11 @@ export function OrcamentosNovos() {
   function handleCriado(id: string) {
     setModalAberto(false);
     navigate(`/orcamentos/${id}`);
+  }
+
+  function handlePropostaSalva(p: PropostaSupabase) {
+    setPropostas((prev) => prev.map((old) => (old.id === p.id ? p : old)));
+    setPropostaEditando(null);
   }
 
   return (
@@ -364,7 +371,7 @@ export function OrcamentosNovos() {
                         p.status === 'DECLINADO' ? 'border-l-orange-400' :
                         'border-l-slate-200';
                       return (
-                        <tr key={p.id} className={`hover:bg-slate-50 transition-colors border-l-4 ${statusCor}`}>
+                        <tr key={p.id} onClick={() => setPropostaEditando(p)} className={`hover:bg-slate-50 transition-colors border-l-4 ${statusCor} cursor-pointer`}>
                           <td className="px-4 py-3 font-mono text-xs text-slate-600 whitespace-nowrap">
                             {p.numero_composto}
                           </td>
@@ -436,11 +443,21 @@ export function OrcamentosNovos() {
         )}
       </div>
 
-      {/* Modal */}
+      {/* Modal Novo */}
       <ModalNovoOrcamento
         aberto={modalAberto}
         onFechar={() => setModalAberto(false)}
         onCriado={handleCriado}
+      />
+
+      {/* Modal Editar Proposta */}
+      <ModalEditarProposta
+        proposta={propostaEditando}
+        onFechar={() => setPropostaEditando(null)}
+        onSalvo={handlePropostaSalva}
+        statusOpcoes={statusOpcoes}
+        disciplinaOpcoes={disciplinaOpcoes}
+        responsavelOpcoes={responsavelOpcoes}
       />
     </div>
   );

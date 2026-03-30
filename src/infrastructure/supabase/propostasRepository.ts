@@ -194,4 +194,25 @@ export const propostasRepository = {
 
     return { total, fechadas, valorTotal, porAno, porStatus, porResponsavel, porDisciplina, recentes: recentes || [] }
   },
+
+  async atualizar(id: string, dados: Partial<Omit<PropostaSupabase, 'id' | 'created_at'>>): Promise<PropostaSupabase> {
+    const { data, error } = await supabase
+      .from('propostas')
+      .update(dados)
+      .eq('id', id)
+      .select()
+      .single()
+    if (error) throw error
+    return data
+  },
+
+  async buscarPorId(id: string): Promise<PropostaSupabase | null> {
+    const { data, error } = await supabase
+      .from('propostas')
+      .select('*')
+      .eq('id', id)
+      .single()
+    if (error) return null
+    return data
+  },
 }

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Calendar, User, Building, Tag, Clock, CheckCircle, XCircle, FolderOpen, Edit2, Save, X, Copy } from 'lucide-react';
+import { ArrowLeft, Calendar, User, Building, Tag, Clock, CheckCircle, XCircle, FolderOpen, Edit2, Save, X, Copy, Hammer } from 'lucide-react';
 import { useNovoOrcamento } from '../context/NovoOrcamentoContext';
 import { useAuth } from '../context/AuthContext';
 import { StatusBadgeNovo } from '../components/ui/StatusBadgeNovo';
@@ -11,6 +11,8 @@ import { BlocoQualificacao } from '../components/orcamentos/BlocoQualificacao';
 import { HistoricoEtapas } from '../components/orcamentos/HistoricoEtapas';
 import { AlertasOrcamento } from '../components/orcamentos/AlertasOrcamento';
 import { ModalNovoFollowUp } from '../components/orcamentos/ModalNovoFollowUp';
+import { TabelasAbas } from '../components/orcamentos/TabelasAbas';
+import { AbaMaoObra } from '../components/orcamentos/AbaMaoObra';
 import type { DadosFechamento } from '../components/orcamentos/ModalFechamentoComercial';
 import type { AtualizarQualificacaoInput } from '../context/NovoOrcamentoContext';
 import { calcularPrioridade, PRIORIDADE_CONFIG, calcularScoreABC, PRIORIDADE_ABC_CONFIG } from '../utils/prioridade';
@@ -381,6 +383,20 @@ export function OrcamentoDetalhe() {
                 <p className="text-xs text-slate-400">Nenhuma disciplina informada.</p>
               )}
             </div>
+
+            {/* Mão de Obra */}
+            {id && (
+              <TabelasAbas
+                abas={[
+                  {
+                    id: 'mao_obra',
+                    label: 'Mão de Obra',
+                    icon: <Hammer size={14} />,
+                    content: <AbaMaoObra orcamentoId={id} />,
+                  },
+                ]}
+              />
+            )}
           </div>
         </div>
       </div>
