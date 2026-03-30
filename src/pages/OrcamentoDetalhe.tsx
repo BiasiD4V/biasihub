@@ -19,10 +19,26 @@ import type { OrcamentoCard } from '../context/NovoOrcamentoContext';
 import { calcularPrioridade, PRIORIDADE_CONFIG, calcularScoreABC, PRIORIDADE_ABC_CONFIG } from '../utils/prioridade';
 import type { StatusRevisao } from '../domain/value-objects/StatusRevisao';
 import type { EtapaFunil } from '../domain/value-objects/EtapaFunil';
+import { ETAPA_CORES } from '../domain/value-objects/EtapaFunil';
 import type { ResultadoComercial } from '../domain/value-objects/ResultadoComercial';
+import { RESULTADO_CORES } from '../domain/value-objects/ResultadoComercial';
+
+const ETAPA_DEFAULT: EtapaFunil = 'entrada_oportunidade';
+const RESULTADO_DEFAULT: ResultadoComercial = 'em_andamento';
+
+function etapaSegura(v: string | null): EtapaFunil {
+  if (v && v in ETAPA_CORES) return v as EtapaFunil;
+  return ETAPA_DEFAULT;
+}
+function resultadoSeguro(v: string | null): ResultadoComercial {
+  if (v && v in RESULTADO_CORES) return v as ResultadoComercial;
+  return RESULTADO_DEFAULT;
+}
 
 /* Helper: converte PropostaSupabase → OrcamentoCard (parcial) */
 function propostaParaOrc(p: PropostaSupabase): OrcamentoCard {
+  const etapa = etapaSegura(p.etapa_funil);
+  const resultado = resultadoSeguro(p.resultado_comercial);
   return {
     id: p.id,
     numero: p.numero_composto,
@@ -38,13 +54,13 @@ function propostaParaOrc(p: PropostaSupabase): OrcamentoCard {
     status: (p.status === 'FECHADO' ? 'aprovado' : p.status === 'ENVIADO' ? 'enviado' : 'rascunho') as StatusRevisao | 'rascunho',
     statusLabel: p.status || 'Rascunho',
     criadoEm: p.created_at,
-    etapaAtual: p.etapa_funil || 'qualificacao',
+    etapaAtual: etapa,
     proximaAcao: p.proxima_acao || '',
     dataProximaAcao: p.data_proxima_acao || '',
-    ultimaInteracao: p.ultima_interacao || '',
+    ultimaInteracao: p.ultima_interacao || new Date().toISOString().slice(0, 10),
     pendenciasAbertas: 0,
-    etapaFunil: (p.etapa_funil || 'qualificacao') as EtapaFunil,
-    resultadoComercial: (p.resultado_comercial || 'em_andamento') as ResultadoComercial,
+    etapaFunil: etapa,
+    resultadoComercial: resultado,
     motivoPerda: undefined,
     dataEnvioProposta: undefined,
     dataFechamento: undefined,
@@ -78,15 +94,19 @@ export function OrcamentoDetalhe() {
 
   // Se não achou no mock, buscar do Supabase
   const [propostaSupa, setPropostaSupa] = useState<PropostaSupabase | null>(null);
-  const [carregando, setCarregando] = useState(false);
+  const [carregando, setCarregando] = useState(!orcMock && !!id);
 
   useEffect(() => {
     if (orcMock || !id) return;
+    let cancelado = false;
     setCarregando(true);
     propostasRepository.buscarPorId(id).then((p) => {
-      setPropostaSupa(p);
-      setCarregando(false);
-    });
+      if (!cancelado) {
+        setPropostaSupa(p);
+        setCarregando(false);
+      }
+    }).catch(() => { if (!cancelado) setCarregando(false); });
+    return () => { cancelado = true; };
   }, [id, orcMock]);
 
   const orc: OrcamentoCard | null = orcMock ?? (propostaSupa ? propostaParaOrc(propostaSupa) : null);
