@@ -8,6 +8,7 @@ interface ModalNovoFollowUpProps {
   aberto: boolean;
   onFechar: () => void;
   orcamentoId: string;
+  onRegistrado?: (followUp: import('../../domain/entities/FollowUp').FollowUp) => void;
 }
 
 interface FormFollowUp {
@@ -36,7 +37,7 @@ function camposVazios(): FormFollowUp {
   };
 }
 
-export function ModalNovoFollowUp({ aberto, onFechar, orcamentoId }: ModalNovoFollowUpProps) {
+export function ModalNovoFollowUp({ aberto, onFechar, orcamentoId, onRegistrado }: ModalNovoFollowUpProps) {
   const { usuario } = useAuth();
   const { adicionarFollowUp, atualizarProximaAcao } = useNovoOrcamento();
   const [form, setForm] = useState<FormFollowUp>(camposVazios);
@@ -73,7 +74,8 @@ export function ModalNovoFollowUp({ aberto, onFechar, orcamentoId }: ModalNovoFo
 
     const dataIso = new Date(form.data).toISOString();
 
-    adicionarFollowUp({
+    const novoFollowUp = {
+      id: crypto.randomUUID(),
       orcamentoId,
       tipo: form.tipo,
       data: dataIso,
@@ -81,10 +83,15 @@ export function ModalNovoFollowUp({ aberto, onFechar, orcamentoId }: ModalNovoFo
       resumo: form.resumo.trim(),
       proximaAcao: form.proximaAcao.trim() || undefined,
       dataProximaAcao: form.dataProximaAcao || undefined,
-    });
+    };
 
-    if (form.proximaAcao.trim()) {
-      atualizarProximaAcao(orcamentoId, form.proximaAcao.trim(), form.dataProximaAcao);
+    if (onRegistrado) {
+      onRegistrado(novoFollowUp);
+    } else {
+      adicionarFollowUp(novoFollowUp);
+      if (form.proximaAcao.trim()) {
+        atualizarProximaAcao(orcamentoId, form.proximaAcao.trim(), form.dataProximaAcao);
+      }
     }
 
     setSalvando(false);

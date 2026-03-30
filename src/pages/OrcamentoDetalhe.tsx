@@ -13,6 +13,8 @@ import { AlertasOrcamento } from '../components/orcamentos/AlertasOrcamento';
 import { ModalNovoFollowUp } from '../components/orcamentos/ModalNovoFollowUp';
 
 import { propostasRepository, type PropostaSupabase } from '../infrastructure/supabase/propostasRepository';
+import type { FollowUp } from '../domain/entities/FollowUp';
+import type { MudancaEtapa } from '../domain/entities/MudancaEtapa';
 import type { DadosFechamento } from '../components/orcamentos/ModalFechamentoComercial';
 import type { AtualizarQualificacaoInput } from '../context/NovoOrcamentoContext';
 import type { OrcamentoCard } from '../context/NovoOrcamentoContext';
@@ -112,9 +114,13 @@ export function OrcamentoDetalhe() {
   const orc: OrcamentoCard | null = orcMock ?? (propostaSupa ? propostaParaOrc(propostaSupa) : null);
   const isSupa = !orcMock && !!propostaSupa;
 
-  const followUps = id && !isSupa ? buscarFollowUps(id) : [];
+  // Estado local para Supabase (sem tabelas de histórico no banco)
+  const [localFollowUps, setLocalFollowUps] = useState<FollowUp[]>([]);
+  const [localMudancas, setLocalMudancas] = useState<MudancaEtapa[]>([]);
+
+  const followUps = isSupa ? localFollowUps : (id ? buscarFollowUps(id) : []);
   const pendencias = id && !isSupa ? buscarPendencias(id) : [];
-  const mudancasEtapa = id && !isSupa ? buscarMudancasEtapa(id) : [];
+  const mudancasEtapa = isSupa ? localMudancas : (id ? buscarMudancasEtapa(id) : []);
 
   if (carregando) {
     return (
@@ -153,8 +159,21 @@ export function OrcamentoDetalhe() {
   function handleMudarEtapa(etapaNova: EtapaFunil, observacao?: string) {
     if (!id) return;
     if (isSupa) {
+      const etapaAnterior = orc?.etapaFunil ?? null;
       propostasRepository.atualizar(id, { etapa_funil: etapaNova }).then((p) => {
         setPropostaSupa(p);
+        setLocalMudancas((prev) => [
+          {
+            id: crypto.randomUUID(),
+            orcamentoId: id,
+            etapaAnterior: etapaAnterior as EtapaFunil | null,
+            etapaNova,
+            responsavel: usuario?.nome ?? 'Usuário',
+            observacao,
+            data: new Date().toISOString(),
+          },
+          ...prev,
+        ]);
       });
     } else {
       atualizarEtapaFunil(id, etapaNova, usuario?.nome ?? 'Paulo Confar', observacao);
@@ -515,6 +534,21 @@ export function OrcamentoDetalhe() {
           aberto={modalFollowUpAberto}
           onFechar={() => setModalFollowUpAberto(false)}
           orcamentoId={id}
+          onRegistrado={isSupa ? (fu) => {
+            setLocalFollowUps((prev) => [fu, ...prev]);
+            // Salvar próxima ação no Supabase
+            if (fu.proximaAcao) {
+              propostasRepository.atualizar(id, {
+                proxima_acao: fu.proximaAcao,
+                data_proxima_acao: fu.dataProximaAcao ?? null,
+                ultima_interacao: fu.data.slice(0, 10),
+              }).then((p) => setPropostaSupa(p));
+            } else {
+              propostasRepository.atualizar(id, {
+                ultima_interacao: fu.data.slice(0, 10),
+              }).then((p) => setPropostaSupa(p));
+            }
+          } : undefined}
         />
       )}
     </div>
