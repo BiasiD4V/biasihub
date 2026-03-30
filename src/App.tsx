@@ -29,6 +29,7 @@ import { Templates } from './pages/Templates';
 import { Aprovacoes } from './pages/Aprovacoes';
 import { Relatorios } from './pages/Relatorios';
 import { Propostas } from './pages/Propostas';
+import { MaoDeObra } from './pages/MaoDeObra';
 
 export function App() {
   return (
@@ -58,6 +59,7 @@ export function App() {
                   <Route path="/insumos" element={<Insumos />} />
                   <Route path="/composicoes" element={<Composicoes />} />
                   <Route path="/templates" element={<Templates />} />
+                  <Route path="/mao-de-obra" element={<MaoDeObra />} />
                   <Route path="/aprovacoes" element={<Aprovacoes />} />
                   <Route path="/relatorios" element={<Relatorios />} />
                   <Route path="/operacao/orcamentos" element={<Propostas />} />

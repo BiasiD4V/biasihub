@@ -12,6 +12,7 @@ import {
   Settings,
   LogOut,
   Building2,
+  Hammer,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -39,6 +40,7 @@ const MENU: SecaoMenu[] = [
       { rotulo: 'Insumos', para: '/insumos', icone: Package },
       { rotulo: 'Composições', para: '/composicoes', icone: Layers },
       { rotulo: 'Templates', para: '/templates', icone: FileText },
+      { rotulo: 'Mão de Obra', para: '/mao-de-obra', icone: Hammer },
     ],
   },
   {

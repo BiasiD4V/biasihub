@@ -11,7 +11,6 @@ import { BlocoQualificacao } from '../components/orcamentos/BlocoQualificacao';
 import { HistoricoEtapas } from '../components/orcamentos/HistoricoEtapas';
 import { AlertasOrcamento } from '../components/orcamentos/AlertasOrcamento';
 import { ModalNovoFollowUp } from '../components/orcamentos/ModalNovoFollowUp';
-import { AbaMaoObra } from '../components/orcamentos/AbaMaoObra';
 import type { DadosFechamento } from '../components/orcamentos/ModalFechamentoComercial';
 import type { AtualizarQualificacaoInput } from '../context/NovoOrcamentoContext';
 import { calcularPrioridade, PRIORIDADE_CONFIG, calcularScoreABC, PRIORIDADE_ABC_CONFIG } from '../utils/prioridade';
@@ -383,15 +382,6 @@ export function OrcamentoDetalhe() {
               )}
             </div>
 
-            {/* Mão de Obra - Nova Aba */}
-            {id && (
-              <div className="bg-white rounded-xl border-2 border-red-500 shadow-lg p-5">
-                <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-4">
-                  🔨 Mão de Obra
-                </h3>
-                <AbaMaoObra orcamentoId={id} />
-              </div>
-            )}
           </div>
         </div>
       </div>
