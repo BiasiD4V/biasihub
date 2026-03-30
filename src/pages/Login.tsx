@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Building2, Eye, EyeOff, X } from 'lucide-react';
+import { Eye, EyeOff, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 const ADMIN_EMAIL = 'guilherme@biasiengenharia.com.br';
@@ -52,11 +52,9 @@ export function Login() {
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
         {/* Logo */}
-        <div className="flex items-center justify-center gap-3 mb-8">
-          <div className="bg-blue-600 rounded-xl p-2.5">
-            <Building2 size={24} className="text-white" />
-          </div>
-          <span className="text-2xl font-bold text-slate-800">OrcaBiasi</span>
+        <div className="flex flex-col items-center mb-8">
+          <img src="/logo-biasi.svg" alt="Biasi Engenharia" className="h-16 w-auto mb-2" />
+          <span className="text-sm font-semibold text-slate-500 tracking-wide">Sistema de Orçamentos</span>
         </div>
 
         {/* Card */}
