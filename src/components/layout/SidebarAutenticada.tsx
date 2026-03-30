@@ -11,8 +11,8 @@ import {
   BarChart2,
   Settings,
   LogOut,
-  Building2,
   Hammer,
+  ListChecks,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -41,6 +41,7 @@ const MENU: SecaoMenu[] = [
       { rotulo: 'Composições', para: '/composicoes', icone: Layers },
       { rotulo: 'Templates', para: '/templates', icone: FileText },
       { rotulo: 'Mão de Obra', para: '/mao-de-obra', icone: Hammer },
+      { rotulo: 'Incluso / Excluso', para: '/incluso-excluso', icone: ListChecks },
     ],
   },
   {
@@ -71,11 +72,8 @@ export function SidebarAutenticada() {
   return (
     <aside className="fixed left-0 top-0 h-screen w-64 bg-slate-900 flex flex-col z-40">
       {/* Logo */}
-      <div className="flex items-center gap-3 px-5 py-5 border-b border-slate-800">
-        <div className="bg-blue-600 rounded-lg p-1.5">
-          <Building2 size={20} className="text-white" />
-        </div>
-        <span className="text-white font-bold text-lg tracking-tight">OrcaBiasi</span>
+      <div className="flex items-center justify-center px-5 py-5 border-b border-slate-800">
+        <img src="/logo-biasi-branco.svg" alt="Biasi Engenharia" className="h-12 w-auto" />
       </div>
 
       {/* Navegação */}
