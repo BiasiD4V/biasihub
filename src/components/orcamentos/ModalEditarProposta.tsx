@@ -1,7 +1,11 @@
 import { useState, useEffect } from 'react';
-import { X, Save, Loader2 } from 'lucide-react';
+import { X, Save, Loader2, CheckCircle } from 'lucide-react';
 import type { PropostaSupabase } from '../../infrastructure/supabase/propostasRepository';
 import { propostasRepository } from '../../infrastructure/supabase/propostasRepository';
+import { ETAPA_LABELS, ORDEM_FUNIL } from '../../domain/value-objects/EtapaFunil';
+import { RESULTADO_LABELS } from '../../domain/value-objects/ResultadoComercial';
+import type { ResultadoComercial } from '../../domain/value-objects/ResultadoComercial';
+import type { EtapaFunil } from '../../domain/value-objects/EtapaFunil';
 
 interface Props {
   proposta: PropostaSupabase | null;
@@ -34,9 +38,17 @@ export function ModalEditarProposta({
     status: '',
     tipo: '',
     data_limite: '',
+    etapa_funil: '',
+    resultado_comercial: '',
+    chance_fechamento: '',
+    urgencia: '',
+    proxima_acao: '',
+    data_proxima_acao: '',
+    observacao_comercial: '',
   });
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState('');
+  const [toast, setToast] = useState(false);
 
   useEffect(() => {
     if (!proposta) return;
@@ -54,6 +66,13 @@ export function ModalEditarProposta({
       status: proposta.status || '',
       tipo: proposta.tipo || '',
       data_limite: proposta.data_limite || '',
+      etapa_funil: proposta.etapa_funil || '',
+      resultado_comercial: proposta.resultado_comercial || '',
+      chance_fechamento: proposta.chance_fechamento || '',
+      urgencia: proposta.urgencia || '',
+      proxima_acao: proposta.proxima_acao || '',
+      data_proxima_acao: proposta.data_proxima_acao || '',
+      observacao_comercial: proposta.observacao_comercial || '',
     });
     setErro('');
   }, [proposta]);

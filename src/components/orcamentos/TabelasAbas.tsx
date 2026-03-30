@@ -14,15 +14,15 @@ interface TabelasProps {
 }
 
 export function TabelasAbas({ abas, abaInicial }: TabelasProps) {
-  const [abaAtiva, setAbaAtiva] = useState(abaInicial || abas[0]?.id);
+  const [abaAtiva, setAbaAtiva] = useState<string>(abaInicial || (abas[0]?.id ?? 'default'));
 
-  const abaContent = abas.find((a: TabelasAbsProps) => a.id === abaAtiva);
+  const abaContent = abas.find((a) => a.id === abaAtiva);
 
   return (
-    <div className="bg-white rounded-xl border-2 border-blue-400 shadow-md p-5 flex flex-col">
+    <div className="bg-white rounded-xl border-2 border-blue-400 shadow-md p-5">
       {/* Abas */}
       <div className="flex gap-1 border-b border-slate-200 mb-4 -mx-5 -mt-5 px-5 pt-5 pb-4 bg-blue-50">
-        {abas.map((aba: TabelasAbsProps) => (
+        {abas.map((aba) => (
           <button
             key={aba.id}
             onClick={() => setAbaAtiva(aba.id)}
