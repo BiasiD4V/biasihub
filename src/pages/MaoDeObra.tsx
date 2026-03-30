@@ -1,251 +1,435 @@
-import { useState } from 'react';
-import { Hammer, Plus, Trash2, Edit2, Save, X, ChevronDown, ChevronUp } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { Hammer, Plus, Trash2, Edit2, Save, X, Search, ChevronDown, ChevronRight, Filter } from 'lucide-react';
+import seedData from '../data/composicoesMaoDeObra.json';
 
 /* ── Tipos ── */
 interface Profissional {
   id: string;
   profissao: string;
   unid: string;
-  coef: number;
-  hhTotal: number;
+  coef: number | null;
+  hhTotal: number | null;
 }
 
-interface Atividade {
+interface Composicao {
   id: string;
+  obra: string;
   atividade: string;
   jornada: number;
   unid: string;
-  qtd: number;
-  tempoTotal: number;
+  qtd: number | null;
+  tempoDias: number | null;
+  totalHh: number | null;
   profissionais: Profissional[];
 }
 
-/* ── Componente de Tabela Individual ── */
-function TabelaAtividade({
-  item,
+/* ── Converter seed JSON → estado ── */
+function carregarSeed(): Composicao[] {
+  return (seedData as any[]).map((item, idx) => ({
+    id: `seed-${idx}`,
+    obra: item.obra,
+    atividade: item.atividade,
+    jornada: item.jornada ?? 8,
+    unid: item.unid ?? 'm',
+    qtd: item.qtd ?? null,
+    tempoDias: item.tempoDias ?? null,
+    totalHh: item.totalHh ?? null,
+    profissionais: (item.profissionais ?? []).map((p: any, pi: number) => ({
+      id: `seed-${idx}-p${pi}`,
+      profissao: p.profissao,
+      unid: p.unid ?? 'H',
+      coef: p.coef ?? null,
+      hhTotal: p.hhTotal ?? null,
+    })),
+  }));
+}
+
+/* ═══════════════════════════════════════════
+   LINHA EDITÁVEL DE PROFISSIONAL
+   ═══════════════════════════════════════════ */
+function LinhaProf({
+  p,
+  editando,
+  onChange,
+  onRemove,
+}: {
+  p: Profissional;
+  editando: boolean;
+  onChange: (p: Profissional) => void;
+  onRemove: () => void;
+}) {
+  if (!editando) {
+    return (
+      <tr className="border-b border-slate-100 hover:bg-slate-50/60 transition-colors">
+        <td className="px-3 py-2 text-slate-700 text-xs">{p.profissao}</td>
+        <td className="px-3 py-2 text-center text-slate-500 text-xs">{p.unid}</td>
+        <td className="px-3 py-2 text-right font-mono text-xs text-slate-700">
+          {p.coef != null ? p.coef.toFixed(4) : '—'}
+        </td>
+        <td className="px-3 py-2 text-right font-mono text-xs font-semibold text-blue-600">
+          {p.hhTotal != null ? p.hhTotal.toFixed(2) : '—'}
+        </td>
+      </tr>
+    );
+  }
+  return (
+    <tr className="border-b border-blue-100 bg-blue-50/30">
+      <td className="px-2 py-1.5">
+        <input
+          type="text"
+          value={p.profissao}
+          onChange={(e) => onChange({ ...p, profissao: e.target.value })}
+          className="w-full border border-slate-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+        />
+      </td>
+      <td className="px-2 py-1.5">
+        <input
+          type="text"
+          value={p.unid}
+          onChange={(e) => onChange({ ...p, unid: e.target.value })}
+          className="w-16 border border-slate-200 rounded px-2 py-1 text-xs text-center focus:outline-none focus:ring-1 focus:ring-blue-500"
+        />
+      </td>
+      <td className="px-2 py-1.5">
+        <input
+          type="number"
+          step="0.0001"
+          value={p.coef ?? ''}
+          onChange={(e) => onChange({ ...p, coef: e.target.value ? parseFloat(e.target.value) : null })}
+          className="w-24 border border-slate-200 rounded px-2 py-1 text-xs text-right focus:outline-none focus:ring-1 focus:ring-blue-500"
+        />
+      </td>
+      <td className="px-2 py-1.5">
+        <div className="flex items-center gap-1">
+          <input
+            type="number"
+            step="0.01"
+            value={p.hhTotal ?? ''}
+            onChange={(e) => onChange({ ...p, hhTotal: e.target.value ? parseFloat(e.target.value) : null })}
+            className="w-24 border border-slate-200 rounded px-2 py-1 text-xs text-right focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+          <button onClick={onRemove} className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded">
+            <Trash2 size={12} />
+          </button>
+        </div>
+      </td>
+    </tr>
+  );
+}
+
+/* ═══════════════════════════════════════════
+   CARD DE COMPOSIÇÃO (1 atividade)
+   ═══════════════════════════════════════════ */
+function CardComposicao({
+  comp,
   onAtualizar,
   onRemover,
 }: {
-  item: Atividade;
-  onAtualizar: (a: Atividade) => void;
+  comp: Composicao;
+  onAtualizar: (c: Composicao) => void;
   onRemover: (id: string) => void;
 }) {
-  const [aberto, setAberto] = useState(true);
+  const [aberto, setAberto] = useState(false);
   const [editando, setEditando] = useState(false);
-  const [editado, setEditado] = useState<Atividade>(item);
-  const [novProf, setNovProf] = useState({ profissao: '', unid: 'hh', coef: 0, hhTotal: 0 });
+  const [rascunho, setRascunho] = useState<Composicao>(comp);
 
-  const totalCoef = item.profissionais.reduce((s, p) => s + p.coef, 0);
-  const totalHh = item.profissionais.reduce((s, p) => s + p.hhTotal, 0);
+  const totalCoef = comp.profissionais.reduce((s, p) => s + (p.coef ?? 0), 0);
+  const totalHh = comp.profissionais.reduce((s, p) => s + (p.hhTotal ?? 0), 0);
 
   function salvar() {
-    onAtualizar(editado);
+    onAtualizar(rascunho);
     setEditando(false);
   }
 
+  function cancelar() {
+    setRascunho(comp);
+    setEditando(false);
+  }
+
+  function iniciarEdicao(e: React.MouseEvent) {
+    e.stopPropagation();
+    setRascunho(comp);
+    setEditando(true);
+    setAberto(true);
+  }
+
+  function atualizarProf(idx: number, p: Profissional) {
+    const profs = [...rascunho.profissionais];
+    profs[idx] = p;
+    setRascunho({ ...rascunho, profissionais: profs });
+  }
+
+  function removerProf(idx: number) {
+    setRascunho({
+      ...rascunho,
+      profissionais: rascunho.profissionais.filter((_, i) => i !== idx),
+    });
+  }
+
   function addProf() {
-    if (!novProf.profissao.trim()) return;
-    setEditado({
-      ...editado,
+    setRascunho({
+      ...rascunho,
       profissionais: [
-        ...editado.profissionais,
-        { ...novProf, id: Date.now().toString() },
+        ...rascunho.profissionais,
+        { id: `new-${Date.now()}`, profissao: '', unid: 'H', coef: null, hhTotal: null },
       ],
     });
-    setNovProf({ profissao: '', unid: 'hh', coef: 0, hhTotal: 0 });
   }
 
-  function remProf(pid: string) {
-    setEditado({
-      ...editado,
-      profissionais: editado.profissionais.filter((p) => p.id !== pid),
-    });
-  }
+  const dados = editando ? rascunho : comp;
 
-  /* ── Modo visualização ── */
-  if (!editando) {
-    return (
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        {/* Header */}
-        <button
-          onClick={() => setAberto(!aberto)}
-          className="w-full flex items-center justify-between px-5 py-4 hover:bg-slate-50 transition-colors"
-        >
-          <div className="flex items-center gap-3">
-            <Hammer size={16} className="text-blue-600" />
-            <div className="text-left">
-              <h4 className="font-semibold text-slate-800">{item.atividade}</h4>
-              <p className="text-xs text-slate-500">
-                Jornada {item.jornada}h · {item.qtd} {item.unid} · {item.tempoTotal} dias ·{' '}
-                <span className="font-semibold text-blue-600">{totalHh.toFixed(2)} Hh</span>
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={(e) => { e.stopPropagation(); setEditando(true); setEditado(item); }}
-              className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg"
-            >
-              <Edit2 size={14} />
-            </button>
-            <button
-              onClick={(e) => { e.stopPropagation(); onRemover(item.id); }}
-              className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg"
-            >
-              <Trash2 size={14} />
-            </button>
-            {aberto ? <ChevronUp size={16} className="text-slate-400" /> : <ChevronDown size={16} className="text-slate-400" />}
-          </div>
-        </button>
-
-        {/* Tabela de profissionais */}
-        {aberto && (
-          <div className="border-t border-slate-100 px-5 pb-4">
-            <table className="w-full text-xs mt-3">
-              <thead>
-                <tr className="border-b border-slate-200 bg-slate-50">
-                  <th className="px-3 py-2 text-left font-semibold text-slate-600">PROFISSIONAL</th>
-                  <th className="px-3 py-2 text-center font-semibold text-slate-600">UNID</th>
-                  <th className="px-3 py-2 text-right font-semibold text-slate-600">COEF</th>
-                  <th className="px-3 py-2 text-right font-semibold text-slate-600">Hh TOTAL</th>
-                </tr>
-              </thead>
-              <tbody>
-                {item.profissionais.map((p) => (
-                  <tr key={p.id} className="border-b border-slate-100 hover:bg-slate-50">
-                    <td className="px-3 py-2 text-slate-700">{p.profissao}</td>
-                    <td className="px-3 py-2 text-center text-slate-500">{p.unid}</td>
-                    <td className="px-3 py-2 text-right font-mono text-slate-700">{p.coef.toFixed(4)}</td>
-                    <td className="px-3 py-2 text-right font-mono font-semibold text-blue-600">{p.hhTotal.toFixed(2)}</td>
-                  </tr>
-                ))}
-                {item.profissionais.length > 0 && (
-                  <tr className="bg-slate-50 font-semibold">
-                    <td colSpan={2} className="px-3 py-2 text-right text-slate-600">TOTAL</td>
-                    <td className="px-3 py-2 text-right font-mono text-slate-800">{totalCoef.toFixed(4)}</td>
-                    <td className="px-3 py-2 text-right font-mono text-blue-600">{totalHh.toFixed(2)}</td>
-                  </tr>
-                )}
-                {item.profissionais.length === 0 && (
-                  <tr>
-                    <td colSpan={4} className="px-3 py-4 text-center text-slate-400">
-                      Nenhum profissional adicionado. Clique em editar para adicionar.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  /* ── Modo edição ── */
   return (
-    <div className="bg-blue-50 rounded-xl border-2 border-blue-300 shadow-sm p-5">
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-4">
-        <div className="lg:col-span-2">
-          <label className="block text-xs font-medium text-slate-600 mb-1">Atividade</label>
-          <input type="text" value={editado.atividade} onChange={(e) => setEditado({ ...editado, atividade: e.target.value })}
-            className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+    <div className={`bg-white rounded-lg border ${editando ? 'border-blue-300 ring-2 ring-blue-100' : 'border-slate-200'} shadow-sm overflow-hidden`}>
+      {/* ── Header da atividade ── */}
+      <div className="flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-slate-50 to-white">
+        <button
+          onClick={() => !editando && setAberto(!aberto)}
+          className="flex-1 flex items-center gap-3 text-left"
+        >
+          {aberto
+            ? <ChevronDown size={16} className="text-slate-400 flex-shrink-0" />
+            : <ChevronRight size={16} className="text-slate-400 flex-shrink-0" />
+          }
+          <div className="min-w-0 flex-1">
+            {editando ? (
+              <input
+                type="text"
+                value={rascunho.atividade}
+                onChange={(e) => setRascunho({ ...rascunho, atividade: e.target.value })}
+                className="w-full border border-slate-200 rounded px-2 py-1 text-sm font-semibold focus:outline-none focus:ring-1 focus:ring-blue-500"
+                onClick={(e) => e.stopPropagation()}
+              />
+            ) : (
+              <h4 className="font-semibold text-sm text-slate-800 truncate">
+                {comp.atividade}
+              </h4>
+            )}
+          </div>
+        </button>
+
+        {/* Meta-dados inline */}
+        <div className="flex items-center gap-4 text-xs text-slate-500 flex-shrink-0">
+          {editando ? (
+            <>
+              <label className="flex items-center gap-1">
+                <span className="text-slate-400">Jornada:</span>
+                <input type="number" value={rascunho.jornada} onChange={(e) => setRascunho({ ...rascunho, jornada: parseInt(e.target.value) || 8 })}
+                  className="w-12 border border-slate-200 rounded px-1 py-0.5 text-xs text-center focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  onClick={(e) => e.stopPropagation()} />
+                <span>h</span>
+              </label>
+              <label className="flex items-center gap-1">
+                <span className="text-slate-400">Unid:</span>
+                <input type="text" value={rascunho.unid} onChange={(e) => setRascunho({ ...rascunho, unid: e.target.value })}
+                  className="w-10 border border-slate-200 rounded px-1 py-0.5 text-xs text-center focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  onClick={(e) => e.stopPropagation()} />
+              </label>
+              <label className="flex items-center gap-1">
+                <span className="text-slate-400">QTD:</span>
+                <input type="number" value={rascunho.qtd ?? ''} onChange={(e) => setRascunho({ ...rascunho, qtd: e.target.value ? parseFloat(e.target.value) : null })}
+                  className="w-16 border border-slate-200 rounded px-1 py-0.5 text-xs text-center focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  onClick={(e) => e.stopPropagation()} />
+              </label>
+              <label className="flex items-center gap-1">
+                <span className="text-slate-400">Tempo:</span>
+                <input type="number" value={rascunho.tempoDias ?? ''} onChange={(e) => setRascunho({ ...rascunho, tempoDias: e.target.value ? parseFloat(e.target.value) : null })}
+                  className="w-14 border border-slate-200 rounded px-1 py-0.5 text-xs text-center focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  onClick={(e) => e.stopPropagation()} />
+                <span>d</span>
+              </label>
+            </>
+          ) : (
+            <>
+              <span>{comp.jornada}h</span>
+              <span>{comp.unid}</span>
+              <span>QTD: {comp.qtd ?? '—'}</span>
+              <span>{comp.tempoDias ?? '—'}d</span>
+            </>
+          )}
+          <span className="font-semibold text-blue-600 text-sm tabular-nums">
+            {totalHh.toFixed(1)} Hh
+          </span>
         </div>
-        <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">Jornada (h)</label>
-          <input type="number" value={editado.jornada} onChange={(e) => setEditado({ ...editado, jornada: parseFloat(e.target.value) || 0 })}
-            className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">QTD</label>
-          <input type="number" value={editado.qtd} onChange={(e) => setEditado({ ...editado, qtd: parseFloat(e.target.value) || 0 })}
-            className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">Tempo (dias)</label>
-          <input type="number" value={editado.tempoTotal} onChange={(e) => setEditado({ ...editado, tempoTotal: parseFloat(e.target.value) || 0 })}
-            className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+
+        {/* Botões ação */}
+        <div className="flex items-center gap-1 flex-shrink-0">
+          {editando ? (
+            <>
+              <button onClick={cancelar} className="p-1.5 text-slate-500 hover:bg-slate-100 rounded-lg" title="Cancelar">
+                <X size={14} />
+              </button>
+              <button onClick={salvar} className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg" title="Salvar">
+                <Save size={14} />
+              </button>
+            </>
+          ) : (
+            <>
+              <button onClick={iniciarEdicao} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg" title="Editar">
+                <Edit2 size={14} />
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); onRemover(comp.id); }}
+                className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg"
+                title="Remover"
+              >
+                <Trash2 size={14} />
+              </button>
+            </>
+          )}
         </div>
       </div>
 
-      {/* Profissionais */}
-      <div className="bg-white rounded-lg border border-slate-200 p-4 mb-4">
-        <h5 className="text-xs font-semibold text-slate-700 mb-3">Profissionais</h5>
-        <div className="space-y-2 mb-3">
-          {editado.profissionais.map((p) => (
-            <div key={p.id} className="flex items-center justify-between text-xs bg-slate-50 p-2 rounded-lg">
-              <span className="font-medium text-slate-700">{p.profissao}</span>
-              <div className="flex items-center gap-3">
-                <span className="text-slate-500">{p.coef.toFixed(4)}</span>
-                <span className="font-semibold text-blue-600">{p.hhTotal.toFixed(2)}h</span>
-                <button onClick={() => remProf(p.id)} className="text-red-500 hover:bg-red-50 p-1 rounded">
-                  <Trash2 size={12} />
-                </button>
-              </div>
+      {/* ── Tabela de profissionais ── */}
+      {aberto && (
+        <div className="border-t border-slate-100">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-200">
+                <th className="px-3 py-2 text-left font-semibold text-slate-600 uppercase tracking-wider">#  PROFISSIONAL</th>
+                <th className="px-3 py-2 text-center font-semibold text-slate-600 uppercase tracking-wider w-16">UNID</th>
+                <th className="px-3 py-2 text-right font-semibold text-slate-600 uppercase tracking-wider w-28">COEF. (Hh/UN)</th>
+                <th className="px-3 py-2 text-right font-semibold text-slate-600 uppercase tracking-wider w-28">Hh TOTAL</th>
+              </tr>
+            </thead>
+            <tbody>
+              {dados.profissionais.map((p, idx) => (
+                <LinhaProf
+                  key={p.id}
+                  p={p}
+                  editando={editando}
+                  onChange={(pAtualizado) => atualizarProf(idx, pAtualizado)}
+                  onRemove={() => removerProf(idx)}
+                />
+              ))}
+
+              {dados.profissionais.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="px-3 py-4 text-center text-slate-400 italic text-xs">
+                    Sem dados de MO / QTD pendente
+                  </td>
+                </tr>
+              )}
+
+              {/* Linha Adicionar (modo edição) */}
+              {editando && (
+                <tr className="border-t border-dashed border-blue-200">
+                  <td colSpan={4} className="px-3 py-2">
+                    <button
+                      onClick={addProf}
+                      className="flex items-center gap-1.5 text-blue-600 hover:text-blue-700 text-xs font-medium"
+                    >
+                      <Plus size={12} /> Adicionar profissional
+                    </button>
+                  </td>
+                </tr>
+              )}
+
+              {/* Linha TOTAL */}
+              <tr className="bg-slate-100 font-semibold border-t border-slate-200">
+                <td className="px-3 py-2.5 text-right text-slate-700 text-xs uppercase" colSpan={2}>TOTAL</td>
+                <td className="px-3 py-2.5 text-right font-mono text-xs text-slate-800">
+                  {totalCoef ? totalCoef.toFixed(4) : '—'}
+                </td>
+                <td className="px-3 py-2.5 text-right font-mono text-xs font-bold text-blue-600">
+                  {totalHh.toFixed(2)}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+
+          {/* Verificação */}
+          {comp.qtd != null && totalCoef > 0 && (
+            <div className="px-4 py-2 bg-green-50 border-t border-green-100 text-xs text-green-700">
+              ✓ Coef. × Qtd = {totalCoef.toFixed(2)} × {comp.qtd} = {(totalCoef * comp.qtd).toFixed(2)} Hh
             </div>
-          ))}
+          )}
         </div>
-        <div className="grid grid-cols-5 gap-2 p-3 bg-slate-50 rounded-lg border border-dashed border-slate-300">
-          <input type="text" value={novProf.profissao} onChange={(e) => setNovProf({ ...novProf, profissao: e.target.value })}
-            placeholder="Profissão" className="col-span-2 border border-slate-200 rounded px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500" />
-          <input type="number" step="0.0001" value={novProf.coef || ''} onChange={(e) => setNovProf({ ...novProf, coef: parseFloat(e.target.value) || 0 })}
-            placeholder="COEF" className="border border-slate-200 rounded px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500" />
-          <input type="number" step="0.01" value={novProf.hhTotal || ''} onChange={(e) => setNovProf({ ...novProf, hhTotal: parseFloat(e.target.value) || 0 })}
-            placeholder="Hh Total" className="border border-slate-200 rounded px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500" />
-          <button onClick={addProf} className="bg-blue-600 hover:bg-blue-700 text-white rounded px-2 py-1.5 text-xs font-medium flex items-center justify-center gap-1">
-            <Plus size={12} /> Add
-          </button>
-        </div>
-      </div>
-
-      <div className="flex justify-end gap-2">
-        <button onClick={() => setEditando(false)} className="px-4 py-2 rounded-lg border border-slate-200 text-sm text-slate-600 hover:bg-slate-50">
-          <X size={14} className="inline mr-1" />Cancelar
-        </button>
-        <button onClick={salvar} className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium">
-          <Save size={14} className="inline mr-1" />Salvar
-        </button>
-      </div>
+      )}
     </div>
   );
 }
 
-/* ══════════════════════════════════════════
-   PÁGINA PRINCIPAL — Mão de Obra
-   ══════════════════════════════════════════ */
+/* ═══════════════════════════════════════════
+   PÁGINA PRINCIPAL — Composições de Mão de Obra
+   ═══════════════════════════════════════════ */
 export function MaoDeObra() {
-  const [atividades, setAtividades] = useState<Atividade[]>([]);
+  const [composicoes, setComposicoes] = useState<Composicao[]>(carregarSeed);
+  const [busca, setBusca] = useState('');
+  const [filtroObra, setFiltroObra] = useState<string>('');
   const [adicionando, setAdicionando] = useState(false);
-  const [novo, setNovo] = useState({ atividade: '', jornada: 8, unid: 'm', qtd: 1, tempoTotal: 1 });
+  const [novo, setNovo] = useState({ obra: '', atividade: '', jornada: 8, unid: 'm', qtd: '', tempoDias: '' });
 
-  const totalHhGeral = atividades.reduce(
-    (sum, a) => sum + a.profissionais.reduce((s, p) => s + p.hhTotal, 0), 0
-  );
-  const totalCoefGeral = atividades.reduce(
-    (sum, a) => sum + a.profissionais.reduce((s, p) => s + p.coef, 0), 0
-  );
+  /* Obras únicas para filtro */
+  const obrasUnicas = useMemo(() => {
+    const set = new Set(composicoes.map((c) => c.obra));
+    return Array.from(set).sort();
+  }, [composicoes]);
 
-  function addAtividade() {
+  /* Filtrar */
+  const filtradas = useMemo(() => {
+    let lista = composicoes;
+    if (filtroObra) lista = lista.filter((c) => c.obra === filtroObra);
+    if (busca.trim()) {
+      const termo = busca.toLowerCase();
+      lista = lista.filter(
+        (c) =>
+          c.atividade.toLowerCase().includes(termo) ||
+          c.obra.toLowerCase().includes(termo) ||
+          c.profissionais.some((p) => p.profissao.toLowerCase().includes(termo))
+      );
+    }
+    return lista;
+  }, [composicoes, filtroObra, busca]);
+
+  /* Agrupar por obra */
+  const agrupadas = useMemo(() => {
+    const map = new Map<string, Composicao[]>();
+    filtradas.forEach((c) => {
+      if (!map.has(c.obra)) map.set(c.obra, []);
+      map.get(c.obra)!.push(c);
+    });
+    return map;
+  }, [filtradas]);
+
+  /* KPIs */
+  const totalAtv = filtradas.length;
+  const totalHhGeral = filtradas.reduce(
+    (s, c) => s + c.profissionais.reduce((sp, p) => sp + (p.hhTotal ?? 0), 0), 0
+  );
+  const totalProfs = filtradas.reduce((s, c) => s + c.profissionais.length, 0);
+
+  function addComposicao() {
     if (!novo.atividade.trim()) return;
-    setAtividades([
-      ...atividades,
-      { ...novo, id: Date.now().toString(), profissionais: [] },
+    setComposicoes([
+      ...composicoes,
+      {
+        id: `new-${Date.now()}`,
+        obra: novo.obra || 'Sem obra',
+        atividade: novo.atividade,
+        jornada: novo.jornada,
+        unid: novo.unid,
+        qtd: novo.qtd ? parseFloat(novo.qtd) : null,
+        tempoDias: novo.tempoDias ? parseFloat(novo.tempoDias) : null,
+        totalHh: null,
+        profissionais: [],
+      },
     ]);
-    setNovo({ atividade: '', jornada: 8, unid: 'm', qtd: 1, tempoTotal: 1 });
+    setNovo({ obra: '', atividade: '', jornada: 8, unid: 'm', qtd: '', tempoDias: '' });
     setAdicionando(false);
   }
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="px-8 py-6 border-b border-slate-200 bg-white">
-        <div className="flex items-center justify-between">
+      {/* ── Header ── */}
+      <div className="px-8 py-5 border-b border-slate-200 bg-white">
+        <div className="flex items-center justify-between mb-4">
           <div>
             <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-3">
               <Hammer size={24} className="text-blue-600" />
-              Mão de Obra
+              Composições de Mão de Obra
             </h1>
             <p className="text-sm text-slate-500 mt-1">
-              Gerencie atividades e profissionais para cálculo de horas-homem
+              Composição Unitária | Coef. = Hh ÷ Qtd | Jornada padrão: 8h
             </p>
           </div>
           <button
@@ -253,54 +437,84 @@ export function MaoDeObra() {
             className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2.5 rounded-lg transition-colors shadow-sm"
           >
             <Plus size={16} />
-            Nova Atividade
+            Nova Composição
           </button>
         </div>
 
         {/* KPIs */}
-        {atividades.length > 0 && (
-          <div className="grid grid-cols-3 gap-4 mt-6">
-            <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
-              <p className="text-xs text-slate-500 mb-1">Total de Atividades</p>
-              <p className="text-2xl font-bold text-slate-800">{atividades.length}</p>
-            </div>
-            <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
-              <p className="text-xs text-slate-500 mb-1">Coeficiente Total</p>
-              <p className="text-2xl font-bold text-slate-800">{totalCoefGeral.toFixed(4)}</p>
-            </div>
-            <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
-              <p className="text-xs text-blue-600 mb-1">Horas-Homem Total</p>
-              <p className="text-2xl font-bold text-blue-600">{totalHhGeral.toFixed(2)}</p>
-            </div>
+        <div className="grid grid-cols-3 gap-4 mb-4">
+          <div className="bg-slate-50 rounded-xl p-3 border border-slate-200">
+            <p className="text-xs text-slate-500">Atividades</p>
+            <p className="text-xl font-bold text-slate-800">{totalAtv}</p>
           </div>
-        )}
+          <div className="bg-slate-50 rounded-xl p-3 border border-slate-200">
+            <p className="text-xs text-slate-500">Profissionais</p>
+            <p className="text-xl font-bold text-slate-800">{totalProfs}</p>
+          </div>
+          <div className="bg-blue-50 rounded-xl p-3 border border-blue-200">
+            <p className="text-xs text-blue-600">Hh Total</p>
+            <p className="text-xl font-bold text-blue-600">{totalHhGeral.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}</p>
+          </div>
+        </div>
+
+        {/* Busca + Filtro */}
+        <div className="flex gap-3">
+          <div className="relative flex-1">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              placeholder="Buscar atividade, obra ou profissional..."
+              className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div className="relative">
+            <Filter size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <select
+              value={filtroObra}
+              onChange={(e) => setFiltroObra(e.target.value)}
+              className="pl-10 pr-8 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none"
+            >
+              <option value="">Todas as obras</option>
+              {obrasUnicas.map((ob) => (
+                <option key={ob} value={ob}>{ob}</option>
+              ))}
+            </select>
+          </div>
+        </div>
       </div>
 
-      {/* Conteúdo */}
-      <div className="flex-1 overflow-y-auto p-8">
-        {/* Form nova atividade */}
+      {/* ── Conteúdo ── */}
+      <div className="flex-1 overflow-y-auto p-6 bg-slate-50">
+        {/* Nova composição */}
         {adicionando && (
           <div className="bg-green-50 border border-green-200 rounded-xl p-5 mb-6">
-            <h3 className="font-semibold text-slate-800 mb-4">Nova Atividade</h3>
-            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-4">
+            <h3 className="font-semibold text-slate-800 mb-3 text-sm">Nova Composição de Mão de Obra</h3>
+            <div className="grid grid-cols-2 lg:grid-cols-6 gap-3 mb-4">
+              <div className="lg:col-span-2">
+                <label className="block text-xs font-medium text-slate-600 mb-1">Obra</label>
+                <input type="text" value={novo.obra} onChange={(e) => setNovo({ ...novo, obra: e.target.value })}
+                  list="obras-list" placeholder="Ex: Dellabruna - Galpão"
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+                <datalist id="obras-list">
+                  {obrasUnicas.map((ob) => <option key={ob} value={ob} />)}
+                </datalist>
+              </div>
               <div className="lg:col-span-2">
                 <label className="block text-xs font-medium text-slate-600 mb-1">Atividade</label>
                 <input type="text" value={novo.atividade} onChange={(e) => setNovo({ ...novo, atividade: e.target.value })}
-                  placeholder="Ex: Dellabruna - Galpão e Mezanino" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Jornada (h)</label>
-                <input type="number" value={novo.jornada} onChange={(e) => setNovo({ ...novo, jornada: parseFloat(e.target.value) || 0 })}
+                  placeholder="Ex: [1.1] ELETROCALHA"
                   className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">QTD</label>
-                <input type="number" value={novo.qtd} onChange={(e) => setNovo({ ...novo, qtd: parseFloat(e.target.value) || 0 })}
+                <input type="number" value={novo.qtd} onChange={(e) => setNovo({ ...novo, qtd: e.target.value })}
                   className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Tempo (dias)</label>
-                <input type="number" value={novo.tempoTotal} onChange={(e) => setNovo({ ...novo, tempoTotal: parseFloat(e.target.value) || 0 })}
+                <label className="block text-xs font-medium text-slate-600 mb-1">Tempo (d)</label>
+                <input type="number" value={novo.tempoDias} onChange={(e) => setNovo({ ...novo, tempoDias: e.target.value })}
                   className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
               </div>
             </div>
@@ -308,36 +522,63 @@ export function MaoDeObra() {
               <button onClick={() => setAdicionando(false)} className="px-4 py-2 rounded-lg border border-slate-200 text-sm text-slate-600 hover:bg-slate-50">
                 Cancelar
               </button>
-              <button onClick={addAtividade} className="px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm font-medium">
+              <button onClick={addComposicao} className="px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm font-medium">
                 Adicionar
               </button>
             </div>
           </div>
         )}
 
-        {/* Lista */}
-        {atividades.length === 0 && !adicionando ? (
+        {/* Lista agrupada por obra */}
+        {filtradas.length === 0 && !adicionando ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <div className="w-16 h-16 rounded-2xl bg-blue-50 flex items-center justify-center mb-4">
               <Hammer size={32} className="text-blue-400" />
             </div>
-            <h3 className="text-lg font-semibold text-slate-700">Nenhuma atividade cadastrada</h3>
+            <h3 className="text-lg font-semibold text-slate-700">Nenhuma composição encontrada</h3>
             <p className="text-sm text-slate-400 mt-1 max-w-sm">
-              Clique em "Nova Atividade" para começar a cadastrar as atividades de mão de obra e seus profissionais.
+              {busca || filtroObra
+                ? 'Tente ajustar os filtros de busca.'
+                : 'Clique em "Nova Composição" para começar a cadastrar.'}
             </p>
           </div>
         ) : (
-          <div className="space-y-4">
-            {atividades.map((a) => (
-              <TabelaAtividade
-                key={a.id}
-                item={a}
-                onAtualizar={(atualizado) => setAtividades(atividades.map((x) => x.id === atualizado.id ? atualizado : x))}
-                onRemover={(id) => setAtividades(atividades.filter((x) => x.id !== id))}
-              />
+          <div className="space-y-6">
+            {Array.from(agrupadas.entries()).map(([obra, comps]) => (
+              <div key={obra}>
+                {/* Header da obra */}
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-1.5 h-5 bg-blue-600 rounded-full" />
+                  <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wide">
+                    {obra}
+                  </h2>
+                  <span className="text-xs text-slate-400 ml-auto">
+                    {comps.length} atividade{comps.length !== 1 ? 's' : ''} · {comps.reduce((s, c) => s + c.profissionais.reduce((sp, p) => sp + (p.hhTotal ?? 0), 0), 0).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} Hh
+                  </span>
+                </div>
+
+                {/* Cards de composição */}
+                <div className="space-y-2">
+                  {comps.map((comp) => (
+                    <CardComposicao
+                      key={comp.id}
+                      comp={comp}
+                      onAtualizar={(atualizado) =>
+                        setComposicoes(composicoes.map((c) => (c.id === atualizado.id ? atualizado : c)))
+                      }
+                      onRemover={(id) => setComposicoes(composicoes.filter((c) => c.id !== id))}
+                    />
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
         )}
+      </div>
+
+      {/* Footer */}
+      <div className="px-8 py-3 border-t border-slate-200 bg-white text-xs text-slate-400">
+        Fonte: APP Diário de Obra — Biasi Engenharia | Composição unitária por atividade
       </div>
     </div>
   );
