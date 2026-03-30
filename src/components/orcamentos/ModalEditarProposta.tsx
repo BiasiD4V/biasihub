@@ -110,8 +110,18 @@ export function ModalEditarProposta({
         status: form.status || null,
         tipo: form.tipo || null,
         data_limite: form.data_limite || null,
+        etapa_funil: form.etapa_funil || null,
+        resultado_comercial: form.resultado_comercial || null,
+        chance_fechamento: form.chance_fechamento || null,
+        urgencia: form.urgencia || null,
+        proxima_acao: form.proxima_acao || null,
+        data_proxima_acao: form.data_proxima_acao || null,
+        observacao_comercial: form.observacao_comercial || null,
+        ultima_interacao: new Date().toISOString().split('T')[0],
       };
       const atualizado = await propostasRepository.atualizar(proposta!.id, dados);
+      setToast(true);
+      setTimeout(() => setToast(false), 3000);
       onSalvo(atualizado);
     } catch (e: any) {
       console.error(e);
@@ -306,9 +316,105 @@ export function ModalEditarProposta({
               </div>
             </div>
           </div>
+
+          {/* Funil Comercial */}
+          <div>
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">Funil Comercial</p>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs text-slate-500 mb-1">Etapa do Funil</label>
+                <select
+                  value={form.etapa_funil}
+                  onChange={(e) => handleChange('etapa_funil', e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                >
+                  <option value="">— Selecionar —</option>
+                  {ORDEM_FUNIL.map((etapa) => (
+                    <option key={etapa} value={etapa}>{ETAPA_LABELS[etapa]}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs text-slate-500 mb-1">Resultado Comercial</label>
+                <select
+                  value={form.resultado_comercial}
+                  onChange={(e) => handleChange('resultado_comercial', e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                >
+                  <option value="">— Selecionar —</option>
+                  {(Object.keys(RESULTADO_LABELS) as ResultadoComercial[]).map((r) => (
+                    <option key={r} value={r}>{RESULTADO_LABELS[r]}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs text-slate-500 mb-1">Chance de Fechamento</label>
+                <select
+                  value={form.chance_fechamento}
+                  onChange={(e) => handleChange('chance_fechamento', e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                >
+                  <option value="">— Selecionar —</option>
+                  <option value="alta">Alta</option>
+                  <option value="media">Média</option>
+                  <option value="baixa">Baixa</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs text-slate-500 mb-1">Urgência</label>
+                <select
+                  value={form.urgencia}
+                  onChange={(e) => handleChange('urgencia', e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                >
+                  <option value="">— Selecionar —</option>
+                  <option value="alta">Alta</option>
+                  <option value="media">Média</option>
+                  <option value="baixa">Baixa</option>
+                </select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4 mt-3">
+              <div>
+                <label className="block text-xs text-slate-500 mb-1">Próxima Ação</label>
+                <input
+                  type="text"
+                  value={form.proxima_acao}
+                  onChange={(e) => handleChange('proxima_acao', e.target.value)}
+                  placeholder="Ex: Enviar proposta revisada"
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-slate-500 mb-1">Data Próxima Ação</label>
+                <input
+                  type="date"
+                  value={form.data_proxima_acao}
+                  onChange={(e) => handleChange('data_proxima_acao', e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+            <div className="mt-3">
+              <label className="block text-xs text-slate-500 mb-1">Observação Comercial</label>
+              <textarea
+                value={form.observacao_comercial}
+                onChange={(e) => handleChange('observacao_comercial', e.target.value)}
+                rows={2}
+                placeholder="Notas sobre negociação, contatos, decisões..."
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              />
+            </div>
+          </div>
         </div>
 
-        {/* Footer */}
+        {/* Toast */}
+        {toast && (
+          <div className="absolute top-4 right-4 flex items-center gap-2 bg-green-600 text-white text-sm font-medium px-4 py-2.5 rounded-lg shadow-lg animate-fade-in z-50">
+            <CheckCircle size={16} />
+            Proposta salva com sucesso!
+          </div>
+        )}
         <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-200">
           <button
             onClick={onFechar}

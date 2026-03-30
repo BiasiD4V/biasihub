@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { PlusCircle, Search, FileText, LayoutGrid, List, TrendingUp, CheckCircle, DollarSign, BarChart2 } from 'lucide-react';
+import { PlusCircle, Search, FileText, LayoutGrid, List, TrendingUp, CheckCircle, DollarSign, BarChart2, AlertTriangle, Clock, Calendar } from 'lucide-react';
 import { useNovoOrcamento } from '../context/NovoOrcamentoContext';
 import { ModalNovoOrcamento } from '../components/orcamentos/ModalNovoOrcamento';
 import { KanbanFunil } from '../components/orcamentos/KanbanFunil';
@@ -10,6 +10,8 @@ import {
   type PropostaSupabase,
   type FiltrosPropostas,
 } from '../infrastructure/supabase/propostasRepository';
+import { ETAPA_LABELS, ETAPA_CORES } from '../domain/value-objects/EtapaFunil';
+import type { EtapaFunil } from '../domain/value-objects/EtapaFunil';
 
 const PROPOSTAS_STATUS_CORES: Record<string, string> = {
   FECHADO: 'bg-green-100 text-green-800',
@@ -63,6 +65,8 @@ export function OrcamentosNovos() {
   const [responsavelOpcoes, setResponsavelOpcoes] = useState<string[]>([]);
   const [kpis, setKpis] = useState({ total: 0, fechadas: 0, valorTotal: 0 });
   const [propostaEditando, setPropostaEditando] = useState<PropostaSupabase | null>(null);
+
+  const [toastMsg, setToastMsg] = useState('');
 
   const POR_PAGINA = 50;
   const totalPaginas = Math.ceil(propostasTotal / POR_PAGINA);
@@ -136,6 +140,34 @@ export function OrcamentosNovos() {
   function handlePropostaSalva(p: PropostaSupabase) {
     setPropostas((prev) => prev.map((old) => (old.id === p.id ? p : old)));
     setPropostaEditando(null);
+    setToastMsg('Proposta salva com sucesso!');
+    setTimeout(() => setToastMsg(''), 3000);
+  }
+
+  function calcularPrioridadeProposta(p: PropostaSupabase): { label: string; cor: string } | null {
+    if (p.resultado_comercial && p.resultado_comercial !== 'em_andamento') return null;
+    const pontosChance: Record<string, number> = { alta: 5, media: 3, baixa: 1 };
+    const pontosUrgencia: Record<string, number> = { alta: 2, media: 1, baixa: 0 };
+    const score = (pontosChance[p.chance_fechamento ?? ''] ?? 0) + (pontosUrgencia[p.urgencia ?? ''] ?? 0);
+    if (score >= 6) return { label: 'A', cor: 'bg-red-100 text-red-700' };
+    if (score >= 3) return { label: 'B', cor: 'bg-amber-100 text-amber-700' };
+    return { label: 'C', cor: 'bg-slate-100 text-slate-500' };
+  }
+
+  function getAlertasProposta(p: PropostaSupabase): string[] {
+    const alertas: string[] = [];
+    if (p.resultado_comercial && p.resultado_comercial !== 'em_andamento') return alertas;
+    if (p.data_proxima_acao) {
+      const hoje = new Date();
+      const dataAcao = new Date(p.data_proxima_acao + 'T00:00:00');
+      if (dataAcao < hoje) alertas.push('Ação vencida');
+    }
+    if (!p.proxima_acao && !p.data_proxima_acao) alertas.push('Sem próxima ação');
+    if (p.ultima_interacao) {
+      const dias = Math.floor((Date.now() - new Date(p.ultima_interacao + 'T00:00:00').getTime()) / 86400000);
+      if (dias > 7) alertas.push(`Sem interação há ${dias}d`);
+    }
+    return alertas;
   }
 
   return (
@@ -354,11 +386,12 @@ export function OrcamentosNovos() {
                       <th className="px-4 py-3 text-left">Data</th>
                       <th className="px-4 py-3 text-left">Cliente</th>
                       <th className="px-4 py-3 text-left">Obra</th>
-                      <th className="px-4 py-3 text-left">Objeto</th>
                       <th className="px-4 py-3 text-left">Disciplina</th>
-                      <th className="px-4 py-3 text-left">Responsável</th>
                       <th className="px-4 py-3 text-right">Valor Orçado</th>
                       <th className="px-4 py-3 text-center">Status</th>
+                      <th className="px-4 py-3 text-center">Etapa</th>
+                      <th className="px-4 py-3 text-center">Prior.</th>
+                      <th className="px-4 py-3 text-center">Alertas</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -370,6 +403,10 @@ export function OrcamentosNovos() {
                         p.status === 'CANCELADO' ? 'border-l-red-400' :
                         p.status === 'DECLINADO' ? 'border-l-orange-400' :
                         'border-l-slate-200';
+                      const etapa = p.etapa_funil as EtapaFunil | null;
+                      const etapaCores = etapa ? ETAPA_CORES[etapa] : null;
+                      const prio = calcularPrioridadeProposta(p);
+                      const alertas = getAlertasProposta(p);
                       return (
                         <tr key={p.id} onClick={() => setPropostaEditando(p)} className={`hover:bg-slate-50 transition-colors border-l-4 ${statusCor} cursor-pointer`}>
                           <td className="px-4 py-3 font-mono text-xs text-slate-600 whitespace-nowrap">
@@ -384,14 +421,8 @@ export function OrcamentosNovos() {
                           <td className="px-4 py-3 text-slate-600 max-w-[140px] truncate" title={p.obra || ''}>
                             {p.obra || '—'}
                           </td>
-                          <td className="px-4 py-3 text-slate-600 max-w-[180px] truncate" title={p.objeto || ''}>
-                            {p.objeto || '—'}
-                          </td>
                           <td className="px-4 py-3 text-slate-500 whitespace-nowrap">
                             {p.disciplina || '—'}
-                          </td>
-                          <td className="px-4 py-3 text-slate-500 whitespace-nowrap">
-                            {p.responsavel || '—'}
                           </td>
                           <td className="px-4 py-3 text-right font-medium text-slate-700 whitespace-nowrap">
                             {formatarMoeda(p.valor_orcado)}
@@ -405,6 +436,34 @@ export function OrcamentosNovos() {
                               >
                                 {p.status}
                               </span>
+                            ) : (
+                              <span className="text-slate-300">—</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            {etapa && etapaCores ? (
+                              <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${etapaCores.bg} ${etapaCores.text}`}>
+                                {ETAPA_LABELS[etapa]}
+                              </span>
+                            ) : (
+                              <span className="text-slate-300">—</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            {prio ? (
+                              <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${prio.cor}`}>
+                                {prio.label}
+                              </span>
+                            ) : (
+                              <span className="text-slate-300">—</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            {alertas.length > 0 ? (
+                              <div className="flex items-center justify-center gap-1" title={alertas.join(', ')}>
+                                <AlertTriangle size={14} className="text-amber-500" />
+                                <span className="text-xs text-amber-600 font-medium">{alertas.length}</span>
+                              </div>
                             ) : (
                               <span className="text-slate-300">—</span>
                             )}
@@ -459,6 +518,14 @@ export function OrcamentosNovos() {
         disciplinaOpcoes={disciplinaOpcoes}
         responsavelOpcoes={responsavelOpcoes}
       />
+
+      {/* Toast Notification */}
+      {toastMsg && (
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2 bg-green-600 text-white text-sm font-medium px-5 py-3 rounded-lg shadow-lg animate-bounce">
+          <CheckCircle size={16} />
+          {toastMsg}
+        </div>
+      )}
     </div>
   );
 }
