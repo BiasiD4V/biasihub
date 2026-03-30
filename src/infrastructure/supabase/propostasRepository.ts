@@ -113,4 +113,85 @@ export const propostasRepository = {
     const unique = [...new Set((data || []).map((r) => r.responsavel).filter(Boolean))] as string[]
     return unique.sort()
   },
+
+  async buscarDadosDashboard(): Promise<{
+    total: number
+    fechadas: number
+    valorTotal: number
+    porAno: { ano: number; total: number; fechadas: number; valor: number }[]
+    porStatus: { status: string; quantidade: number }[]
+    porResponsavel: { responsavel: string; total: number; fechadas: number; valor: number }[]
+    porDisciplina: { disciplina: string; total: number; fechadas: number; valor: number }[]
+    recentes: PropostaSupabase[]
+  }> {
+    // Dados agregados
+    const { data: all, error: e1 } = await supabase
+      .from('propostas')
+      .select('status, valor_orcado, ano, responsavel, disciplina')
+    if (e1) throw e1
+    const rows = all || []
+
+    const total = rows.length
+    const fechadas = rows.filter((r) => r.status === 'FECHADO').length
+    const valorTotal = rows.reduce((acc, r) => acc + (r.valor_orcado || 0), 0)
+
+    // Por ano
+    const anosMap: Record<number, { total: number; fechadas: number; valor: number }> = {}
+    for (const r of rows) {
+      if (!r.ano) continue
+      if (!anosMap[r.ano]) anosMap[r.ano] = { total: 0, fechadas: 0, valor: 0 }
+      anosMap[r.ano].total++
+      if (r.status === 'FECHADO') anosMap[r.ano].fechadas++
+      anosMap[r.ano].valor += r.valor_orcado || 0
+    }
+    const porAno = Object.entries(anosMap)
+      .map(([ano, v]) => ({ ano: Number(ano), ...v }))
+      .sort((a, b) => a.ano - b.ano)
+
+    // Por status
+    const statusMap: Record<string, number> = {}
+    for (const r of rows) {
+      const s = r.status || 'SEM STATUS'
+      statusMap[s] = (statusMap[s] || 0) + 1
+    }
+    const porStatus = Object.entries(statusMap)
+      .map(([status, quantidade]) => ({ status, quantidade }))
+      .sort((a, b) => b.quantidade - a.quantidade)
+
+    // Por responsável
+    const respMap: Record<string, { total: number; fechadas: number; valor: number }> = {}
+    for (const r of rows) {
+      const resp = r.responsavel || 'Sem responsável'
+      if (!respMap[resp]) respMap[resp] = { total: 0, fechadas: 0, valor: 0 }
+      respMap[resp].total++
+      if (r.status === 'FECHADO') respMap[resp].fechadas++
+      respMap[resp].valor += r.valor_orcado || 0
+    }
+    const porResponsavel = Object.entries(respMap)
+      .map(([responsavel, v]) => ({ responsavel, ...v }))
+      .sort((a, b) => b.total - a.total)
+
+    // Por disciplina
+    const discMap: Record<string, { total: number; fechadas: number; valor: number }> = {}
+    for (const r of rows) {
+      const d = r.disciplina || 'Sem disciplina'
+      if (!discMap[d]) discMap[d] = { total: 0, fechadas: 0, valor: 0 }
+      discMap[d].total++
+      if (r.status === 'FECHADO') discMap[d].fechadas++
+      discMap[d].valor += r.valor_orcado || 0
+    }
+    const porDisciplina = Object.entries(discMap)
+      .map(([disciplina, v]) => ({ disciplina, ...v }))
+      .sort((a, b) => b.total - a.total)
+
+    // Recentes
+    const { data: recentes, error: e2 } = await supabase
+      .from('propostas')
+      .select('*')
+      .order('data_entrada', { ascending: false })
+      .limit(5)
+    if (e2) throw e2
+
+    return { total, fechadas, valorTotal, porAno, porStatus, porResponsavel, porDisciplina, recentes: recentes || [] }
+  },
 }
