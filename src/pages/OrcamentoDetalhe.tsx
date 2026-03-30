@@ -152,40 +152,72 @@ export function OrcamentoDetalhe() {
 
   function handleMudarEtapa(etapaNova: EtapaFunil, observacao?: string) {
     if (!id) return;
-    atualizarEtapaFunil(id, etapaNova, usuario?.nome ?? 'Paulo Confar', observacao);
+    if (isSupa) {
+      propostasRepository.atualizar(id, { etapa_funil: etapaNova }).then((p) => {
+        setPropostaSupa(p);
+      });
+    } else {
+      atualizarEtapaFunil(id, etapaNova, usuario?.nome ?? 'Paulo Confar', observacao);
+    }
   }
 
   function handleAtualizarValor(valor: number) {
     if (!id) return;
-    atualizarComercial(id, { valorProposta: valor });
+    if (isSupa) {
+      propostasRepository.atualizar(id, { valor_orcado: valor }).then((p) => {
+        setPropostaSupa(p);
+      });
+    } else {
+      atualizarComercial(id, { valorProposta: valor });
+    }
   }
 
   function handleQualificacao(dados: AtualizarQualificacaoInput) {
     if (!id) return;
-    atualizarQualificacao(id, dados);
+    if (isSupa) {
+      propostasRepository.atualizar(id, {
+        chance_fechamento: dados.chanceFechamento ?? null,
+        urgencia: dados.urgencia ?? null,
+        observacao_comercial: dados.observacaoComercial ?? null,
+      }).then((p) => { setPropostaSupa(p); });
+    } else {
+      atualizarQualificacao(id, dados);
+    }
   }
 
   function handleSalvarLink() {
     if (!id) return;
-    atualizarComercial(id, { linkArquivo: linkInput.trim() });
-    setEditandoLink(false);
+    if (isSupa) {
+      // Supabase propostas não tem linkArquivo — apenas fechar edição
+      setEditandoLink(false);
+    } else {
+      atualizarComercial(id, { linkArquivo: linkInput.trim() });
+      setEditandoLink(false);
+    }
   }
 
   function handleFechamento(dados: DadosFechamento) {
     if (!id) return;
-    if (dados.resultado === 'ganho') {
-      atualizarComercial(id, {
-        resultadoComercial: 'ganho',
-        etapaFunil: 'pos_venda',
-        dataFechamento: dados.dataFechamento,
-        valorProposta: dados.valorFechado,
-      });
+    if (isSupa) {
+      const update = dados.resultado === 'ganho'
+        ? { resultado_comercial: 'ganho', etapa_funil: 'pos_venda', valor_orcado: dados.valorFechado }
+        : { resultado_comercial: 'perdido' };
+      propostasRepository.atualizar(id, update).then((p) => { setPropostaSupa(p); });
     } else {
-      atualizarComercial(id, {
-        resultadoComercial: 'perdido',
-        dataFechamento: dados.dataFechamento,
-        motivoPerda: dados.motivoPerda,
-      });
+      if (dados.resultado === 'ganho') {
+        atualizarComercial(id, {
+          resultadoComercial: 'ganho',
+          etapaFunil: 'pos_venda',
+          dataFechamento: dados.dataFechamento,
+          valorProposta: dados.valorFechado,
+        });
+      } else {
+        atualizarComercial(id, {
+          resultadoComercial: 'perdido',
+          dataFechamento: dados.dataFechamento,
+          motivoPerda: dados.motivoPerda,
+        });
+      }
     }
   }
 

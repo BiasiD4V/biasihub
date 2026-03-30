@@ -183,13 +183,13 @@ export function ModalConfirmarMudancaEtapa({
           <button
             onClick={fechar}
             className="px-4 py-2 rounded-lg border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 transition-colors"
-          >disabled={!arquivo && !caminhoRede.trim()}
-            className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm hover:bg-blue-700 transition-colors font-medium flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed
+          >
             Cancelar
           </button>
           <button
             onClick={handleConfirmar}
-            className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm hover:bg-blue-700 transition-colors font-medium flex items-center gap-2"
+            disabled={!arquivo && !caminhoRede.trim()}
+            className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm hover:bg-blue-700 transition-colors font-medium flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Upload size={14} />
             Confirmar mudança
