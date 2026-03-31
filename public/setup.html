@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BIASI Hub - Setup Auto-Login</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .container {
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      max-width: 600px;
+      width: 100%;
+      padding: 40px;
+      text-align: center;
+    }
+    h1 {
+      color: #1f2937;
+      margin-bottom: 10px;
+      font-size: 28px;
+    }
+    .subtitle {
+      color: #6b7280;
+      margin-bottom: 30px;
+      font-size: 16px;
+      line-height: 1.6;
+    }
+    .status {
+      background: #eff6ff;
+      border-left: 4px solid #3b82f6;
+      padding: 16px;
+      margin: 20px 0;
+      text-align: left;
+      border-radius: 8px;
+      color: #1e40af;
+    }
+    .status.success {
+      background: #f0fdf4;
+      border-left-color: #22c55e;
+      color: #15803d;
+    }
+    .status strong {
+      display: block;
+      margin-bottom: 5px;
+    }
+    .checklist {
+      text-align: left;
+      margin: 20px 0;
+      background: #f9fafb;
+      padding: 20px;
+      border-radius: 8px;
+    }
+    .checklist li {
+      list-style: none;
+      margin: 10px 0;
+      padding-left: 30px;
+      position: relative;
+      color: #374151;
+    }
+    .checklist li:before {
+      content: "✅";
+      position: absolute;
+      left: 0;
+    }
+    .button {
+      display: inline-block;
+      padding: 14px 32px;
+      border-radius: 8px;
+      border: none;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      margin: 10px;
+    }
+    .button-primary {
+      background: #3b82f6;
+      color: white;
+    }
+    .button-primary:hover {
+      background: #2563eb;
+      transform: translateY(-2px);
+      box-shadow: 0 10px 20px rgba(59, 130, 246, 0.3);
+    }
+    .button-primary:active {
+      transform: translateY(0);
+    }
+    .button-secondary {
+      background: #e5e7eb;
+      color: #1f2937;
+    }
+    .button-secondary:hover {
+      background: #d1d5db;
+    }
+    .code-block {
+      background: #1f2937;
+      color: #10b981;
+      padding: 16px;
+      border-radius: 8px;
+      text-align: left;
+      font-family: 'Monaco', 'Courier New', monospace;
+      font-size: 12px;
+      overflow-x: auto;
+      margin: 20px 0;
+      line-height: 1.4;
+    }
+    .footer {
+      margin-top: 30px;
+      font-size: 13px;
+      color: #9ca3af;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🚀 BIASI Hub</h1>
+    <p class="subtitle">Setup Final - Auto-Login Configuration</p>
+
+    <div class="status success" id="status">
+      <strong>✨ Você está 99% pronto!</strong>
+      Faltam apenas 30 segundos para completar tudo.
+    </div>
+
+    <p style="color: #6b7280; margin-bottom: 20px;">
+      Clique no botão abaixo para <strong>abrir SQL Editor do Supabase com SQL pronto para executar</strong>:
+    </p>
+
+    <button class="button button-primary" onclick="openSupabaseSql()">
+      🔗 Abrir Supabase SQL Editor
+    </button>
+
+    <div class="status">
+      <strong>O que vai acontecer:</strong>
+      <ol class="checklist">
+        <li>Abre SQL Editor do Supabase</li>
+        <li>SQL já está pronto para Copiar e Colar</li>
+        <li>Você clica RUN (botão laranja)</li>
+        <li>E pronto - Remember Me vai fazer auto-login! ✨</li>
+      </ol>
+    </div>
+
+    <div style="background: #fef3c7; border-left: 4px solid #f59e0b; padding: 16px; margin: 20px 0; border-radius: 8px; text-align: left; color: #92400e;">
+      <strong>💡 Quer fazer manualmente?</strong>
+      <p style="margin-top: 10px; font-size: 14px;">
+        Cole este SQL no Supabase SQL Editor e clique RUN:
+      </p>
+      <div class="code-block">CREATE OR REPLACE FUNCTION public.setup_auto_login()
+RETURNS jsonb AS $$
+DECLARE
+  result jsonb;
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='device_sessions' AND column_name='access_token') THEN
+    ALTER TABLE public.device_sessions ADD COLUMN access_token TEXT;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='device_sessions' AND column_name='refresh_token') THEN
+    ALTER TABLE public.device_sessions ADD COLUMN refresh_token TEXT;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname='idx_device_sessions_refresh_token') THEN
+    CREATE INDEX idx_device_sessions_refresh_token ON public.device_sessions(refresh_token) WHERE refresh_token IS NOT NULL;
+  END IF;
+  result := jsonb_build_object('success', true, 'message', 'Auto-login configurado!', 'timestamp', now());
+  RETURN result;
+EXCEPTION WHEN OTHERS THEN
+  result := jsonb_build_object('success', false, 'message', SQLERRM, 'error_code', SQLSTATE);
+  RETURN result;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+GRANT EXECUTE ON FUNCTION public.setup_auto_login() TO anon, authenticated;</div>
+    </div>
+
+    <button class="button button-secondary" onclick="window.open('https://biasi-hub.vercel.app', '_blank')">
+      Voltar para App
+    </button>
+
+    <div class="footer">
+      <p>Após executar o SQL no Supabase, seu Remember Me estará 100% funcional! 🎉</p>
+      <p style="margin-top: 10px;">Precisa de ajuda? Abra o console de desenvolvedor (F12) para mais detalhes.</p>
+    </div>
+  </div>
+
+  <script>
+    function openSupabaseSql() {
+      // SQL pronto para executar
+      const sql = `CREATE OR REPLACE FUNCTION public.setup_auto_login()
+RETURNS jsonb AS $$
+DECLARE
+  result jsonb;
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='device_sessions' AND column_name='access_token') THEN
+    ALTER TABLE public.device_sessions ADD COLUMN access_token TEXT;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='device_sessions' AND column_name='refresh_token') THEN
+    ALTER TABLE public.device_sessions ADD COLUMN refresh_token TEXT;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname='idx_device_sessions_refresh_token') THEN
+    CREATE INDEX idx_device_sessions_refresh_token ON public.device_sessions(refresh_token) WHERE refresh_token IS NOT NULL;
+  END IF;
+  result := jsonb_build_object('success', true, 'message', 'Auto-login configurado!', 'timestamp', now());
+  RETURN result;
+EXCEPTION WHEN OTHERS THEN
+  result := jsonb_build_object('success', false, 'message', SQLERRM, 'error_code', SQLSTATE);
+  RETURN result;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+GRANT EXECUTE ON FUNCTION public.setup_auto_login() TO anon, authenticated;`;
+
+      const encodedSql = encodeURIComponent(sql);
+      const projectRef = 'fuwlsgybdftqgimtwqhb';
+      const url = `https://supabase.com/dashboard/project/${projectRef}/sql/new?sql=${encodedSql}`;
+      
+      window.open(url, '_blank', 'width=1200, height=800');
+      
+      // Feedback ou log
+      console.log('✅ Supabase SQL Editor aberto');
+      console.log('   1. Cole o SQL (já deve estar lá)');
+      console.log('   2. Clique RUN (botão laranja)');
+      console.log('   3. Pronto!');
+    }
+
+    // Mostrar mensagem de sucesso se voltou
+    if (window.location.hash === '#success') {
+      document.getElementById('status').innerHTML = `
+        <strong>🎉 Auto-Login Configurado!</strong>
+        Seu Remember Me agora funciona com auto-login automático!
+      `;
+      document.getElementById('status').style.borderLeftColor = '#22c55e';
+    }
+  </script>
+</body>
+</html>
