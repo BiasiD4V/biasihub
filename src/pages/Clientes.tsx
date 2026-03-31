@@ -166,7 +166,46 @@ export function Clientes() {
             </p>
           </div>
         ) : (
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <>
+            {/* Mobile: card view */}
+            <div className="lg:hidden space-y-3">
+              {filtrados.map((cliente) => (
+                <div key={cliente.id} className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-slate-800 text-sm">{cliente.razaoSocial}</p>
+                      {cliente.nomeFantasia && (
+                        <p className="text-xs text-slate-500">{cliente.nomeFantasia}</p>
+                      )}
+                    </div>
+                    <StatusBadgeNovo status={cliente.ativo ? 'ativo' : 'inativo'} />
+                  </div>
+                  <div className="flex flex-wrap gap-2 text-xs text-slate-500 mb-3">
+                    <span className="bg-slate-100 px-2 py-0.5 rounded">{cliente.tipo}</span>
+                    <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded">{cliente.segmento}</span>
+                    {cliente.cidade && cliente.uf && (
+                      <span>{cliente.cidade}/{cliente.uf}</span>
+                    )}
+                  </div>
+                  <div className="text-xs text-slate-500 space-y-0.5 mb-3">
+                    <p className="font-mono">{cliente.cnpjCpf}</p>
+                    {cliente.contatoPrincipal && <p>{cliente.contatoPrincipal}</p>}
+                    {cliente.telefone && <p>{cliente.telefone}</p>}
+                  </div>
+                  <div className="flex gap-1 border-t border-slate-100 pt-2">
+                    <button onClick={() => abrirVisualizacaoCliente(cliente)} className="flex-1 flex items-center justify-center gap-1.5 text-xs text-slate-600 py-1.5 rounded-lg hover:bg-slate-50">
+                      <Eye size={14} /> Ver
+                    </button>
+                    <button onClick={() => abrirEdicaoCliente(cliente)} className="flex-1 flex items-center justify-center gap-1.5 text-xs text-amber-600 py-1.5 rounded-lg hover:bg-amber-50">
+                      <Pencil size={14} /> Editar
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Desktop: table view */}
+            <div className="hidden lg:block bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm min-w-[1100px]">
                 <thead>
@@ -318,6 +357,7 @@ export function Clientes() {
               </table>
             </div>
           </div>
+          </>
         )}
       </div>
     </div>

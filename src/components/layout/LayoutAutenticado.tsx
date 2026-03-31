@@ -50,14 +50,17 @@ export function LayoutAutenticado() {
 
   return (
     <div className="flex min-h-screen bg-slate-50">
-      {/* Botão hamburger — só mobile */}
-      <button
-        onClick={() => setSidebarAberta(true)}
-        className="fixed top-4 left-4 z-50 lg:hidden bg-slate-900 text-white p-2 rounded-lg shadow-lg"
-        aria-label="Abrir menu"
-      >
-        <Menu size={22} />
-      </button>
+      {/* Top bar mobile — fixo no topo */}
+      <div className="fixed top-0 left-0 right-0 h-12 bg-slate-900 z-30 lg:hidden flex items-center px-3 gap-3 shadow-lg">
+        <button
+          onClick={() => setSidebarAberta(true)}
+          className="text-white p-1.5 rounded-lg hover:bg-slate-800"
+          aria-label="Abrir menu"
+        >
+          <Menu size={20} />
+        </button>
+        <img src="/logo-biasi-branco.png" alt="Biasi" className="h-6 w-auto" />
+      </div>
 
       {/* Overlay escuro — só mobile quando aberta */}
       {sidebarAberta && (
@@ -77,7 +80,7 @@ export function LayoutAutenticado() {
       </div>
 
       {/* Conteúdo principal */}
-      <main className="flex-1 flex flex-col min-h-screen lg:ml-64 pt-16 lg:pt-0 px-4 lg:px-0">
+      <main className="flex-1 flex flex-col min-h-screen min-w-0 lg:ml-64 pt-12 lg:pt-0">
         <Outlet />
       </main>
       <PauloAjuda />
