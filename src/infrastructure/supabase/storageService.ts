@@ -13,13 +13,26 @@ export async function uploadArquivo(
   pasta: string
 ): Promise<{ url: string; nome: string } | null> {
   try {
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('pasta', pasta);
+    // Converter arquivo para base64
+    const base64 = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        resolve(result.split(',')[1]); // Remove "data:...;base64," prefix
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
 
     const response = await fetch('/api/upload', {
       method: 'POST',
-      body: formData,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fileName: file.name,
+        fileType: file.type,
+        fileData: base64,
+        pasta,
+      }),
     });
 
     if (!response.ok) {
