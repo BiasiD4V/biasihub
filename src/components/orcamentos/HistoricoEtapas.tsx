@@ -228,7 +228,7 @@ export function HistoricoEtapas({ mudancas, onUpdateMudanca, onDeleteMudanca }: 
                         if (result) {
                           setEditForm({ ...editForm, arquivo: result.url });
                         } else {
-                          setEditForm({ ...editForm, arquivo: `Arquivo: ${file.name}` });
+                          alert('Erro ao enviar arquivo. Verifique sua conexão e tente novamente.');
                         }
                         setUploading(false);
                       }

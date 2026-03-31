@@ -35,13 +35,20 @@ export async function uploadArquivo(
       }),
     });
 
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      console.error('Erro no upload:', err);
+    // Verificar se a resposta é JSON (evita erro quando Vite serve HTML em dev)
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      console.error('Erro no upload: resposta não é JSON (endpoint indisponível)');
       return null;
     }
 
     const data = await response.json();
+
+    if (!response.ok) {
+      console.error('Erro no upload:', data);
+      return null;
+    }
+
     return { url: data.url, nome: data.nome };
   } catch (error) {
     console.error('Erro ao fazer upload:', error);
