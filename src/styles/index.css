@@ -1,0 +1,106 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-gray-50 text-gray-900 antialiased;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════
+   MOBILE: Telas < 1024px (tablets e celulares)
+   ══════════════════════════════════════════════════════════ */
+@media (max-width: 1023px) {
+  /* ── Padding geral ── */
+  .px-8 { padding-left: 1rem !important; padding-right: 1rem !important; }
+  .p-8 { padding: 1rem !important; }
+  .py-6 { padding-top: 0.75rem !important; padding-bottom: 0.75rem !important; }
+  .px-6 { padding-left: 0.75rem !important; padding-right: 0.75rem !important; }
+
+  /* ── Cabeçalhos das páginas ── */
+  .flex.items-center.justify-between {
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  /* ── Título menor ── */
+  .text-2xl { font-size: 1.25rem !important; }
+
+  /* ── Tabelas ── */
+  .overflow-x-auto { -webkit-overflow-scrolling: touch; }
+  table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+  /* ── Modais ── */
+  [class*="fixed inset-0"] .grid-cols-2,
+  [class*="fixed inset-0"] .grid-cols-3,
+  [class*="fixed inset-0"] .grid-cols-4 { grid-template-columns: 1fr !important; }
+  [class*="fixed inset-0"] .col-span-2,
+  [class*="fixed inset-0"] .col-span-3 { grid-column: span 1 / span 1 !important; }
+  [class*="fixed inset-0"] > div { max-width: 95vw !important; margin: 0.5rem !important; }
+}
+
+/* ══════════════════════════════════════════════════════════
+   CELULAR: Telas < 640px (smartphones)
+   ══════════════════════════════════════════════════════════ */
+@media (max-width: 639px) {
+  /* ── Tudo usa padding mínimo ── */
+  .px-8, .px-6, .px-5 {
+    padding-left: 0.75rem !important;
+    padding-right: 0.75rem !important;
+  }
+  .p-8 { padding: 0.75rem !important; }
+
+  /* ── Grids: forçar 1 coluna (muito agressivo) ── */
+  .grid-cols-2 { grid-template-columns: 1fr !important; }
+  .grid-cols-3 { grid-template-columns: 1fr !important; }
+  .grid-cols-4 { grid-template-columns: 1fr !important; }
+  .col-span-2, .col-span-3 { grid-column: span 1 / span 1 !important; }
+
+  /* ── Gaps menores ── */
+  .gap-6 { gap: 0.75rem !important; }
+  .gap-8 { gap: 0.75rem !important; }
+  .gap-4 { gap: 0.5rem !important; }
+
+  /* ── Textos menores ── */
+  .text-2xl { font-size: 1.125rem !important; }
+  h1 { font-size: 1.125rem !important; }
+
+  /* ── Botões: full width em headers ── */
+  .flex.items-center.justify-between {
+    flex-direction: column;
+    align-items: stretch !important;
+  }
+  .flex.items-center.justify-between > button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* ── Filtros: empilhar verticalmente ── */
+  .flex.items-center.gap-3 {
+    flex-direction: column;
+    align-items: stretch !important;
+  }
+  .flex.items-center.gap-3 > .relative,
+  .flex.items-center.gap-3 > select {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  /* ── Modais full-screen no celular ── */
+  [class*="fixed inset-0"] > div {
+    max-width: 100vw !important;
+    max-height: 100vh !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+  }
+  [class*="fixed inset-0"] .overflow-y-auto {
+    max-height: calc(100vh - 130px) !important;
+  }
+
+  /* ── Cards e badges: não truncar em mobile ── */
+  .truncate { overflow: visible !important; text-overflow: clip !important; white-space: normal !important; }
+}

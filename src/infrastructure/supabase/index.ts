@@ -1,0 +1,5 @@
+export { supabase } from './client'
+export { orcamentosRepository } from './orcamentosRepository'
+export { clientesRepository } from './clientesRepository'
+export type { OrcamentoSupabase } from './orcamentosRepository'
+export type { ClienteSupabase } from './clientesRepository'
