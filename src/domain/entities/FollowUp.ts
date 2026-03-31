@@ -9,4 +9,5 @@ export interface FollowUp {
   resumo: string;
   proximaAcao?: string;
   dataProximaAcao?: string;  // YYYY-MM-DD
+  arquivo?: string;          // URL do arquivo anexado
 }

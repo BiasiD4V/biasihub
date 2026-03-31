@@ -1,4 +1,5 @@
-import { Phone, Mail, MessageCircle, Users, StickyNote, PlusCircle } from 'lucide-react';
+import { useState } from 'react';
+import { Phone, Mail, MessageCircle, Users, StickyNote, PlusCircle, FileText, Edit2, X } from 'lucide-react';
 import type { FollowUp, TipoFollowUp } from '../../domain/entities/FollowUp';
 
 interface TimelineFollowUpProps {
@@ -41,6 +42,9 @@ function formatarData(iso: string): string {
 }
 
 export function TimelineFollowUp({ followUps, onRegistrar }: TimelineFollowUpProps) {
+  const [filePreviewOpen, setFilePreviewOpen] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
       {/* Header */}
@@ -94,15 +98,38 @@ export function TimelineFollowUp({ followUps, onRegistrar }: TimelineFollowUpPro
 
                     {/* Conteúdo */}
                     <div className="flex-1 min-w-0 pb-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-xs font-semibold text-slate-700">{rotulo}</span>
-                        <span className="text-xs text-slate-400">·</span>
-                        <span className="text-xs text-slate-400">{formatarData(fup.data)}</span>
-                        <span className="text-xs text-slate-400">·</span>
-                        <span className="text-xs text-slate-500">{fup.responsavel}</span>
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-semibold text-slate-700">{rotulo}</span>
+                          <span className="text-xs text-slate-400">·</span>
+                          <span className="text-xs text-slate-400">{formatarData(fup.data)}</span>
+                          <span className="text-xs text-slate-400">·</span>
+                          <span className="text-xs text-slate-500">{fup.responsavel}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => setEditingId(fup.id)}
+                            className="p-1 hover:bg-slate-100 rounded transition-colors"
+                            title="Editar"
+                          >
+                            <Edit2 size={14} className="text-slate-400 hover:text-slate-600" />
+                          </button>
+                        </div>
                       </div>
 
                       <p className="text-sm text-slate-600 leading-relaxed">{fup.resumo}</p>
+
+                      {fup.arquivo && (
+                        <div className="mt-2 flex items-center gap-2">
+                          <FileText size={14} className="text-slate-400" />
+                          <button
+                            onClick={() => setFilePreviewOpen(fup.arquivo!)}
+                            className="text-xs text-blue-600 hover:text-blue-700 hover:underline font-medium"
+                          >
+                            📎 {typeof fup.arquivo === 'string' ? fup.arquivo.split('/').pop() : 'Visualizar arquivo'}
+                          </button>
+                        </div>
+                      )}
 
                       {fup.proximaAcao && (
                         <div className="mt-2 flex items-start gap-2 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
@@ -130,6 +157,59 @@ export function TimelineFollowUp({ followUps, onRegistrar }: TimelineFollowUpPro
           </div>
         )}
       </div>
+
+      {/* Modal Preview Arquivo */}
+      {filePreviewOpen && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-lg w-full max-w-2xl max-h-96 flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+              <h3 className="font-semibold text-slate-700">Visualizar Arquivo</h3>
+              <button
+                onClick={() => setFilePreviewOpen(null)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="flex-1 overflow-auto p-6">
+              <p className="text-sm text-slate-600 mb-4">📎 Arquivo anexado:</p>
+              <p className="text-sm font-mono text-blue-600">{filePreviewOpen}</p>
+              <a
+                href={filePreviewOpen}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-block mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
+              >
+                Abrir em nova aba
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Editar */}
+      {editingId && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-lg w-full max-w-md p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-slate-700">Editar Follow-up</h3>
+              <button
+                onClick={() => setEditingId(null)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <p className="text-sm text-slate-500 mb-4">Funcionalidade de edição será implementada em breve.</p>
+            <button
+              onClick={() => setEditingId(null)}
+              className="w-full px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-medium rounded-lg transition-colors"
+            >
+              Fechar
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

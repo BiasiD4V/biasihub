@@ -8,4 +8,5 @@ export interface MudancaEtapa {
   responsavel: string;
   observacao?: string;
   data: string; // ISO datetime
+  arquivo?: string; // URL do arquivo anexado
 }
