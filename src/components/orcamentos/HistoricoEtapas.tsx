@@ -1,10 +1,12 @@
 import { useState } from 'react';
-import { GitBranch, FileText, Edit2, X } from 'lucide-react';
+import { GitBranch, FileText, Edit2, X, Save, Trash2, Upload } from 'lucide-react';
 import type { MudancaEtapa } from '../../domain/entities/MudancaEtapa';
 import { ETAPA_LABELS, ETAPA_CORES } from '../../domain/value-objects/EtapaFunil';
 
 interface HistoricoEtapasProps {
   mudancas: MudancaEtapa[];
+  onUpdateMudanca?: (mudanca: MudancaEtapa) => void;
+  onDeleteMudanca?: (mudancaId: string) => void;
 }
 
 function formatarData(iso: string): string {
@@ -17,9 +19,11 @@ function formatarData(iso: string): string {
   });
 }
 
-export function HistoricoEtapas({ mudancas }: HistoricoEtapasProps) {
+export function HistoricoEtapas({ mudancas, onUpdateMudanca, onDeleteMudanca }: HistoricoEtapasProps) {
   const [filePreviewOpen, setFilePreviewOpen] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<MudancaEtapa | null>(null);
+  const [fileInputKey, setFileInputKey] = useState(0);
 
   if (mudancas.length === 0) {
     return (
@@ -75,7 +79,13 @@ export function HistoricoEtapas({ mudancas }: HistoricoEtapasProps) {
                       </span>
                     </div>
                     <button
-                      onClick={() => setEditingId(m.id)}
+                      onClick={() => {
+                        const mudanca = mudancas.find(mu => mu.id === m.id);
+                        if (mudanca) {
+                          setEditForm(mudanca);
+                          setEditingId(m.id);
+                        }
+                      }}
                       className="p-1 hover:bg-slate-100 rounded transition-colors"
                       title="Editar"
                     >
@@ -141,25 +151,112 @@ export function HistoricoEtapas({ mudancas }: HistoricoEtapasProps) {
       )}
 
       {/* Modal Editar */}
-      {editingId && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl border border-slate-200 shadow-lg w-full max-w-md p-6">
+      {editingId && editForm && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50 overflow-auto">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-lg w-full max-w-lg p-6 my-8">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold text-slate-700">Editar Etapa</h3>
               <button
-                onClick={() => setEditingId(null)}
+                onClick={() => {
+                  setEditingId(null);
+                  setEditForm(null);
+                }}
                 className="text-slate-400 hover:text-slate-600"
               >
                 <X size={18} />
               </button>
             </div>
-            <p className="text-sm text-slate-500 mb-4">Funcionalidade de edição será implementada em breve.</p>
-            <button
-              onClick={() => setEditingId(null)}
-              className="w-full px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-medium rounded-lg transition-colors"
-            >
-              Fechar
-            </button>
+
+            <div className="space-y-4 mb-6">
+              {/* Observação */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                  Observação
+                </label>
+                <textarea
+                  value={editForm.observacao || ''}
+                  onChange={(e) => setEditForm({ ...editForm, observacao: e.target.value || undefined })}
+                  rows={3}
+                  placeholder="Descreva as mudanças..."
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                />
+              </div>
+
+              {/* Arquivo */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                  Arquivo Anexado
+                </label>
+                {editForm.arquivo && (
+                  <div className="mb-2 flex items-center justify-between bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
+                    <span className="text-xs text-blue-700">📎 {editForm.arquivo.split('/').pop()}</span>
+                    <button
+                      onClick={() => setEditForm({ ...editForm, arquivo: undefined })}
+                      className="text-blue-600 hover:text-blue-700"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                )}
+                <label className="flex items-center justify-center w-full px-3 py-2 border border-dashed border-slate-300 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
+                  <div className="flex items-center gap-2 text-slate-500 text-sm">
+                    <Upload size={14} />
+                    <span>Escolher arquivo</span>
+                  </div>
+                  <input
+                    key={fileInputKey}
+                    type="file"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        setEditForm({ ...editForm, arquivo: file.name });
+                      }
+                      setFileInputKey(k => k + 1);
+                    }}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+            </div>
+
+            {/* Botões */}
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => {
+                  if (onDeleteMudanca) {
+                    onDeleteMudanca(editForm.id);
+                  }
+                  setEditingId(null);
+                  setEditForm(null);
+                }}
+                className="flex items-center gap-1 px-3 py-2 border border-red-200 hover:bg-red-50 text-red-600 font-medium rounded-lg transition-colors text-sm"
+              >
+                <Trash2 size={14} />
+                Deletar
+              </button>
+              <button
+                onClick={() => {
+                  setEditingId(null);
+                  setEditForm(null);
+                }}
+                className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-medium rounded-lg transition-colors text-sm"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  if (onUpdateMudanca) {
+                    onUpdateMudanca(editForm);
+                    setEditingId(null);
+                    setEditForm(null);
+                  }
+                }}
+                className="flex items-center gap-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors text-sm"
+              >
+                <Save size={14} />
+                Salvar
+              </button>
+            </div>
           </div>
         </div>
       )}

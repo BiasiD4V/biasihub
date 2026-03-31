@@ -1,10 +1,12 @@
 import { useState } from 'react';
-import { Phone, Mail, MessageCircle, Users, StickyNote, PlusCircle, FileText, Edit2, X } from 'lucide-react';
+import { Phone, Mail, MessageCircle, Users, StickyNote, PlusCircle, FileText, Edit2, X, Save, Trash2, Upload } from 'lucide-react';
 import type { FollowUp, TipoFollowUp } from '../../domain/entities/FollowUp';
 
 interface TimelineFollowUpProps {
   followUps: FollowUp[];
   onRegistrar: () => void;
+  onUpdateFollowUp?: (followUp: FollowUp) => void;
+  onDeleteFollowUp?: (followUpId: string) => void;
 }
 
 const ICONE_POR_TIPO: Record<TipoFollowUp, React.ElementType> = {
@@ -41,9 +43,12 @@ function formatarData(iso: string): string {
   });
 }
 
-export function TimelineFollowUp({ followUps, onRegistrar }: TimelineFollowUpProps) {
+export function TimelineFollowUp({ followUps, onRegistrar, onUpdateFollowUp, onDeleteFollowUp }: TimelineFollowUpProps) {
   const [filePreviewOpen, setFilePreviewOpen] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<FollowUp | null>(null);
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const [fileInputKey, setFileInputKey] = useState(0);
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
@@ -108,7 +113,13 @@ export function TimelineFollowUp({ followUps, onRegistrar }: TimelineFollowUpPro
                         </div>
                         <div className="flex items-center gap-1">
                           <button
-                            onClick={() => setEditingId(fup.id)}
+                            onClick={() => {
+                              const followUp = followUps.find(f => f.id === fup.id);
+                              if (followUp) {
+                                setEditForm(followUp);
+                                setEditingId(fup.id);
+                              }
+                            }}
                             className="p-1 hover:bg-slate-100 rounded transition-colors"
                             title="Editar"
                           >
@@ -188,25 +199,144 @@ export function TimelineFollowUp({ followUps, onRegistrar }: TimelineFollowUpPro
       )}
 
       {/* Modal Editar */}
-      {editingId && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl border border-slate-200 shadow-lg w-full max-w-md p-6">
+      {editingId && editForm && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50 overflow-auto">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-lg w-full max-w-lg p-6 my-8">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold text-slate-700">Editar Follow-up</h3>
               <button
-                onClick={() => setEditingId(null)}
+                onClick={() => {
+                  setEditingId(null);
+                  setEditForm(null);
+                }}
                 className="text-slate-400 hover:text-slate-600"
               >
                 <X size={18} />
               </button>
             </div>
-            <p className="text-sm text-slate-500 mb-4">Funcionalidade de edição será implementada em breve.</p>
-            <button
-              onClick={() => setEditingId(null)}
-              className="w-full px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-medium rounded-lg transition-colors"
-            >
-              Fechar
-            </button>
+
+            <div className="space-y-4 mb-6">
+              {/* Resumo */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                  Resumo da Interação *
+                </label>
+                <textarea
+                  value={editForm.resumo}
+                  onChange={(e) => setEditForm({ ...editForm, resumo: e.target.value })}
+                  rows={3}
+                  placeholder="Descreva o que foi tratado..."
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                />
+              </div>
+
+              {/* Próxima Ação */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                  Próxima Ação (opcional)
+                </label>
+                <input
+                  type="text"
+                  value={editForm.proximaAcao || ''}
+                  onChange={(e) => setEditForm({ ...editForm, proximaAcao: e.target.value || undefined })}
+                  placeholder="Próxima ação..."
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              {/* Data Próxima Ação */}
+              {editForm.proximaAcao && (
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                    Data da Próxima Ação
+                  </label>
+                  <input
+                    type="date"
+                    value={editForm.dataProximaAcao || ''}
+                    onChange={(e) => setEditForm({ ...editForm, dataProximaAcao: e.target.value || undefined })}
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              )}
+
+              {/* Arquivo */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                  Arquivo Anexado
+                </label>
+                {editForm.arquivo && (
+                  <div className="mb-2 flex items-center justify-between bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
+                    <span className="text-xs text-blue-700">📎 {editForm.arquivo.split('/').pop()}</span>
+                    <button
+                      onClick={() => setEditForm({ ...editForm, arquivo: undefined })}
+                      className="text-blue-600 hover:text-blue-700"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                )}
+                <label className="flex items-center justify-center w-full px-3 py-2 border border-dashed border-slate-300 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
+                  <div className="flex items-center gap-2 text-slate-500 text-sm">
+                    <Upload size={14} />
+                    <span>Escolher arquivo</span>
+                  </div>
+                  <input
+                    key={fileInputKey}
+                    type="file"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        // Aqui você pode fazer upload do arquivo se tiver storage
+                        // Por enquanto, apenas salva o nome
+                        setEditForm({ ...editForm, arquivo: file.name });
+                      }
+                      setFileInputKey(k => k + 1);
+                    }}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+            </div>
+
+            {/* Botões */}
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => {
+                  if (onDeleteFollowUp) {
+                    onDeleteFollowUp(editForm.id);
+                  }
+                  setEditingId(null);
+                  setEditForm(null);
+                }}
+                className="flex items-center gap-1 px-3 py-2 border border-red-200 hover:bg-red-50 text-red-600 font-medium rounded-lg transition-colors text-sm"
+              >
+                <Trash2 size={14} />
+                Deletar
+              </button>
+              <button
+                onClick={() => {
+                  setEditingId(null);
+                  setEditForm(null);
+                }}
+                className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-medium rounded-lg transition-colors text-sm"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  if (editForm.resumo.trim() && onUpdateFollowUp) {
+                    onUpdateFollowUp(editForm);
+                    setEditingId(null);
+                    setEditForm(null);
+                  }
+                }}
+                disabled={!editForm.resumo.trim()}
+                className="flex items-center gap-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white font-medium rounded-lg transition-colors text-sm"
+              >
+                <Save size={14} />
+                Salvar
+              </button>
+            </div>
           </div>
         </div>
       )}

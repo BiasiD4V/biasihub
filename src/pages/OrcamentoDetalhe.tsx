@@ -477,10 +477,56 @@ export function OrcamentoDetalhe() {
             <TimelineFollowUp
               followUps={followUps}
               onRegistrar={() => setModalFollowUpAberto(true)}
+              onUpdateFollowUp={(updatedFup) => {
+                if (isSupa && id) {
+                  setLocalFollowUps(prev => {
+                    const next = prev.map(f => f.id === updatedFup.id ? updatedFup : f);
+                    lsSaveFollowUps(id, next);
+                    return next;
+                  });
+                  // Tentar atualizar no Supabase
+                  (window as any).propostasRepository?.atualizarFollowUp?.(updatedFup).catch(() => {});
+                }
+              }}
+              onDeleteFollowUp={(fupId) => {
+                if (isSupa && id) {
+                  setLocalFollowUps(prev => {
+                    const next = prev.filter(f => f.id !== fupId);
+                    lsSaveFollowUps(id, next);
+                    return next;
+                  });
+                  // Tentar deletar no Supabase
+                  (window as any).propostasRepository?.deletarFollowUp?.(fupId).catch(() => {});
+                }
+              }}
             />
 
             {/* Histórico de etapas */}
-            <HistoricoEtapas mudancas={mudancasEtapa} />
+            <HistoricoEtapas 
+              mudancas={mudancasEtapa}
+              onUpdateMudanca={(updatedMudanca) => {
+                if (isSupa && id) {
+                  setLocalMudancas(prev => {
+                    const next = prev.map(m => m.id === updatedMudanca.id ? updatedMudanca : m);
+                    lsSaveMudancas(id, next);
+                    return next;
+                  });
+                  // Tentar atualizar no Supabase
+                  (window as any).propostasRepository?.atualizarMudancaEtapa?.(updatedMudanca).catch(() => {});
+                }
+              }}
+              onDeleteMudanca={(mudancaId) => {
+                if (isSupa && id) {
+                  setLocalMudancas(prev => {
+                    const next = prev.filter(m => m.id !== mudancaId);
+                    lsSaveMudancas(id, next);
+                    return next;
+                  });
+                  // Tentar deletar no Supabase
+                  (window as any).propostasRepository?.deletarMudancaEtapa?.(mudancaId).catch(() => {});
+                }
+              }}
+            />
           </div>
 
           {/* Coluna lateral */}
