@@ -66,11 +66,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             inicializado.current = true;
             setErroConexao(null);
           } else if (_event === 'SIGNED_IN') {
-            if (session?.user && !usuario) {
-              await loadUserProfile(session.user.id);
-            }
-            setLoading(false);
-            inicializado.current = true;
+            // loadUserProfile já é chamado por login() e pelo INITIAL_SESSION (Remember Me)
+            // Não chamar aqui para evitar race condition
             setErroConexao(null);
           } else if (_event === 'SIGNED_OUT') {
             setUsuario(null);
