@@ -66,14 +66,24 @@ const CORES_GRAFICO = [
   '#84cc16', '#e11d48', '#0ea5e9', '#d946ef', '#facc15',
 ];
 
-const FMT_BRL = (v: number) =>
-  v === 0 ? '—' : v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
+const toNumber = (v: unknown): number => {
+  const n = typeof v === 'number' ? v : Number(v);
+  return Number.isFinite(n) ? n : 0;
+};
 
-const FMT_BRL_SHORT = (v: number) => {
-  if (v === 0) return '—';
-  if (v >= 1_000_000) return `R$ ${(v / 1_000_000).toFixed(1)}M`;
-  if (v >= 1_000) return `R$ ${(v / 1_000).toFixed(0)}k`;
-  return FMT_BRL(v);
+const FMT_BRL = (v: unknown) => {
+  const value = toNumber(v);
+  return value === 0
+    ? '—'
+    : value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
+};
+
+const FMT_BRL_SHORT = (v: unknown) => {
+  const value = toNumber(v);
+  if (value === 0) return '—';
+  if (value >= 1_000_000) return `R$ ${(value / 1_000_000).toFixed(1)}M`;
+  if (value >= 1_000) return `R$ ${(value / 1_000).toFixed(0)}k`;
+  return FMT_BRL(value);
 };
 
 /* ─────────────────────── Custom Tooltip ─────────────────────── */
