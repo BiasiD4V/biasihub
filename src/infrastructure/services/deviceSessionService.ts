@@ -37,6 +37,13 @@ export async function createDeviceSession(
     
     const expiresAt = new Date(Date.now() + SESSION_DURATION).toISOString();
 
+    // Obter os tokens de autenticação do Supabase
+    const supabaseSession = (await supabase.auth.getSession()).data.session;
+    if (!supabaseSession) {
+      console.error('Sem sessão Supabase ativa para salvar tokens');
+      return null;
+    }
+
     const { data, error } = await supabase
       .from('device_sessions')
       .insert({
@@ -47,6 +54,8 @@ export async function createDeviceSession(
         session_token: sessionToken,
         expires_at: expiresAt,
         user_agent: userAgent,
+        access_token: supabaseSession.access_token,
+        refresh_token: supabaseSession.refresh_token,
       })
       .select()
       .single();
@@ -76,6 +85,7 @@ export async function validateRememberedSession(): Promise<{
   valid: boolean;
   userId?: string;
   email?: string;
+  session?: any;
 }> {
   try {
     const storedToken = localStorage.getItem(STORAGE_KEY);
@@ -104,17 +114,74 @@ export async function validateRememberedSession(): Promise<{
       return { valid: false };
     }
 
-    // Atualizar último login
-    await supabase
-      .from('device_sessions')
-      .update({ last_login_at: new Date().toISOString() })
-      .eq('id', data.id);
+    // Verificar se temos os tokens de autenticação salvos
+    if (data.access_token && data.refresh_token) {
+      console.log('Tentando restaurar sessão com tokens salvos...');
+      
+      try {
+        // Restaurar a sessão do Supabase Auth
+        const { data: sessionData, error: sessionError } = 
+          await supabase.auth.setSession({
+            access_token: data.access_token,
+            refresh_token: data.refresh_token,
+          });
 
-    return {
-      valid: true,
-      userId: data.user_id,
-      email: data.email,
-    };
+        if (sessionError || !sessionData.session) {
+          console.warn('Falha ao restaurar sessão com tokens antigas, tentando refresh...');
+          
+          // Se os tokens expiraram, tentar fazer refresh
+          const { data: refreshData, error: refreshError } = 
+            await supabase.auth.refreshSession({
+              refresh_token: data.refresh_token,
+            });
+
+          if (refreshError || !refreshData.session) {
+            console.warn('Falha ao fazer refresh de sessão. Limpando tokens...');
+            clearRememberedSession();
+            return { valid: false };
+          }
+
+          // Sucesso! Atualizar tokens no banco de dados para próxima vez
+          const newSession = refreshData.session;
+          await supabase
+            .from('device_sessions')
+            .update({ 
+              access_token: newSession.access_token,
+              refresh_token: newSession.refresh_token,
+              last_login_at: new Date().toISOString()
+            })
+            .eq('id', data.id);
+
+          console.log('✅ Sessão restaurada com sucesso (via refresh)');
+          return {
+            valid: true,
+            userId: data.user_id,
+            email: data.email,
+            session: newSession,
+          };
+        }
+
+        // Sucesso! Tokens ainda válidos
+        await supabase
+          .from('device_sessions')
+          .update({ last_login_at: new Date().toISOString() })
+          .eq('id', data.id);
+
+        console.log('✅ Sessão restaurada com sucesso (tokens ainda válidos)');
+        return {
+          valid: true,
+          userId: data.user_id,
+          email: data.email,
+          session: sessionData.session,
+        };
+      } catch (sessionRestoreError) {
+        console.error('Erro ao restaurar sessão:', sessionRestoreError);
+        return { valid: false };
+      }
+    } else {
+      console.warn('Device session não tem tokens de autenticação salvos');
+      return { valid: false };
+    }
   } catch (error) {
     console.error('Erro ao validar sessão lembrada:', error);
     return { valid: false };

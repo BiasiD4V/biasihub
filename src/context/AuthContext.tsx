@@ -49,16 +49,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               await loadUserProfile(session.user.id);
             } else {
               // Tentar validar Remember Me antes de liberar para login
+              console.log('Nenhuma sessão ativa — testando Remember Me...');
               const remembered = await validateRememberedSession();
+              
               if (remembered.valid && remembered.userId) {
-                // Auto-login usando Supabase refresh token se disponível
-                const { data: { session: newSession } } = await supabase.auth.refreshSession();
-                if (newSession?.user) {
-                  await loadUserProfile(newSession.user.id);
-                } else {
-                  setUsuario(null);
-                }
+                console.log('✅ Sessão lembrada encontrada! Fazendo auto-login...');
+                // A sessão foi restaurada no Supabase Auth pelo validateRememberedSession
+                // Buscar o usuário para carregar o perfil
+                await loadUserProfile(remembered.userId);
               } else {
+                console.log('❌ Nenhuma sessão lembrada válida — mostrando login');
                 setUsuario(null);
               }
             }
