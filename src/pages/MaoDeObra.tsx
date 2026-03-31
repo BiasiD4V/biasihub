@@ -1,8 +1,12 @@
-import { useState, useMemo } from 'react';
-import { Hammer, Plus, Trash2, Edit2, Save, X, Search, ChevronDown, ChevronRight, Filter } from 'lucide-react';
-import seedData from '../data/composicoesMaoDeObra.json';
+import { useState, useMemo, useEffect, useCallback } from 'react';
+import { Hammer, Plus, Trash2, Edit2, Save, X, Search, ChevronDown, ChevronRight, Filter, Loader2, AlertCircle } from 'lucide-react';
+import { maoDeObraRepository } from '../infrastructure/supabase/maoDeObraRepository';
+import type { ComposicaoMOSupabase } from '../infrastructure/supabase/maoDeObraRepository';
+import { maoDeObraTiposRepository } from '../infrastructure/supabase/maoDeObraTiposRepository';
+import type { MaoDeObraTipo } from '../infrastructure/supabase/maoDeObraTiposRepository';
+import { mockUnidades } from '../infrastructure/mock/dados/unidades.mock';
 
-/* ── Tipos ── */
+/* ── Tipos locais ── */
 interface Profissional {
   id: string;
   profissao: string;
@@ -23,25 +27,25 @@ interface Composicao {
   profissionais: Profissional[];
 }
 
-/* ── Converter seed JSON → estado ── */
-function carregarSeed(): Composicao[] {
-  return (seedData as any[]).map((item, idx) => ({
-    id: `seed-${idx}`,
-    obra: item.obra,
-    atividade: item.atividade,
-    jornada: item.jornada ?? 8,
-    unid: item.unid ?? 'm',
-    qtd: item.qtd ?? null,
-    tempoDias: item.tempoDias ?? null,
-    totalHh: item.totalHh ?? null,
-    profissionais: (item.profissionais ?? []).map((p: any, pi: number) => ({
-      id: `seed-${idx}-p${pi}`,
+/* ── Converter Supabase → estado local ── */
+function fromSupabase(c: ComposicaoMOSupabase): Composicao {
+  return {
+    id: c.id,
+    obra: c.obra,
+    atividade: c.atividade,
+    jornada: c.jornada,
+    unid: c.unid,
+    qtd: c.qtd,
+    tempoDias: c.tempo_dias,
+    totalHh: c.total_hh,
+    profissionais: (c.mao_de_obra_profissionais || []).map((p) => ({
+      id: p.id,
       profissao: p.profissao,
-      unid: p.unid ?? 'H',
-      coef: p.coef ?? null,
-      hhTotal: p.hhTotal ?? null,
+      unid: p.unid,
+      coef: p.coef,
+      hhTotal: p.hh_total,
     })),
-  }));
+  };
 }
 
 /* ═══════════════════════════════════════════
@@ -52,11 +56,13 @@ function LinhaProf({
   editando,
   onChange,
   onRemove,
+  tiposMO,
 }: {
   p: Profissional;
   editando: boolean;
   onChange: (p: Profissional) => void;
   onRemove: () => void;
+  tiposMO: MaoDeObraTipo[];
 }) {
   if (!editando) {
     return (
@@ -75,20 +81,33 @@ function LinhaProf({
   return (
     <tr className="border-b border-blue-100 bg-blue-50/30">
       <td className="px-2 py-1.5">
-        <input
-          type="text"
+        {/* Dropdown com tipos do Config → Mão de Obra */}
+        <select
           value={p.profissao}
           onChange={(e) => onChange({ ...p, profissao: e.target.value })}
-          className="w-full border border-slate-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
-        />
+          className="w-full border border-slate-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
+        >
+          <option value="">Selecionar...</option>
+          {tiposMO.filter((t) => t.ativo).map((t) => (
+            <option key={t.id} value={t.nome}>{t.nome}</option>
+          ))}
+          {/* Manter valor atual mesmo se não estiver na lista */}
+          {p.profissao && !tiposMO.some((t) => t.nome === p.profissao) && (
+            <option value={p.profissao}>{p.profissao}</option>
+          )}
+        </select>
       </td>
       <td className="px-2 py-1.5">
-        <input
-          type="text"
+        {/* Dropdown com unidades do Config → Unidades */}
+        <select
           value={p.unid}
           onChange={(e) => onChange({ ...p, unid: e.target.value })}
-          className="w-16 border border-slate-200 rounded px-2 py-1 text-xs text-center focus:outline-none focus:ring-1 focus:ring-blue-500"
-        />
+          className="w-16 border border-slate-200 rounded px-1 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
+        >
+          {mockUnidades.map((u) => (
+            <option key={u.id} value={u.simbolo}>{u.simbolo}</option>
+          ))}
+        </select>
       </td>
       <td className="px-2 py-1.5">
         <input
@@ -124,26 +143,40 @@ function CardComposicao({
   comp,
   onAtualizar,
   onRemover,
+  tiposMO,
 }: {
   comp: Composicao;
-  onAtualizar: (c: Composicao) => void;
-  onRemover: (id: string) => void;
+  onAtualizar: (c: Composicao) => Promise<void>;
+  onRemover: (id: string) => Promise<void>;
+  tiposMO: MaoDeObraTipo[];
 }) {
   const [aberto, setAberto] = useState(false);
   const [editando, setEditando] = useState(false);
   const [rascunho, setRascunho] = useState<Composicao>(comp);
+  const [salvando, setSalvando] = useState(false);
+  const [removendo, setRemovendo] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
 
   const totalCoef = comp.profissionais.reduce((s, p) => s + (p.coef ?? 0), 0);
   const totalHh = comp.profissionais.reduce((s, p) => s + (p.hhTotal ?? 0), 0);
 
-  function salvar() {
-    onAtualizar(rascunho);
-    setEditando(false);
+  async function salvar() {
+    setSalvando(true);
+    setErro(null);
+    try {
+      await onAtualizar(rascunho);
+      setEditando(false);
+    } catch (e: any) {
+      setErro(e.message || 'Erro ao salvar');
+    } finally {
+      setSalvando(false);
+    }
   }
 
   function cancelar() {
     setRascunho(comp);
     setEditando(false);
+    setErro(null);
   }
 
   function iniciarEdicao(e: React.MouseEvent) {
@@ -151,6 +184,18 @@ function CardComposicao({
     setRascunho(comp);
     setEditando(true);
     setAberto(true);
+  }
+
+  async function remover(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (!confirm(`Remover "${comp.atividade}"?`)) return;
+    setRemovendo(true);
+    try {
+      await onRemover(comp.id);
+    } catch (e: any) {
+      setErro(e.message || 'Erro ao remover');
+      setRemovendo(false);
+    }
   }
 
   function atualizarProf(idx: number, p: Profissional) {
@@ -255,11 +300,11 @@ function CardComposicao({
         <div className="flex items-center gap-1 flex-shrink-0">
           {editando ? (
             <>
-              <button onClick={cancelar} className="p-1.5 text-slate-500 hover:bg-slate-100 rounded-lg" title="Cancelar">
+              <button onClick={cancelar} disabled={salvando} className="p-1.5 text-slate-500 hover:bg-slate-100 rounded-lg disabled:opacity-50" title="Cancelar">
                 <X size={14} />
               </button>
-              <button onClick={salvar} className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg" title="Salvar">
-                <Save size={14} />
+              <button onClick={salvar} disabled={salvando} className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg disabled:opacity-50 flex items-center gap-1" title="Salvar">
+                {salvando ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
               </button>
             </>
           ) : (
@@ -268,16 +313,24 @@ function CardComposicao({
                 <Edit2 size={14} />
               </button>
               <button
-                onClick={(e) => { e.stopPropagation(); onRemover(comp.id); }}
-                className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg"
+                onClick={remover}
+                disabled={removendo}
+                className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg disabled:opacity-50"
                 title="Remover"
               >
-                <Trash2 size={14} />
+                {removendo ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
               </button>
             </>
           )}
         </div>
       </div>
+
+      {/* Erro inline */}
+      {erro && (
+        <div className="px-4 py-2 bg-red-50 border-t border-red-100 text-xs text-red-600 flex items-center gap-2">
+          <AlertCircle size={12} /> {erro}
+        </div>
+      )}
 
       {/* ── Tabela de profissionais ── */}
       {aberto && (
@@ -299,6 +352,7 @@ function CardComposicao({
                   editando={editando}
                   onChange={(pAtualizado) => atualizarProf(idx, pAtualizado)}
                   onRemove={() => removerProf(idx)}
+                  tiposMO={tiposMO}
                 />
               ))}
 
@@ -353,11 +407,35 @@ function CardComposicao({
    PÁGINA PRINCIPAL — Composições de Mão de Obra
    ═══════════════════════════════════════════ */
 export function MaoDeObra() {
-  const [composicoes, setComposicoes] = useState<Composicao[]>(carregarSeed);
+  const [composicoes, setComposicoes] = useState<Composicao[]>([]);
+  const [carregando, setCarregando] = useState(true);
+  const [erroCarregar, setErroCarregar] = useState<string | null>(null);
+  const [tiposMO, setTiposMO] = useState<MaoDeObraTipo[]>([]);
   const [busca, setBusca] = useState('');
   const [filtroObra, setFiltroObra] = useState<string>('');
   const [adicionando, setAdicionando] = useState(false);
+  const [salvandoNovo, setSalvandoNovo] = useState(false);
   const [novo, setNovo] = useState({ obra: '', atividade: '', jornada: 8, unid: 'm', qtd: '', tempoDias: '' });
+
+  /* ── Carregar do Supabase ── */
+  const carregar = useCallback(async () => {
+    setCarregando(true);
+    setErroCarregar(null);
+    try {
+      const [dados, tipos] = await Promise.all([
+        maoDeObraRepository.listarTodos(),
+        maoDeObraTiposRepository.listarAtivos(),
+      ]);
+      setComposicoes(dados.map(fromSupabase));
+      setTiposMO(tipos);
+    } catch (e: any) {
+      setErroCarregar(e.message || 'Erro ao carregar dados');
+    } finally {
+      setCarregando(false);
+    }
+  }, []);
+
+  useEffect(() => { carregar(); }, [carregar]);
 
   /* Obras únicas para filtro */
   const obrasUnicas = useMemo(() => {
@@ -398,24 +476,97 @@ export function MaoDeObra() {
   );
   const totalProfs = filtradas.reduce((s, c) => s + c.profissionais.length, 0);
 
-  function addComposicao() {
+  /* ── Adicionar nova composição ── */
+  async function addComposicao() {
     if (!novo.atividade.trim()) return;
-    setComposicoes([
-      ...composicoes,
-      {
-        id: `new-${Date.now()}`,
+    setSalvandoNovo(true);
+    try {
+      const criada = await maoDeObraRepository.criar({
         obra: novo.obra || 'Sem obra',
         atividade: novo.atividade,
         jornada: novo.jornada,
         unid: novo.unid,
         qtd: novo.qtd ? parseFloat(novo.qtd) : null,
-        tempoDias: novo.tempoDias ? parseFloat(novo.tempoDias) : null,
-        totalHh: null,
-        profissionais: [],
-      },
-    ]);
-    setNovo({ obra: '', atividade: '', jornada: 8, unid: 'm', qtd: '', tempoDias: '' });
-    setAdicionando(false);
+        tempo_dias: novo.tempoDias ? parseFloat(novo.tempoDias) : null,
+        total_hh: null,
+      });
+      setComposicoes((prev) => [...prev, fromSupabase(criada)]);
+      setNovo({ obra: '', atividade: '', jornada: 8, unid: 'm', qtd: '', tempoDias: '' });
+      setAdicionando(false);
+    } catch (e: any) {
+      alert('Erro ao criar composição: ' + (e.message || e));
+    } finally {
+      setSalvandoNovo(false);
+    }
+  }
+
+  /* ── Atualizar composição (cabeçalho + profissionais) ── */
+  async function atualizarComposicao(atualizado: Composicao) {
+    await maoDeObraRepository.atualizar(atualizado.id, {
+      obra: atualizado.obra,
+      atividade: atualizado.atividade,
+      jornada: atualizado.jornada,
+      unid: atualizado.unid,
+      qtd: atualizado.qtd,
+      tempo_dias: atualizado.tempoDias,
+      total_hh: atualizado.totalHh,
+    });
+
+    const profsAtualizadas = await maoDeObraRepository.salvarProfissionais(
+      atualizado.id,
+      atualizado.profissionais.map((p) => ({
+        profissao: p.profissao,
+        unid: p.unid,
+        coef: p.coef,
+        hh_total: p.hhTotal,
+      }))
+    );
+
+    const composicaoAtualizada: Composicao = {
+      ...atualizado,
+      profissionais: profsAtualizadas.map((p) => ({
+        id: p.id,
+        profissao: p.profissao,
+        unid: p.unid,
+        coef: p.coef,
+        hhTotal: p.hh_total,
+      })),
+    };
+
+    setComposicoes((prev) => prev.map((c) => (c.id === atualizado.id ? composicaoAtualizada : c)));
+  }
+
+  /* ── Remover composição ── */
+  async function removerComposicao(id: string) {
+    await maoDeObraRepository.deletar(id);
+    setComposicoes((prev) => prev.filter((c) => c.id !== id));
+  }
+
+  /* ── Estados de carregamento / erro ── */
+  if (carregando) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="flex flex-col items-center gap-3 text-slate-500">
+          <Loader2 size={32} className="animate-spin text-blue-500" />
+          <p className="text-sm">Carregando composições...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (erroCarregar) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="flex flex-col items-center gap-3 text-center max-w-sm">
+          <AlertCircle size={32} className="text-red-400" />
+          <p className="text-sm font-semibold text-slate-700">Erro ao carregar dados</p>
+          <p className="text-xs text-slate-500">{erroCarregar}</p>
+          <button onClick={carregar} className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">
+            Tentar novamente
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -519,10 +670,11 @@ export function MaoDeObra() {
               </div>
             </div>
             <div className="flex gap-2 justify-end">
-              <button onClick={() => setAdicionando(false)} className="px-4 py-2 rounded-lg border border-slate-200 text-sm text-slate-600 hover:bg-slate-50">
+              <button onClick={() => setAdicionando(false)} disabled={salvandoNovo} className="px-4 py-2 rounded-lg border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-50">
                 Cancelar
               </button>
-              <button onClick={addComposicao} className="px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm font-medium">
+              <button onClick={addComposicao} disabled={salvandoNovo} className="px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm font-medium disabled:opacity-50 flex items-center gap-2">
+                {salvandoNovo && <Loader2 size={14} className="animate-spin" />}
                 Adicionar
               </button>
             </div>
@@ -563,10 +715,9 @@ export function MaoDeObra() {
                     <CardComposicao
                       key={comp.id}
                       comp={comp}
-                      onAtualizar={(atualizado) =>
-                        setComposicoes(composicoes.map((c) => (c.id === atualizado.id ? atualizado : c)))
-                      }
-                      onRemover={(id) => setComposicoes(composicoes.filter((c) => c.id !== id))}
+                      onAtualizar={atualizarComposicao}
+                      onRemover={removerComposicao}
+                      tiposMO={tiposMO}
                     />
                   ))}
                 </div>
