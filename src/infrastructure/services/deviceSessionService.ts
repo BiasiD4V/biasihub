@@ -1,5 +1,8 @@
 /**
  * Serviço para gerenciar sessões de dispositivo (Remember Me)
+ * 
+ * Abordagem: Salva TUDO no localStorage + registra no banco para listagem.
+ * Os tokens Supabase ficam SÓ no localStorage (seguro, sem precisar de migration SQL).
  */
 
 import { supabase } from '../supabase/client';
@@ -21,6 +24,8 @@ export interface DeviceSession {
 
 const SESSION_DURATION = 30 * 24 * 60 * 60 * 1000; // 30 dias
 const STORAGE_KEY = 'remember_me_token';
+const REFRESH_KEY = 'remember_me_refresh_token';
+const USERID_KEY = 'remember_me_user_id';
 
 /**
  * Cria uma nova sessão de dispositivo (Remember Me)
@@ -44,6 +49,7 @@ export async function createDeviceSession(
       return null;
     }
 
+    // Salvar no banco (para listagem em "Meus Dispositivos") - best effort, sem campos de token
     const { data, error } = await supabase
       .from('device_sessions')
       .insert({
@@ -54,23 +60,24 @@ export async function createDeviceSession(
         session_token: sessionToken,
         expires_at: expiresAt,
         user_agent: userAgent,
-        access_token: supabaseSession.access_token,
-        refresh_token: supabaseSession.refresh_token,
       })
       .select()
       .single();
 
     if (error) {
-      console.error('Erro ao criar device session:', error);
-      return null;
+      console.error('Erro ao criar device session no banco:', error);
+      // Mesmo com erro no banco, salva no localStorage para auto-login funcionar
     }
 
-    // Armazenar token no localStorage
-    if (data) {
-      localStorage.setItem(STORAGE_KEY, sessionToken);
-      localStorage.setItem(`${STORAGE_KEY}_email`, email);
-    }
+    // SALVAR TUDO NO LOCALSTORAGE — é aqui que o auto-login acontece
+    localStorage.setItem(STORAGE_KEY, sessionToken);
+    localStorage.setItem(`${STORAGE_KEY}_email`, email);
+    localStorage.setItem(REFRESH_KEY, supabaseSession.refresh_token);
+    localStorage.setItem(USERID_KEY, userId);
+    localStorage.setItem(`${STORAGE_KEY}_expires`, expiresAt);
+    localStorage.setItem(`${STORAGE_KEY}_ip`, ip);
 
+    console.log('✅ Remember Me salvo com sucesso (localStorage + banco)');
     return data;
   } catch (error) {
     console.error('Erro ao criar sessão de dispositivo:', error);
@@ -79,7 +86,8 @@ export async function createDeviceSession(
 }
 
 /**
- * Valida um token de sessão armazenado e tenta login automático
+ * Valida um token de sessão e tenta login automático
+ * Usa APENAS localStorage — sem depender de colunas extras no banco
  */
 export async function validateRememberedSession(): Promise<{
   valid: boolean;
@@ -90,98 +98,70 @@ export async function validateRememberedSession(): Promise<{
   try {
     const storedToken = localStorage.getItem(STORAGE_KEY);
     const storedEmail = localStorage.getItem(`${STORAGE_KEY}_email`);
+    const storedRefreshToken = localStorage.getItem(REFRESH_KEY);
+    const storedUserId = localStorage.getItem(USERID_KEY);
+    const storedExpires = localStorage.getItem(`${STORAGE_KEY}_expires`);
+    const storedIp = localStorage.getItem(`${STORAGE_KEY}_ip`);
 
-    if (!storedToken || !storedEmail) {
+    // Verificar se temos todos os dados necessários
+    if (!storedToken || !storedEmail || !storedRefreshToken || !storedUserId) {
+      console.log('Remember Me: dados incompletos no localStorage');
       return { valid: false };
     }
 
-    const currentIP = await getDeviceIP();
-
-    // Buscar a sessão no banco de dados
-    const { data, error } = await supabase
-      .from('device_sessions')
-      .select('*')
-      .eq('session_token', storedToken)
-      .eq('email', storedEmail)
-      .eq('ip_address', currentIP)
-      .eq('is_active', true)
-      .gt('expires_at', new Date().toISOString())
-      .single();
-
-    if (error || !data) {
-      console.warn('Token de sessão inválido ou expirado');
+    // Verificar se a sessão expirou
+    if (storedExpires && new Date(storedExpires) < new Date()) {
+      console.warn('Remember Me: sessão expirada');
       clearRememberedSession();
       return { valid: false };
     }
 
-    // Verificar se temos os tokens de autenticação salvos
-    if (data.access_token && data.refresh_token) {
-      console.log('Tentando restaurar sessão com tokens salvos...');
-      
-      try {
-        // Restaurar a sessão do Supabase Auth
-        const { data: sessionData, error: sessionError } = 
-          await supabase.auth.setSession({
-            access_token: data.access_token,
-            refresh_token: data.refresh_token,
-          });
-
-        if (sessionError || !sessionData.session) {
-          console.warn('Falha ao restaurar sessão com tokens antigas, tentando refresh...');
-          
-          // Se os tokens expiraram, tentar fazer refresh
-          const { data: refreshData, error: refreshError } = 
-            await supabase.auth.refreshSession({
-              refresh_token: data.refresh_token,
-            });
-
-          if (refreshError || !refreshData.session) {
-            console.warn('Falha ao fazer refresh de sessão. Limpando tokens...');
-            clearRememberedSession();
-            return { valid: false };
-          }
-
-          // Sucesso! Atualizar tokens no banco de dados para próxima vez
-          const newSession = refreshData.session;
-          await supabase
-            .from('device_sessions')
-            .update({ 
-              access_token: newSession.access_token,
-              refresh_token: newSession.refresh_token,
-              last_login_at: new Date().toISOString()
-            })
-            .eq('id', data.id);
-
-          console.log('✅ Sessão restaurada com sucesso (via refresh)');
-          return {
-            valid: true,
-            userId: data.user_id,
-            email: data.email,
-            session: newSession,
-          };
-        }
-
-        // Sucesso! Tokens ainda válidos
-        await supabase
-          .from('device_sessions')
-          .update({ last_login_at: new Date().toISOString() })
-          .eq('id', data.id);
-
-        console.log('✅ Sessão restaurada com sucesso (tokens ainda válidos)');
-        return {
-          valid: true,
-          userId: data.user_id,
-          email: data.email,
-          session: sessionData.session,
-        };
-      } catch (sessionRestoreError) {
-        console.error('Erro ao restaurar sessão:', sessionRestoreError);
+    // Verificar se o IP mudou (segurança)
+    try {
+      const currentIP = await getDeviceIP();
+      if (storedIp && storedIp !== currentIP) {
+        console.warn('Remember Me: IP mudou, invalidando sessão por segurança');
+        clearRememberedSession();
         return { valid: false };
       }
-    } else {
-      console.warn('Device session não tem tokens de autenticação salvos');
+    } catch (ipError) {
+      // Se não conseguir pegar o IP, continua mesmo assim (pode ser offline temp)
+      console.warn('Remember Me: não conseguiu verificar IP, continuando...');
+    }
+
+    // RESTAURAR SESSÃO SUPABASE usando refresh_token salvo no localStorage
+    console.log('Remember Me: tentando restaurar sessão Supabase...');
+
+    const { data: refreshData, error: refreshError } = 
+      await supabase.auth.refreshSession({
+        refresh_token: storedRefreshToken,
+      });
+
+    if (refreshError || !refreshData.session) {
+      console.warn('Remember Me: falha ao restaurar sessão:', refreshError?.message);
+      clearRememberedSession();
       return { valid: false };
     }
+
+    // SUCESSO! Atualizar o refresh_token no localStorage (pode ter mudado)
+    const newSession = refreshData.session;
+    localStorage.setItem(REFRESH_KEY, newSession.refresh_token);
+
+    // Atualizar último login no banco (best-effort)
+    supabase
+      .from('device_sessions')
+      .update({ last_login_at: new Date().toISOString() })
+      .eq('session_token', storedToken)
+      .then(() => {})
+      .catch(() => {});
+
+    console.log('✅ Remember Me: sessão restaurada com sucesso!');
+    return {
+      valid: true,
+      userId: storedUserId,
+      email: storedEmail,
+      session: newSession,
+    };
   } catch (error) {
     console.error('Erro ao validar sessão lembrada:', error);
     return { valid: false };
@@ -264,9 +244,13 @@ export async function revokeAllDeviceSessions(userId: string, currentSessionId?:
 }
 
 /**
- * Limpa o token salvo no localStorage
+ * Limpa TODOS os tokens salvos no localStorage
  */
 export function clearRememberedSession(): void {
   localStorage.removeItem(STORAGE_KEY);
   localStorage.removeItem(`${STORAGE_KEY}_email`);
+  localStorage.removeItem(`${STORAGE_KEY}_expires`);
+  localStorage.removeItem(`${STORAGE_KEY}_ip`);
+  localStorage.removeItem(REFRESH_KEY);
+  localStorage.removeItem(USERID_KEY);
 }
