@@ -260,6 +260,7 @@ export function OrcamentoDetalhe() {
         etapa_nova: etapaNova,
         responsavel: resp,
         observacao: observacao ?? null,
+        arquivo: null,
       }).catch(() => {});
     } else {
       atualizarEtapaFunil(id, etapaNova, usuario?.nome ?? 'Paulo Confar', observacao);
@@ -705,6 +706,7 @@ export function OrcamentoDetalhe() {
               resumo: fu.resumo,
               proxima_acao: fu.proximaAcao ?? null,
               data_proxima_acao: fu.dataProximaAcao ?? null,
+              arquivo: fu.arquivo ?? null,
             }).catch(() => {});
             // Salvar próxima ação no Supabase
             const updateData = fu.proximaAcao
