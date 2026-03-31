@@ -88,18 +88,10 @@ export function SidebarAutenticada({ onNavigate }: SidebarProps) {
   const { usuario, logout } = useAuth();
 
   return (
-    <aside className="fixed left-0 top-0 h-screen w-[85vw] sm:w-64 bg-slate-900 flex flex-col z-40">
-      {/* Logo + fechar */}
-      <div className="flex items-center justify-between px-5 py-5 border-b border-slate-800">
+    <aside className="h-full w-[85vw] sm:w-64 bg-slate-900 flex flex-col">
+      {/* Logo */}
+      <div className="flex items-center justify-center px-5 py-5 border-b border-slate-800">
         <img src="/logo-biasi-branco.png" alt="Biasi Engenharia" className="h-10 w-auto" />
-        <button
-          type="button"
-          onClick={(e) => { e.stopPropagation(); onNavigate?.(); }}
-          className="lg:hidden text-slate-400 hover:text-white p-2 rounded-lg hover:bg-slate-800 transition-colors -mr-2"
-          aria-label="Fechar menu"
-        >
-          <X size={22} />
-        </button>
       </div>
 
       {/* Navegação */}

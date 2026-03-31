@@ -3,7 +3,7 @@ import { Navigate, Outlet } from 'react-router-dom';
 import { SidebarAutenticada } from './SidebarAutenticada';
 import { PauloAjuda } from './PauloAjuda';
 import { useAuth } from '../../context/AuthContext';
-import { Menu } from 'lucide-react';
+import { Menu, X } from 'lucide-react';
 
 export function LayoutAutenticado() {
   const { isAuthenticated, loading, erroConexao } = useAuth();
@@ -72,10 +72,20 @@ export function LayoutAutenticado() {
 
       {/* Sidebar */}
       <div className={`
-        fixed inset-y-0 left-0 z-50 transform transition-transform duration-200 ease-in-out
+        fixed inset-y-0 left-0 z-50 w-[85vw] sm:w-64
+        transform transition-transform duration-200 ease-in-out
         lg:translate-x-0
         ${sidebarAberta ? 'translate-x-0' : '-translate-x-full'}
       `}>
+        {/* Botão X fechar — mobile */}
+        <button
+          type="button"
+          onClick={fecharSidebar}
+          className="lg:hidden absolute top-4 right-3 z-[60] text-slate-400 hover:text-white p-2 rounded-lg hover:bg-slate-800 transition-colors"
+          aria-label="Fechar menu"
+        >
+          <X size={22} />
+        </button>
         <SidebarAutenticada onNavigate={fecharSidebar} />
       </div>
 
