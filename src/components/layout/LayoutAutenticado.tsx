@@ -1,10 +1,16 @@
+import { useState } from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
 import { SidebarAutenticada } from './SidebarAutenticada';
 import { PauloAjuda } from './PauloAjuda';
 import { useAuth } from '../../context/AuthContext';
+import { Menu } from 'lucide-react';
 
 export function LayoutAutenticado() {
   const { isAuthenticated, loading, erroConexao } = useAuth();
+  const [sidebarAberta, setSidebarAberta] = useState(false);
+
+  // Fechar sidebar ao navegar (mobile)
+  const fecharSidebar = () => setSidebarAberta(false);
 
   // Mostrar loading enquanto verifica autenticação
   if (loading) {
@@ -44,8 +50,34 @@ export function LayoutAutenticado() {
 
   return (
     <div className="flex min-h-screen bg-slate-50">
-      <SidebarAutenticada />
-      <main className="ml-64 flex-1 flex flex-col min-h-screen">
+      {/* Botão hamburger — só mobile */}
+      <button
+        onClick={() => setSidebarAberta(true)}
+        className="fixed top-4 left-4 z-50 lg:hidden bg-slate-900 text-white p-2 rounded-lg shadow-lg"
+        aria-label="Abrir menu"
+      >
+        <Menu size={22} />
+      </button>
+
+      {/* Overlay escuro — só mobile quando aberta */}
+      {sidebarAberta && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          onClick={fecharSidebar}
+        />
+      )}
+
+      {/* Sidebar */}
+      <div className={`
+        fixed inset-y-0 left-0 z-50 transform transition-transform duration-200 ease-in-out
+        lg:translate-x-0
+        ${sidebarAberta ? 'translate-x-0' : '-translate-x-full'}
+      `}>
+        <SidebarAutenticada onNavigate={fecharSidebar} />
+      </div>
+
+      {/* Conteúdo principal */}
+      <main className="flex-1 flex flex-col min-h-screen lg:ml-64 pt-16 lg:pt-0 px-4 lg:px-0">
         <Outlet />
       </main>
       <PauloAjuda />

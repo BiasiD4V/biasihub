@@ -77,18 +77,19 @@ function generateDeviceFingerprint(): string {
 export function getDeviceName(): string {
   const userAgent = navigator.userAgent;
   
-  if (userAgent.includes('Windows')) {
+  // Android deve vir ANTES de Linux (Android UA contém "Linux")
+  if (userAgent.includes('Android')) {
+    return 'Android';
+  } else if (userAgent.includes('iPhone')) {
+    return 'iPhone';
+  } else if (userAgent.includes('iPad')) {
+    return 'iPad';
+  } else if (userAgent.includes('Windows')) {
     return 'Windows PC';
   } else if (userAgent.includes('Mac')) {
     return 'Mac';
   } else if (userAgent.includes('Linux')) {
     return 'Linux';
-  } else if (userAgent.includes('iPhone')) {
-    return 'iPhone';
-  } else if (userAgent.includes('iPad')) {
-    return 'iPad';
-  } else if (userAgent.includes('Android')) {
-    return 'Android';
   }
   
   return 'Dispositivo desconhecido';

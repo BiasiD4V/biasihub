@@ -53,13 +53,26 @@ export function Membros() {
 
   useEffect(() => {
     async function carregarMembros() {
-      const { data, error } = await supabase
-        .from('usuarios')
-        .select('*')
-        .order('criado_em', { ascending: true });
+      try {
+        // Usar API serverless que faz bypass do RLS
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.access_token) {
+          setLoading(false);
+          return;
+        }
 
-      if (!error && data) {
-        setMembros(data as Membro[]);
+        const response = await fetch('/api/membros', {
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setMembros(data as Membro[]);
+        }
+      } catch (err) {
+        console.error('Erro ao carregar membros:', err);
       }
       setLoading(false);
     }

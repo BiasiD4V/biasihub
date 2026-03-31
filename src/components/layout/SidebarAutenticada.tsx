@@ -79,7 +79,11 @@ const classAtivo =
 const classInativo =
   'flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-800 hover:text-white transition-colors';
 
-export function SidebarAutenticada() {
+interface SidebarProps {
+  onNavigate?: () => void;
+}
+
+export function SidebarAutenticada({ onNavigate }: SidebarProps) {
   const { usuario, logout } = useAuth();
 
   return (
@@ -103,6 +107,7 @@ export function SidebarAutenticada() {
                   <li key={item.para}>
                     <NavLink
                       to={item.para}
+                      onClick={onNavigate}
                       className={({ isActive }) => (isActive ? classAtivo : classInativo)}
                     >
                       <Icone size={17} />
@@ -128,6 +133,7 @@ export function SidebarAutenticada() {
                   <li key={item.para}>
                     <NavLink
                       to={item.para}
+                      onClick={onNavigate}
                       className={({ isActive }) => (isActive ? classAtivo : classInativo)}
                     >
                       <Icone size={17} />
