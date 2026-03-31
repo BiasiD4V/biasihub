@@ -10,6 +10,7 @@ import { NovoOrcamentoProvider } from './context/NovoOrcamentoContext';
 // Layout autenticado
 import { LayoutAutenticado } from './components/layout/LayoutAutenticado';
 import { RedirectToDashboard } from './components/RedirectToDashboard';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 // Páginas públicas
 import { Login } from './pages/Login';
@@ -58,9 +59,11 @@ export function App() {
                   <Route
                     path="/dashboard"
                     element={(
-                      <Suspense fallback={<div className="p-6 text-sm text-slate-500">Carregando BI...</div>}>
-                        <DashboardBI />
-                      </Suspense>
+                      <ErrorBoundary>
+                        <Suspense fallback={<div className="p-6 text-sm text-slate-500">Carregando BI...</div>}>
+                          <DashboardBI />
+                        </Suspense>
+                      </ErrorBoundary>
                     )}
                   />
                   <Route path="/dashboard-antigo" element={<DashboardNovo />} />
