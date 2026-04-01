@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "check:planilha": "node scripts/check-planilha-migration.js",
+    "deploy:vercel": "npx.cmd vercel --prod --yes"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.100.0",
@@ -21,7 +23,6 @@
     "@types/node": "^25.5.0",
     "@types/react": "^18.2.55",
     "@types/react-dom": "^18.2.19",
-    "@vercel/node": "^5.6.22",
     "@vitejs/plugin-react": "^4.2.1",
     "autoprefixer": "^10.4.17",
     "postcss": "^8.4.35",
