@@ -131,6 +131,29 @@ export const insumosRepository = {
     return data
   },
 
+  // Quick search for autocomplete — returns deduplicated suggestions by descricao
+  async buscarSugestoes(busca: string): Promise<{ descricao: string; unidade: string; melhor_preco: number }[]> {
+    if (!busca || busca.length < 2) return []
+    const { data, error } = await supabase
+      .from('insumos')
+      .select('descricao, unidade, custo_atual')
+      .eq('ativo', true)
+      .ilike('descricao', `%${busca}%`)
+      .order('descricao', { ascending: true })
+      .limit(80)
+    if (error) throw error
+    // Deduplicate by descricao, keeping best (lowest positive) price
+    const mapa = new Map<string, { descricao: string; unidade: string; melhor_preco: number }>()
+    for (const row of data ?? []) {
+      const existing = mapa.get(row.descricao)
+      const preco = row.custo_atual ?? 0
+      if (!existing || (preco > 0 && (existing.melhor_preco === 0 || preco < existing.melhor_preco))) {
+        mapa.set(row.descricao, { descricao: row.descricao, unidade: row.unidade ?? '', melhor_preco: preco })
+      }
+    }
+    return Array.from(mapa.values()).slice(0, 15)
+  },
+
   async criar(insumo: Partial<Insumo>): Promise<Insumo> {
     const { data, error } = await supabase
       .from('insumos')

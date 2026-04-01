@@ -35,6 +35,8 @@ import { MaoDeObra } from './pages/MaoDeObra';
 import { InclusoExcluso } from './pages/InclusoExcluso';
 import { MeusDispositivos } from './pages/MeusDispositivos';
 import { Membros } from './pages/Membros';
+import { PlanilhaOrcamentaria } from './pages/PlanilhaOrcamentaria';
+import { CriarPlanilha } from './pages/CriarPlanilha';
 
 const DashboardBI = lazy(() => import('./pages/DashboardBI').then((m) => ({ default: m.DashboardBI })));
 
@@ -84,6 +86,9 @@ export function App() {
                   <Route path="/operacao/orcamentos" element={<Propostas />} />
                   <Route path="/meus-dispositivos" element={<MeusDispositivos />} />
                   <Route path="/membros" element={<Membros />} />
+                  <Route path="/planilha-orcamentaria" element={<PlanilhaOrcamentaria />} />
+                  <Route path="/planilha-orcamentaria/nova" element={<CriarPlanilha />} />
+                  <Route path="/planilha-orcamentaria/:id" element={<CriarPlanilha />} />
                 </Route>
 
                 {/* Fallback */}
