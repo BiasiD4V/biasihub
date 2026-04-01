@@ -61,31 +61,61 @@ export interface FollowUpRow {
   created_at: string
 }
 
+function extrairAnoProposta(row: Pick<PropostaSupabase, 'numero_composto' | 'data_entrada' | 'ano'>): number | null {
+  const fromNumero = (row.numero_composto || '').match(/(20\d{2})/)
+  if (fromNumero) return Number(fromNumero[1])
+
+  if (row.data_entrada) {
+    const fromData = Number(row.data_entrada.slice(0, 4))
+    if (!Number.isNaN(fromData) && fromData >= 2000) return fromData
+  }
+
+  if (typeof row.ano === 'number' && !Number.isNaN(row.ano)) return row.ano
+  return null
+}
+
 export const propostasRepository = {
   async listarTodas(
     pagina: number = 0,
     filtros: FiltrosPropostas = {}
   ): Promise<{ data: PropostaSupabase[]; total: number }> {
     const POR_PAGINA = 50
+    const inicio = pagina * POR_PAGINA
+    const fim = (pagina + 1) * POR_PAGINA - 1
+
     let query = supabase
       .from('propostas')
       .select('*', { count: 'exact' })
       .order('data_entrada', { ascending: false })
-      .range(pagina * POR_PAGINA, (pagina + 1) * POR_PAGINA - 1)
+
+    const usarFiltroAnoNoCliente = typeof filtros.ano === 'number'
+    if (!usarFiltroAnoNoCliente) {
+      query = query.range(inicio, fim)
+    }
 
     if (filtros.busca) {
       query = query.or(
         `cliente.ilike.%${filtros.busca}%,objeto.ilike.%${filtros.busca}%,numero_composto.ilike.%${filtros.busca}%,obra.ilike.%${filtros.busca}%`
       )
     }
-    if (filtros.ano) query = query.eq('ano', filtros.ano)
     if (filtros.status) query = query.eq('status', filtros.status)
     if (filtros.disciplina) query = query.eq('disciplina', filtros.disciplina)
     if (filtros.responsavel) query = query.eq('responsavel', filtros.responsavel)
 
     const { data, error, count } = await query
     if (error) throw error
-    return { data: data || [], total: count || 0 }
+
+    if (!usarFiltroAnoNoCliente) {
+      return { data: data || [], total: count || 0 }
+    }
+
+    const ano = filtros.ano as number
+    const todos = (data || []) as PropostaSupabase[]
+    const filtradosAno = todos.filter((row) => extrairAnoProposta(row) === ano)
+    return {
+      data: filtradosAno.slice(inicio, fim + 1),
+      total: filtradosAno.length,
+    }
   },
 
   async buscarKPIs(): Promise<{
@@ -131,21 +161,53 @@ export const propostasRepository = {
   },
 
   async listarDisciplinas(): Promise<string[]> {
+    const cadastrosResult = await supabase
+      .from('disciplinas')
+      .select('nome,ativa')
+      .eq('ativa', true)
+
+    if (!cadastrosResult.error) {
+      const fromCadastros = (cadastrosResult.data || [])
+        .map((r: any) => r.nome as string | null)
+        .filter(Boolean) as string[]
+
+      if (fromCadastros.length > 0) {
+        return [...new Set(fromCadastros)].sort()
+      }
+    }
+
+    // Fallback para base histórica enquanto o cadastro mestre estiver vazio
     const { data, error } = await supabase
       .from('propostas')
       .select('disciplina')
+
     if (error) throw error
-    const unique = [...new Set((data || []).map((r) => r.disciplina).filter(Boolean))] as string[]
-    return unique.sort()
+    return ([...new Set((data || []).map((r) => r.disciplina).filter(Boolean))] as string[]).sort()
   },
 
   async listarResponsaveis(): Promise<string[]> {
+    const cadastrosResult = await supabase
+      .from('responsaveis_comerciais')
+      .select('nome,ativo')
+      .eq('ativo', true)
+
+    if (!cadastrosResult.error) {
+      const fromCadastros = (cadastrosResult.data || [])
+        .map((r: any) => r.nome as string | null)
+        .filter(Boolean) as string[]
+
+      if (fromCadastros.length > 0) {
+        return [...new Set(fromCadastros)].sort()
+      }
+    }
+
+    // Fallback para base histórica enquanto o cadastro mestre estiver vazio
     const { data, error } = await supabase
       .from('propostas')
       .select('responsavel')
+
     if (error) throw error
-    const unique = [...new Set((data || []).map((r) => r.responsavel).filter(Boolean))] as string[]
-    return unique.sort()
+    return ([...new Set((data || []).map((r) => r.responsavel).filter(Boolean))] as string[]).sort()
   },
 
   async buscarDadosDashboard(): Promise<{

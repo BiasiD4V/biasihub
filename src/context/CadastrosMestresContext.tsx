@@ -1,14 +1,10 @@
-import { createContext, useContext, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 import type { TipoObra } from '../domain/entities/TipoObra';
 import type { Disciplina } from '../domain/entities/Disciplina';
 import type { Unidade } from '../domain/entities/Unidade';
 import type { Regiao } from '../domain/entities/Regiao';
 import type { Categoria } from '../domain/entities/Categoria';
-import { mockTiposObra } from '../infrastructure/mock/dados/tiposObra.mock';
-import { mockDisciplinas } from '../infrastructure/mock/dados/disciplinas.mock';
-import { mockUnidades } from '../infrastructure/mock/dados/unidades.mock';
-import { mockRegioes } from '../infrastructure/mock/dados/regioes.mock';
-import { mockCategorias } from '../infrastructure/mock/dados/categorias.mock';
+import { cadastrosMestresRepository } from '../infrastructure/supabase/cadastrosMestresRepository';
 
 interface CadastrosMestresContextType {
   tiposObra: TipoObra[];
@@ -16,64 +12,116 @@ interface CadastrosMestresContextType {
   unidades: Unidade[];
   regioes: Regiao[];
   categorias: Categoria[];
-  toggleAtivoTipoObra: (id: string) => void;
-  toggleAtivaDisciplina: (id: string) => void;
-  excluirTipoObra: (id: string) => void;
-  excluirDisciplina: (id: string) => void;
-  excluirUnidade: (id: string) => void;
-  excluirRegiao: (id: string) => void;
-  excluirCategoria: (id: string) => void;
-  criarDisciplina: (dados: Omit<Disciplina, 'id'>) => void;
-  criarUnidade: (dados: Omit<Unidade, 'id'>) => void;
-  criarRegiao: (dados: Omit<Regiao, 'id'>) => void;
-  criarCategoria: (dados: Omit<Categoria, 'id'>) => void;
+  criarTipoObra: (input: Omit<TipoObra, 'id'>) => Promise<void>;
+  criarDisciplina: (input: Omit<Disciplina, 'id'>) => Promise<void>;
+  criarUnidade: (input: Omit<Unidade, 'id'>) => Promise<void>;
+  criarRegiao: (input: Omit<Regiao, 'id'>) => Promise<void>;
+  criarCategoria: (input: Omit<Categoria, 'id'>) => Promise<void>;
+  toggleAtivoTipoObra: (id: string) => Promise<void>;
+  toggleAtivaDisciplina: (id: string) => Promise<void>;
+  excluirTipoObra: (id: string) => Promise<void>;
+  excluirDisciplina: (id: string) => Promise<void>;
+  excluirUnidade: (id: string) => Promise<void>;
+  excluirRegiao: (id: string) => Promise<void>;
+  excluirCategoria: (id: string) => Promise<void>;
 }
 
 const CadastrosMestresContext = createContext<CadastrosMestresContextType | null>(null);
 
 export function CadastrosMestresProvider({ children }: { children: ReactNode }) {
-  const [tiposObra, setTiposObra] = useState<TipoObra[]>(structuredClone(mockTiposObra));
-  const [disciplinas, setDisciplinas] = useState<Disciplina[]>(structuredClone(mockDisciplinas));
-  const [unidades, setUnidades] = useState<Unidade[]>(structuredClone(mockUnidades));
-  const [regioes, setRegioes] = useState<Regiao[]>(structuredClone(mockRegioes));
-  const [categorias, setCategorias] = useState<Categoria[]>(structuredClone(mockCategorias));
+  const [tiposObra, setTiposObra] = useState<TipoObra[]>([]);
+  const [disciplinas, setDisciplinas] = useState<Disciplina[]>([]);
+  const [unidades, setUnidades] = useState<Unidade[]>([]);
+  const [regioes, setRegioes] = useState<Regiao[]>([]);
+  const [categorias, setCategorias] = useState<Categoria[]>([]);
 
-  const toggleAtivoTipoObra = (id: string) =>
-    setTiposObra((prev) =>
-      prev.map((t) => (t.id === id ? { ...t, ativo: !t.ativo } : t))
-    );
+  const carregar = useCallback(async () => {
+    const [tipos, discs, unids, regs, cats] = await Promise.all([
+      cadastrosMestresRepository.listarTiposObra(),
+      cadastrosMestresRepository.listarDisciplinas(),
+      cadastrosMestresRepository.listarUnidades(),
+      cadastrosMestresRepository.listarRegioes(),
+      cadastrosMestresRepository.listarCategorias(),
+    ]);
 
-  const toggleAtivaDisciplina = (id: string) =>
-    setDisciplinas((prev) =>
-      prev.map((d) => (d.id === id ? { ...d, ativa: !d.ativa } : d))
-    );
+    setTiposObra(tipos);
+    setDisciplinas(discs);
+    setUnidades(unids);
+    setRegioes(regs);
+    setCategorias(cats);
+  }, []);
 
-  const excluirTipoObra = (id: string) =>
+  useEffect(() => {
+    carregar().catch((error) => {
+      console.error('Erro ao carregar cadastros mestres do Supabase:', error);
+    });
+  }, [carregar]);
+
+  const criarDisciplina = async (input: Omit<Disciplina, 'id'>) => {
+    const criada = await cadastrosMestresRepository.criarDisciplina(input);
+    setDisciplinas((prev) => [...prev, criada]);
+  };
+
+  const criarTipoObra = async (input: Omit<TipoObra, 'id'>) => {
+    const criada = await cadastrosMestresRepository.criarTipoObra(input);
+    setTiposObra((prev) => [...prev, criada]);
+  };
+
+  const criarUnidade = async (input: Omit<Unidade, 'id'>) => {
+    const criada = await cadastrosMestresRepository.criarUnidade(input);
+    setUnidades((prev) => [...prev, criada]);
+  };
+
+  const criarRegiao = async (input: Omit<Regiao, 'id'>) => {
+    const criada = await cadastrosMestresRepository.criarRegiao(input);
+    setRegioes((prev) => [...prev, criada]);
+  };
+
+  const criarCategoria = async (input: Omit<Categoria, 'id'>) => {
+    const criada = await cadastrosMestresRepository.criarCategoria(input);
+    setCategorias((prev) => [...prev, criada]);
+  };
+
+  const toggleAtivoTipoObra = async (id: string) => {
+    const alvo = tiposObra.find((t) => t.id === id);
+    if (!alvo) return;
+    const proximoAtivo = !alvo.ativo;
+    await cadastrosMestresRepository.atualizarTipoObraAtivo(id, proximoAtivo);
+    setTiposObra((prev) => prev.map((t) => (t.id === id ? { ...t, ativo: proximoAtivo } : t)));
+  };
+
+  const toggleAtivaDisciplina = async (id: string) => {
+    const alvo = disciplinas.find((d) => d.id === id);
+    if (!alvo) return;
+    const proximaAtiva = !alvo.ativa;
+    await cadastrosMestresRepository.atualizarDisciplinaAtiva(id, proximaAtiva);
+    setDisciplinas((prev) => prev.map((d) => (d.id === id ? { ...d, ativa: proximaAtiva } : d)));
+  };
+
+  const excluirTipoObra = async (id: string) => {
+    await cadastrosMestresRepository.excluirTipoObra(id);
     setTiposObra((prev) => prev.filter((t) => t.id !== id));
+  };
 
-  const excluirDisciplina = (id: string) =>
+  const excluirDisciplina = async (id: string) => {
+    await cadastrosMestresRepository.excluirDisciplina(id);
     setDisciplinas((prev) => prev.filter((d) => d.id !== id));
+  };
 
-  const excluirUnidade = (id: string) =>
+  const excluirUnidade = async (id: string) => {
+    await cadastrosMestresRepository.excluirUnidade(id);
     setUnidades((prev) => prev.filter((u) => u.id !== id));
+  };
 
-  const excluirRegiao = (id: string) =>
+  const excluirRegiao = async (id: string) => {
+    await cadastrosMestresRepository.excluirRegiao(id);
     setRegioes((prev) => prev.filter((r) => r.id !== id));
+  };
 
-  const excluirCategoria = (id: string) =>
+  const excluirCategoria = async (id: string) => {
+    await cadastrosMestresRepository.excluirCategoria(id);
     setCategorias((prev) => prev.filter((c) => c.id !== id));
-
-  const criarDisciplina = (dados: Omit<Disciplina, 'id'>) =>
-    setDisciplinas((prev) => [...prev, { ...dados, id: crypto.randomUUID() }]);
-
-  const criarUnidade = (dados: Omit<Unidade, 'id'>) =>
-    setUnidades((prev) => [...prev, { ...dados, id: crypto.randomUUID() }]);
-
-  const criarRegiao = (dados: Omit<Regiao, 'id'>) =>
-    setRegioes((prev) => [...prev, { ...dados, id: crypto.randomUUID() }]);
-
-  const criarCategoria = (dados: Omit<Categoria, 'id'>) =>
-    setCategorias((prev) => [...prev, { ...dados, id: crypto.randomUUID() }]);
+  };
 
   return (
     <CadastrosMestresContext.Provider
@@ -83,6 +131,11 @@ export function CadastrosMestresProvider({ children }: { children: ReactNode }) 
         unidades,
         regioes,
         categorias,
+        criarTipoObra,
+        criarDisciplina,
+        criarUnidade,
+        criarRegiao,
+        criarCategoria,
         toggleAtivoTipoObra,
         toggleAtivaDisciplina,
         excluirTipoObra,
@@ -90,10 +143,6 @@ export function CadastrosMestresProvider({ children }: { children: ReactNode }) 
         excluirUnidade,
         excluirRegiao,
         excluirCategoria,
-        criarDisciplina,
-        criarUnidade,
-        criarRegiao,
-        criarCategoria,
       }}
     >
       {children}
