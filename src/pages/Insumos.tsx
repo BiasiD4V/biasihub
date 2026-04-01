@@ -4,6 +4,7 @@ import {
   History, TrendingUp, TrendingDown, Minus, X, Filter, Clock,
   Truck, Ruler, CalendarDays, CircleDollarSign, RotateCcw,
   ChevronDown, Hash, BarChart3, Layers, ArrowUpDown, ArrowUp, ArrowDown,
+  FolderTree, TableProperties,
 } from 'lucide-react';
 import {
   insumosRepository,
@@ -11,6 +12,7 @@ import {
   type InsumoHistorico,
   type FiltrosInsumos,
 } from '../infrastructure/supabase/insumosRepository';
+import { CatalogoArvore } from '../components/insumos/CatalogoArvore';
 
 /* ═══════════════════ Helpers ═══════════════════ */
 
@@ -247,6 +249,8 @@ function ModalHistorico({ insumo, onFechar }: { insumo: Insumo; onFechar: () => 
 const POR_PAGINA = 50;
 
 export function Insumos() {
+  const [visao, setVisao] = useState<'tabela' | 'catalogo'>('tabela');
+
   const [insumos, setInsumos] = useState<Insumo[]>([]);
   const [total, setTotal] = useState(0);
   const [pagina, setPagina] = useState(0);
@@ -349,7 +353,35 @@ export function Insumos() {
             {resumo.total.toLocaleString('pt-BR')} materiais · {resumo.fornecedores} fornecedores · {grupos.length} grupos
           </p>
         </div>
+        {/* Toggle Tabela / Catálogo */}
+        <div className="ml-auto flex gap-1 bg-slate-100 border border-slate-200 rounded-xl p-1">
+          <button
+            onClick={() => setVisao('tabela')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+              visao === 'tabela'
+                ? 'bg-white text-blue-700 shadow-sm border border-slate-200'
+                : 'text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            <TableProperties size={13} /> Tabela
+          </button>
+          <button
+            onClick={() => setVisao('catalogo')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+              visao === 'catalogo'
+                ? 'bg-white text-blue-700 shadow-sm border border-slate-200'
+                : 'text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            <FolderTree size={13} /> Catálogo
+          </button>
+        </div>
       </div>
+
+      {/* ═══ Visão: Tabela ou Catálogo ═══ */}
+      {visao === 'catalogo' ? (
+        <CatalogoArvore />
+      ) : <>
 
       {/* ═══ Cards KPI — clicáveis para filtrar ═══ */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -686,6 +718,8 @@ export function Insumos() {
           </>
         )}
       </div>
+
+      </> /* end visao === 'tabela' */}
 
       {insumoHistorico && (
         <ModalHistorico insumo={insumoHistorico} onFechar={() => setInsumoHistorico(null)} />
