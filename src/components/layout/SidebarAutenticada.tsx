@@ -17,6 +17,7 @@ import {
   FileSpreadsheet,
   Sparkles,
   MessageCircle,
+  KanbanSquare,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -57,9 +58,10 @@ const MENU: SecaoMenu[] = [
     ],
   },
   {
-    titulo: 'Análise',
+    titulo: 'Gestão',
     itens: [
-      { rotulo: 'Bira', para: '/relatorios', icone: BarChart2 },
+      { rotulo: 'Bira', para: '/bira', icone: KanbanSquare },
+      { rotulo: 'Relatórios', para: '/relatorios', icone: BarChart2 },
     ],
   },
   {

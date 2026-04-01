@@ -1,8 +1,15 @@
 import { useEffect, useState } from 'react';
-import { Users, Shield, ShieldCheck, HardHat, Circle, Pencil, Eye, EyeOff, KeyRound, X, Copy, Check } from 'lucide-react';
+import { Users, Shield, ShieldCheck, HardHat, Circle, Pencil, Eye, EyeOff, KeyRound, X, Copy, Check, Wifi, WifiOff, Clock } from 'lucide-react';
 import { supabase } from '../infrastructure/supabase/client';
 import { useAuth } from '../context/AuthContext';
 import { Navigate } from 'react-router-dom';
+
+interface Presenca {
+  usuario_id: string;
+  online: boolean;
+  ultimo_visto: string;
+  conectado_desde: string | null;
+}
 
 interface Membro {
   id: string;
@@ -41,10 +48,33 @@ function formatarData(iso: string): string {
   });
 }
 
+function formatarTempo(desde: string | null): string {
+  if (!desde) return '';
+  const diff = Date.now() - new Date(desde).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'agora';
+  if (mins < 60) return `${mins}min`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ${mins % 60}min`;
+  return `${Math.floor(hrs / 24)}d ${hrs % 24}h`;
+}
+
+function formatarUltimoVisto(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'agora';
+  if (mins < 60) return `há ${mins}min`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `há ${hrs}h`;
+  return `há ${Math.floor(hrs / 24)}d`;
+}
+
 export function Membros() {
   const { usuario } = useAuth();
   const [membros, setMembros] = useState<Membro[]>([]);
+  const [presencas, setPresencas] = useState<Record<string, Presenca>>({});
   const [loading, setLoading] = useState(true);
+  const [, setTick] = useState(0);
 
   // Modal de edição
   const [editando, setEditando] = useState<Membro | null>(null);
@@ -180,7 +210,76 @@ export function Membros() {
     carregarMembros();
   }, []);
 
+  // Presença online/offline
+  useEffect(() => {
+    async function carregarPresencas() {
+      const { data } = await supabase.from('presenca_usuarios').select('*');
+      if (data) {
+        const map: Record<string, Presenca> = {};
+        (data as Presenca[]).forEach((p) => { map[p.usuario_id] = p; });
+        setPresencas(map);
+      }
+    }
+    carregarPresencas();
+
+    // Registrar própria presença
+    if (usuario?.id) {
+      supabase.from('presenca_usuarios').upsert({
+        usuario_id: usuario.id,
+        usuario_nome: usuario.nome,
+        online: true,
+        ultimo_visto: new Date().toISOString(),
+        conectado_desde: new Date().toISOString(),
+      }).then();
+    }
+
+    // Realtime presença
+    const channel = supabase
+      .channel('presenca-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'presenca_usuarios' }, (payload) => {
+        const p = payload.new as Presenca;
+        if (p?.usuario_id) {
+          setPresencas((prev) => ({ ...prev, [p.usuario_id]: p }));
+        }
+      })
+      .subscribe();
+
+    // Refresh timer (atualiza tempos a cada 30s)
+    const timer = setInterval(() => setTick((t) => t + 1), 30000);
+
+    // Heartbeat (confirma online a cada 60s)
+    const heartbeat = setInterval(() => {
+      if (usuario?.id) {
+        supabase.from('presenca_usuarios').update({
+          online: true,
+          ultimo_visto: new Date().toISOString(),
+        }).eq('usuario_id', usuario.id).then();
+      }
+    }, 60000);
+
+    // Marcar offline ao sair
+    const handleBeforeUnload = () => {
+      if (usuario?.id) {
+        navigator.sendBeacon?.('/api/membros', '');
+        supabase.from('presenca_usuarios').update({
+          online: false,
+          ultimo_visto: new Date().toISOString(),
+          conectado_desde: null,
+        }).eq('usuario_id', usuario.id).then();
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      supabase.removeChannel(channel);
+      clearInterval(timer);
+      clearInterval(heartbeat);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [usuario?.id, usuario?.nome]);
+
   const totalAtivos = membros.filter(m => m.ativo).length;
+  const totalOnline = Object.values(presencas).filter(p => p.online).length;
   const porPapel = membros.reduce<Record<string, number>>((acc, m) => {
     acc[m.papel] = (acc[m.papel] || 0) + 1;
     return acc;
@@ -219,6 +318,17 @@ export function Membros() {
           </div>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+          <div className="flex items-center gap-3">
+            <div className="bg-emerald-100 rounded-lg p-2.5">
+              <Wifi size={20} className="text-emerald-600" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-slate-800">{totalOnline}</p>
+              <p className="text-xs text-slate-500">Online agora</p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
           <div className="flex items-center gap-3 flex-wrap gap-y-1">
             {Object.entries(porPapel).map(([papel, qtd]) => (
               <span key={papel} className={`text-xs font-medium px-2.5 py-1 rounded-full border ${COR_PAPEL[papel] || 'bg-slate-50 text-slate-600 border-slate-200'}`}>
@@ -241,6 +351,7 @@ export function Membros() {
                 <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">E-mail</th>
                 <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Papel</th>
                 <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Status</th>
+                <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Presença</th>
                 <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Desde</th>
                 <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Ações</th>
               </tr>
@@ -272,6 +383,31 @@ export function Membros() {
                         <span className={`w-1.5 h-1.5 rounded-full ${m.ativo ? 'bg-green-500' : 'bg-slate-400'}`} />
                         {m.ativo ? 'Ativo' : 'Inativo'}
                       </span>
+                    </td>
+                    <td className="px-5 py-3.5">
+                      {(() => {
+                        const p = presencas[m.id];
+                        const isOnline = p?.online;
+                        return (
+                          <div className="flex items-center gap-2">
+                            <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ${isOnline ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                              {isOnline ? <Wifi size={11} /> : <WifiOff size={11} />}
+                              {isOnline ? 'Online' : 'Offline'}
+                            </span>
+                            {isOnline && p?.conectado_desde && (
+                              <span className="flex items-center gap-1 text-[10px] text-emerald-600">
+                                <Clock size={10} />
+                                {formatarTempo(p.conectado_desde)}
+                              </span>
+                            )}
+                            {!isOnline && p?.ultimo_visto && (
+                              <span className="text-[10px] text-slate-400">
+                                Visto {formatarUltimoVisto(p.ultimo_visto)}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </td>
                     <td className="px-5 py-3.5 text-slate-500">{formatarData(m.criado_em)}</td>
                     <td className="px-5 py-3.5">

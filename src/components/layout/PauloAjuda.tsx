@@ -317,7 +317,12 @@ function mensagemBoasVindas(dicas: DicaPagina): MensagemPaulo {
   };
 }
 
-export function PauloAjuda() {
+interface PauloAjudaProps {
+  forceOpen?: boolean;
+  onClose?: () => void;
+}
+
+export function PauloAjuda({ forceOpen, onClose }: PauloAjudaProps = {}) {
   const [aberto, setAberto] = useState(false);
   const [oculto, setOculto] = useState(false);
   const [animando, setAnimando] = useState(false);
@@ -337,6 +342,20 @@ export function PauloAjuda() {
   const bloquearClickRef = useRef(false);
 
   const dicas = useMemo(() => getDicasPorRota(location.pathname), [location.pathname]);
+
+  // Open from sidebar button
+  useEffect(() => {
+    if (forceOpen) {
+      setAberto(true);
+      setOculto(false);
+    }
+  }, [forceOpen]);
+
+  // Notify parent when closed
+  const fechar = () => {
+    setAberto(false);
+    onClose?.();
+  };
 
   useEffect(() => {
     const onResize = () => setViewportHeight(window.innerHeight);
@@ -589,7 +608,7 @@ export function PauloAjuda() {
                 <p className="text-blue-100 text-xs">{dicas.titulo} - {dicas.descricao}</p>
               </div>
               <button
-                onClick={() => setAberto(false)}
+                onClick={() => fechar()}
                 className="text-white/70 hover:text-white transition-colors p-1"
                 title="Fechar"
               >

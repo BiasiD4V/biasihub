@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
 import { SidebarAutenticada } from './SidebarAutenticada';
 import { PauloAjuda } from './PauloAjuda';
+import { ChatPanel } from './ChatPanel';
 import { useAuth } from '../../context/AuthContext';
 import { ChevronsLeft, ChevronsRight, Menu, X } from 'lucide-react';
 
@@ -11,6 +12,9 @@ export function LayoutAutenticado() {
   const { isAuthenticated, loading, erroConexao } = useAuth();
   const [sidebarAberta, setSidebarAberta] = useState(false);
   const [sidebarOcultaDesktop, setSidebarOcultaDesktop] = useState(false);
+  const [pauloAberto, setPauloAberto] = useState(false);
+  const [chatAberto, setChatAberto] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
     try {
@@ -131,14 +135,28 @@ export function LayoutAutenticado() {
         >
           <X size={22} />
         </button>
-        <SidebarAutenticada onNavigate={fecharSidebar} />
+        <SidebarAutenticada
+          onNavigate={fecharSidebar}
+          onAbrirPaulo={() => { setPauloAberto(true); setChatAberto(false); }}
+          onAbrirChat={() => { setChatAberto(true); setPauloAberto(false); }}
+          unreadCount={unreadCount}
+        />
       </div>
 
       {/* Conteúdo principal */}
       <main className={`flex-1 flex flex-col min-h-screen min-w-0 pt-12 lg:pt-0 ${sidebarOcultaDesktop ? 'lg:ml-0' : 'lg:ml-64'}`}>
         <Outlet />
       </main>
-      <PauloAjuda />
+
+      {/* Paulo AJUDA */}
+      <PauloAjuda forceOpen={pauloAberto} onClose={() => setPauloAberto(false)} />
+
+      {/* Chat da Equipe */}
+      <ChatPanel
+        aberto={chatAberto}
+        onFechar={() => setChatAberto(false)}
+        onUnreadChange={useCallback((c: number) => setUnreadCount(c), [])}
+      />
     </div>
   );
 }
