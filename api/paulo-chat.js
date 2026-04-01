@@ -1420,6 +1420,15 @@ function resumirHistorico(historico) {
 }
 
 function extrairTextoOpenAI(payload) {
+  // OpenAI chat/completions format
+  if (Array.isArray(payload?.choices) && payload.choices.length > 0) {
+    const choice = payload.choices[0];
+    if (typeof choice?.message?.content === 'string' && choice.message.content.trim()) {
+      return choice.message.content.trim();
+    }
+  }
+
+  // Fallback for older format
   if (typeof payload?.output_text === 'string' && payload.output_text.trim()) {
     return payload.output_text.trim();
   }
@@ -1589,29 +1598,29 @@ export default async function handler(req, res) {
     const input = [
       {
         role: 'system',
-        content: [{ type: 'input_text', text: systemPrompt }],
+        content: systemPrompt,
       },
       ...historico.map((m) => ({
         role: m.role,
-        content: [{ type: 'input_text', text: m.content }],
+        content: m.content,
       })),
       {
         role: 'user',
-        content: [{ type: 'input_text', text: pergunta }],
+        content: pergunta,
       },
     ];
 
-    const aiRes = await fetch('https://api.openai.com/v1/responses', {
+    const aiRes = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${openaiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: process.env.OPENAI_MODEL || 'gpt-4.1-mini',
-        input,
+        model: process.env.OPENAI_MODEL || 'gpt-4-mini',
+        messages: input,
         temperature: 0.3,
-        max_output_tokens: 900,
+        max_tokens: 900,
       }),
     });
 
