@@ -186,4 +186,29 @@ export const insumosRepository = {
     unique.sort((a, b) => a.localeCompare(b, 'pt-BR'))
     return unique
   },
+
+  /**
+   * Busca TODOS os insumos ativos (paginando automaticamente).
+   * Retorna campos resumidos para classificação hierárquica.
+   */
+  async listarTodos(): Promise<
+    { id: string; descricao: string; fornecedor: string | null; custo_atual: number; unidade: string; data_ultimo_preco: string | null; dias_sem_atualizar: number | null }[]
+  > {
+    const PAGE = 1000
+    let all: any[] = []
+    let page = 0
+    while (true) {
+      const { data, error } = await supabase
+        .from('insumos_view')
+        .select('id,descricao,fornecedor,custo_atual,unidade,data_ultimo_preco,dias_sem_atualizar')
+        .eq('ativo', true)
+        .order('descricao', { ascending: true })
+        .range(page * PAGE, (page + 1) * PAGE - 1)
+      if (error) throw error
+      if (!data || data.length === 0) break
+      all = all.concat(data)
+      page++
+    }
+    return all
+  },
 }

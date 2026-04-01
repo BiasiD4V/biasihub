@@ -4,7 +4,7 @@ import { maoDeObraRepository } from '../infrastructure/supabase/maoDeObraReposit
 import type { ComposicaoMOSupabase } from '../infrastructure/supabase/maoDeObraRepository';
 import { maoDeObraTiposRepository } from '../infrastructure/supabase/maoDeObraTiposRepository';
 import type { MaoDeObraTipo } from '../infrastructure/supabase/maoDeObraTiposRepository';
-import { useCadastrosMestres } from '../context/CadastrosMestresContext';
+import { mockUnidades } from '../infrastructure/mock/dados/unidades.mock';
 
 /* ── Tipos locais ── */
 interface Profissional {
@@ -27,10 +27,6 @@ interface Composicao {
   profissionais: Profissional[];
 }
 
-function normalizarUnidadeQtd(unid: string | null | undefined): string {
-  return (unid || 'un').trim() || 'un';
-}
-
 /* ── Converter Supabase → estado local ── */
 function fromSupabase(c: ComposicaoMOSupabase): Composicao {
   return {
@@ -38,7 +34,7 @@ function fromSupabase(c: ComposicaoMOSupabase): Composicao {
     obra: c.obra,
     atividade: c.atividade,
     jornada: c.jornada,
-    unid: normalizarUnidadeQtd(c.unid),
+    unid: c.unid,
     qtd: c.qtd,
     tempoDias: c.tempo_dias,
     totalHh: c.total_hh,
@@ -72,13 +68,13 @@ function LinhaProf({
     return (
       <tr className="border-b border-slate-100 hover:bg-slate-50/60 transition-colors">
         <td className="px-3 py-2 text-slate-700 text-xs">{p.profissao}</td>
-        <td className="px-3 py-2 text-center text-slate-500 text-xs">
-          H
-        </td>
+        <td className="px-3 py-2 text-center text-slate-500 text-xs">{p.unid}</td>
         <td className="px-3 py-2 text-right font-mono text-xs text-slate-700">
           {p.coef != null ? p.coef.toFixed(4) : '—'}
         </td>
-        <td className="px-3 py-2 text-center text-xs text-slate-500">—</td>
+        <td className="px-3 py-2 text-right font-mono text-xs font-semibold text-blue-600">
+          {p.hhTotal != null ? p.hhTotal.toFixed(2) : '—'}
+        </td>
       </tr>
     );
   }
@@ -102,21 +98,35 @@ function LinhaProf({
         </select>
       </td>
       <td className="px-2 py-1.5">
-        <span className="inline-flex items-center justify-center w-10 py-1 rounded border border-slate-200 bg-slate-50 text-xs text-slate-600">
-          H
-        </span>
+        {/* Dropdown com unidades do Config → Unidades */}
+        <select
+          value={p.unid}
+          onChange={(e) => onChange({ ...p, unid: e.target.value })}
+          className="w-16 border border-slate-200 rounded px-1 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
+        >
+          {mockUnidades.map((u) => (
+            <option key={u.id} value={u.simbolo}>{u.simbolo}</option>
+          ))}
+        </select>
       </td>
       <td className="px-2 py-1.5">
         <input
           type="number"
           step="0.0001"
           value={p.coef ?? ''}
-          onChange={(e) => onChange({ ...p, unid: 'H', coef: e.target.value ? parseFloat(e.target.value) : null })}
+          onChange={(e) => onChange({ ...p, coef: e.target.value ? parseFloat(e.target.value) : null })}
           className="w-24 border border-slate-200 rounded px-2 py-1 text-xs text-right focus:outline-none focus:ring-1 focus:ring-blue-500"
         />
       </td>
-      <td className="px-2 py-1.5 text-center">
+      <td className="px-2 py-1.5">
         <div className="flex items-center gap-1">
+          <input
+            type="number"
+            step="0.01"
+            value={p.hhTotal ?? ''}
+            onChange={(e) => onChange({ ...p, hhTotal: e.target.value ? parseFloat(e.target.value) : null })}
+            className="w-24 border border-slate-200 rounded px-2 py-1 text-xs text-right focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
           <button onClick={onRemove} className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded">
             <Trash2 size={12} />
           </button>
@@ -134,13 +144,11 @@ function CardComposicao({
   onAtualizar,
   onRemover,
   tiposMO,
-  unidades,
 }: {
   comp: Composicao;
   onAtualizar: (c: Composicao) => Promise<void>;
   onRemover: (id: string) => Promise<void>;
   tiposMO: MaoDeObraTipo[];
-  unidades: Array<{ id: string; simbolo: string; descricao: string }>;
 }) {
   const [aberto, setAberto] = useState(false);
   const [editando, setEditando] = useState(false);
@@ -150,6 +158,7 @@ function CardComposicao({
   const [erro, setErro] = useState<string | null>(null);
 
   const totalCoef = comp.profissionais.reduce((s, p) => s + (p.coef ?? 0), 0);
+  const totalHh = comp.profissionais.reduce((s, p) => s + (p.hhTotal ?? 0), 0);
 
   async function salvar() {
     setSalvando(true);
@@ -255,28 +264,36 @@ function CardComposicao({
                 <span>h</span>
               </label>
               <label className="flex items-center gap-1">
-                <span className="text-slate-400">Unid QTD:</span>
-                <select
-                  value={rascunho.unid}
-                  onChange={(e) => setRascunho({ ...rascunho, unid: e.target.value })}
-                  className="w-20 border border-slate-200 rounded px-1 py-0.5 text-xs text-center focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {unidades.map((u) => (
-                    <option key={u.id} value={u.simbolo}>{u.simbolo.toUpperCase()}</option>
-                  ))}
-                  {!unidades.some((u) => u.simbolo === rascunho.unid) && (
-                    <option value={rascunho.unid}>{rascunho.unid}</option>
-                  )}
-                </select>
+                <span className="text-slate-400">Unid:</span>
+                <input type="text" value={rascunho.unid} onChange={(e) => setRascunho({ ...rascunho, unid: e.target.value })}
+                  className="w-10 border border-slate-200 rounded px-1 py-0.5 text-xs text-center focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  onClick={(e) => e.stopPropagation()} />
+              </label>
+              <label className="flex items-center gap-1">
+                <span className="text-slate-400">QTD:</span>
+                <input type="number" value={rascunho.qtd ?? ''} onChange={(e) => setRascunho({ ...rascunho, qtd: e.target.value ? parseFloat(e.target.value) : null })}
+                  className="w-16 border border-slate-200 rounded px-1 py-0.5 text-xs text-center focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  onClick={(e) => e.stopPropagation()} />
+              </label>
+              <label className="flex items-center gap-1">
+                <span className="text-slate-400">Tempo:</span>
+                <input type="number" value={rascunho.tempoDias ?? ''} onChange={(e) => setRascunho({ ...rascunho, tempoDias: e.target.value ? parseFloat(e.target.value) : null })}
+                  className="w-14 border border-slate-200 rounded px-1 py-0.5 text-xs text-center focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  onClick={(e) => e.stopPropagation()} />
+                <span>d</span>
               </label>
             </>
           ) : (
             <>
               <span>{comp.jornada}h</span>
-              <span>Unid QTD: {comp.unid.toUpperCase()}</span>
+              <span>{comp.unid}</span>
+              <span>QTD: {comp.qtd ?? '—'}</span>
+              <span>{comp.tempoDias ?? '—'}d</span>
             </>
           )}
+          <span className="font-semibold text-blue-600 text-sm tabular-nums">
+            {totalHh.toFixed(1)} Hh
+          </span>
         </div>
 
         {/* Botões ação */}
@@ -322,9 +339,9 @@ function CardComposicao({
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200">
                 <th className="px-3 py-2 text-left font-semibold text-slate-600 uppercase tracking-wider">#  PROFISSIONAL</th>
-                <th className="px-3 py-2 text-right font-semibold text-slate-600 uppercase tracking-wider w-24">HORA</th>
+                <th className="px-3 py-2 text-center font-semibold text-slate-600 uppercase tracking-wider w-16">UNID</th>
                 <th className="px-3 py-2 text-right font-semibold text-slate-600 uppercase tracking-wider w-28">COEF. (Hh/UN)</th>
-                <th className="px-3 py-2 text-center font-semibold text-slate-600 uppercase tracking-wider w-20">AÇÕES</th>
+                <th className="px-3 py-2 text-right font-semibold text-slate-600 uppercase tracking-wider w-28">Hh TOTAL</th>
               </tr>
             </thead>
             <tbody>
@@ -363,15 +380,23 @@ function CardComposicao({
 
               {/* Linha TOTAL */}
               <tr className="bg-slate-100 font-semibold border-t border-slate-200">
-                <td className="px-3 py-2.5 text-right text-slate-700 text-xs uppercase" colSpan={2}>TOTAL COEF.</td>
+                <td className="px-3 py-2.5 text-right text-slate-700 text-xs uppercase" colSpan={2}>TOTAL</td>
                 <td className="px-3 py-2.5 text-right font-mono text-xs text-slate-800">
                   {totalCoef ? totalCoef.toFixed(4) : '—'}
                 </td>
-                <td className="px-3 py-2.5" />
+                <td className="px-3 py-2.5 text-right font-mono text-xs font-bold text-blue-600">
+                  {totalHh.toFixed(2)}
+                </td>
               </tr>
             </tbody>
           </table>
 
+          {/* Verificação */}
+          {comp.qtd != null && totalCoef > 0 && (
+            <div className="px-4 py-2 bg-green-50 border-t border-green-100 text-xs text-green-700">
+              ✓ Coef. × Qtd = {totalCoef.toFixed(2)} × {comp.qtd} = {(totalCoef * comp.qtd).toFixed(2)} Hh
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -382,7 +407,6 @@ function CardComposicao({
    PÁGINA PRINCIPAL — Composições de Mão de Obra
    ═══════════════════════════════════════════ */
 export function MaoDeObra() {
-  const { unidades } = useCadastrosMestres();
   const [composicoes, setComposicoes] = useState<Composicao[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [erroCarregar, setErroCarregar] = useState<string | null>(null);
@@ -391,7 +415,7 @@ export function MaoDeObra() {
   const [filtroObra, setFiltroObra] = useState<string>('');
   const [adicionando, setAdicionando] = useState(false);
   const [salvandoNovo, setSalvandoNovo] = useState(false);
-  const [novo, setNovo] = useState({ obra: '', atividade: '' });
+  const [novo, setNovo] = useState({ obra: '', atividade: '', jornada: 8, unid: 'm', qtd: '', tempoDias: '' });
 
   /* ── Carregar do Supabase ── */
   const carregar = useCallback(async () => {
@@ -447,6 +471,9 @@ export function MaoDeObra() {
 
   /* KPIs */
   const totalAtv = filtradas.length;
+  const totalHhGeral = filtradas.reduce(
+    (s, c) => s + c.profissionais.reduce((sp, p) => sp + (p.hhTotal ?? 0), 0), 0
+  );
   const totalProfs = filtradas.reduce((s, c) => s + c.profissionais.length, 0);
 
   /* ── Adicionar nova composição ── */
@@ -454,18 +481,17 @@ export function MaoDeObra() {
     if (!novo.atividade.trim()) return;
     setSalvandoNovo(true);
     try {
-      const unidadePadrao = unidades[0]?.simbolo || 'un';
       const criada = await maoDeObraRepository.criar({
         obra: novo.obra || 'Sem obra',
         atividade: novo.atividade,
-        jornada: 8,
-        unid: normalizarUnidadeQtd(unidadePadrao),
-        qtd: null,
-        tempo_dias: null,
+        jornada: novo.jornada,
+        unid: novo.unid,
+        qtd: novo.qtd ? parseFloat(novo.qtd) : null,
+        tempo_dias: novo.tempoDias ? parseFloat(novo.tempoDias) : null,
         total_hh: null,
       });
       setComposicoes((prev) => [...prev, fromSupabase(criada)]);
-      setNovo({ obra: '', atividade: '' });
+      setNovo({ obra: '', atividade: '', jornada: 8, unid: 'm', qtd: '', tempoDias: '' });
       setAdicionando(false);
     } catch (e: any) {
       alert('Erro ao criar composição: ' + (e.message || e));
@@ -480,7 +506,7 @@ export function MaoDeObra() {
       obra: atualizado.obra,
       atividade: atualizado.atividade,
       jornada: atualizado.jornada,
-      unid: normalizarUnidadeQtd(atualizado.unid),
+      unid: atualizado.unid,
       qtd: atualizado.qtd,
       tempo_dias: atualizado.tempoDias,
       total_hh: atualizado.totalHh,
@@ -567,7 +593,7 @@ export function MaoDeObra() {
         </div>
 
         {/* KPIs */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
           <div className="bg-slate-50 rounded-xl p-3 border border-slate-200">
             <p className="text-xs text-slate-500">Atividades</p>
             <p className="text-xl font-bold text-slate-800">{totalAtv}</p>
@@ -575,6 +601,10 @@ export function MaoDeObra() {
           <div className="bg-slate-50 rounded-xl p-3 border border-slate-200">
             <p className="text-xs text-slate-500">Profissionais</p>
             <p className="text-xl font-bold text-slate-800">{totalProfs}</p>
+          </div>
+          <div className="bg-blue-50 rounded-xl p-3 border border-blue-200">
+            <p className="text-xs text-blue-600">Hh Total</p>
+            <p className="text-xl font-bold text-blue-600">{totalHhGeral.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}</p>
           </div>
         </div>
 
@@ -612,8 +642,8 @@ export function MaoDeObra() {
         {adicionando && (
           <div className="bg-green-50 border border-green-200 rounded-xl p-5 mb-6">
             <h3 className="font-semibold text-slate-800 mb-3 text-sm">Nova Composição de Mão de Obra</h3>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-4">
-              <div>
+            <div className="grid grid-cols-2 lg:grid-cols-6 gap-3 mb-4">
+              <div className="lg:col-span-2">
                 <label className="block text-xs font-medium text-slate-600 mb-1">Obra</label>
                 <input type="text" value={novo.obra} onChange={(e) => setNovo({ ...novo, obra: e.target.value })}
                   list="obras-list" placeholder="Ex: Dellabruna - Galpão"
@@ -622,10 +652,20 @@ export function MaoDeObra() {
                   {obrasUnicas.map((ob) => <option key={ob} value={ob} />)}
                 </datalist>
               </div>
-              <div>
+              <div className="lg:col-span-2">
                 <label className="block text-xs font-medium text-slate-600 mb-1">Atividade</label>
                 <input type="text" value={novo.atividade} onChange={(e) => setNovo({ ...novo, atividade: e.target.value })}
                   placeholder="Ex: [1.1] ELETROCALHA"
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">QTD</label>
+                <input type="number" value={novo.qtd} onChange={(e) => setNovo({ ...novo, qtd: e.target.value })}
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Tempo (d)</label>
+                <input type="number" value={novo.tempoDias} onChange={(e) => setNovo({ ...novo, tempoDias: e.target.value })}
                   className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
               </div>
             </div>
@@ -665,7 +705,7 @@ export function MaoDeObra() {
                     {obra}
                   </h2>
                   <span className="text-xs text-slate-400 ml-auto">
-                    {comps.length} atividade{comps.length !== 1 ? 's' : ''}
+                    {comps.length} atividade{comps.length !== 1 ? 's' : ''} · {comps.reduce((s, c) => s + c.profissionais.reduce((sp, p) => sp + (p.hhTotal ?? 0), 0), 0).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} Hh
                   </span>
                 </div>
 
@@ -678,7 +718,6 @@ export function MaoDeObra() {
                       onAtualizar={atualizarComposicao}
                       onRemover={removerComposicao}
                       tiposMO={tiposMO}
-                      unidades={unidades.map((u) => ({ id: u.id, simbolo: u.simbolo, descricao: u.descricao }))}
                     />
                   ))}
                 </div>

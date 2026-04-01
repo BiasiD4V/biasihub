@@ -1,13 +1,35 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
 import { SidebarAutenticada } from './SidebarAutenticada';
 import { PauloAjuda } from './PauloAjuda';
 import { useAuth } from '../../context/AuthContext';
-import { Menu, X } from 'lucide-react';
+import { ChevronsLeft, ChevronsRight, Menu, X } from 'lucide-react';
+
+const STORAGE_KEY_SIDEBAR_HIDDEN = 'layout-sidebar-hidden-v1';
 
 export function LayoutAutenticado() {
   const { isAuthenticated, loading, erroConexao } = useAuth();
   const [sidebarAberta, setSidebarAberta] = useState(false);
+  const [sidebarOcultaDesktop, setSidebarOcultaDesktop] = useState(false);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY_SIDEBAR_HIDDEN);
+      if (raw === '1') {
+        setSidebarOcultaDesktop(true);
+      }
+    } catch {
+      // ignore storage errors
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY_SIDEBAR_HIDDEN, sidebarOcultaDesktop ? '1' : '0');
+    } catch {
+      // ignore storage errors
+    }
+  }, [sidebarOcultaDesktop]);
 
   // Fechar sidebar ao navegar (mobile)
   const fecharSidebar = () => setSidebarAberta(false);
@@ -70,13 +92,36 @@ export function LayoutAutenticado() {
         />
       )}
 
+      {sidebarOcultaDesktop && (
+        <button
+          type="button"
+          onClick={() => setSidebarOcultaDesktop(false)}
+          className="hidden lg:flex fixed top-4 left-3 z-40 items-center gap-2 rounded-lg bg-slate-900 text-white px-3 py-2 shadow-lg hover:bg-slate-800 transition-colors"
+          aria-label="Mostrar menu lateral"
+          title="Mostrar menu"
+        >
+          <ChevronsRight size={16} />
+          <span className="text-sm font-medium">Menu</span>
+        </button>
+      )}
+
       {/* Sidebar */}
       <div className={`
         fixed inset-y-0 left-0 z-50 w-[85vw] sm:w-64
         transform transition-transform duration-200 ease-in-out
-        lg:translate-x-0
         ${sidebarAberta ? 'translate-x-0' : '-translate-x-full'}
+        ${sidebarOcultaDesktop ? 'lg:-translate-x-full' : 'lg:translate-x-0'}
       `}>
+        <button
+          type="button"
+          onClick={() => setSidebarOcultaDesktop(true)}
+          className="hidden lg:flex absolute top-4 -right-3 z-[60] items-center justify-center h-8 w-8 rounded-full border border-slate-700 bg-slate-900 text-slate-200 shadow-md hover:bg-slate-800 hover:text-white transition-colors"
+          aria-label="Ocultar menu lateral"
+          title="Ocultar menu"
+        >
+          <ChevronsLeft size={14} />
+        </button>
+
         {/* Botão X fechar — mobile */}
         <button
           type="button"
@@ -90,7 +135,7 @@ export function LayoutAutenticado() {
       </div>
 
       {/* Conteúdo principal */}
-      <main className="flex-1 flex flex-col min-h-screen min-w-0 lg:ml-64 pt-12 lg:pt-0">
+      <main className={`flex-1 flex flex-col min-h-screen min-w-0 pt-12 lg:pt-0 ${sidebarOcultaDesktop ? 'lg:ml-0' : 'lg:ml-64'}`}>
         <Outlet />
       </main>
       <PauloAjuda />

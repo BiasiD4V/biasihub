@@ -5,12 +5,17 @@ import { useCadastrosMestres } from '../context/CadastrosMestresContext';
 import { useClientes } from '../context/ClientesContext';
 import { maoDeObraTiposRepository } from '../infrastructure/supabase/maoDeObraTiposRepository';
 import type { MaoDeObraTipo } from '../infrastructure/supabase/maoDeObraTiposRepository';
+import {
+  responsaveisComerciaisRepository,
+  type ResponsavelComercial,
+} from '../infrastructure/supabase/responsaveisComerciaisRepository';
 import type { TipoUnidade } from '../domain/entities/Unidade';
 import type { TipoCategoria } from '../domain/entities/Categoria';
 
 type AbaConfig =
   | 'tiposObra'
   | 'disciplinas'
+  | 'responsaveisComerciais'
   | 'unidades'
   | 'regioes'
   | 'categorias'
@@ -20,6 +25,7 @@ type AbaConfig =
 const ABAS: { id: AbaConfig; rotulo: string }[] = [
   { id: 'tiposObra', rotulo: 'Tipos de Obra' },
   { id: 'disciplinas', rotulo: 'Disciplinas' },
+  { id: 'responsaveisComerciais', rotulo: 'Responsáveis Comerciais' },
   { id: 'unidades', rotulo: 'Unidades' },
   { id: 'regioes', rotulo: 'Regiões' },
   { id: 'categorias', rotulo: 'Categorias' },
@@ -30,6 +36,7 @@ const ABAS: { id: AbaConfig; rotulo: string }[] = [
 const ROTULO_BOTAO_NOVO: Record<AbaConfig, string> = {
   tiposObra: 'Novo Tipo de Obra',
   disciplinas: 'Nova Disciplina',
+  responsaveisComerciais: 'Novo Responsável',
   unidades: 'Nova Unidade',
   regioes: 'Nova Região',
   categorias: 'Nova Categoria',
@@ -40,6 +47,7 @@ const ROTULO_BOTAO_NOVO: Record<AbaConfig, string> = {
 const PLACEHOLDER_BUSCA: Record<AbaConfig, string> = {
   tiposObra: 'Pesquisar tipo de obra...',
   disciplinas: 'Pesquisar disciplina ou código...',
+  responsaveisComerciais: 'Pesquisar responsável...',
   unidades: 'Pesquisar unidade ou símbolo...',
   regioes: 'Pesquisar região ou UF...',
   categorias: 'Pesquisar categoria...',
@@ -50,6 +58,7 @@ const PLACEHOLDER_BUSCA: Record<AbaConfig, string> = {
 const ROTULO_COLUNA_CODIGO: Record<AbaConfig, string> = {
   tiposObra: 'Cód / Simb.',
   disciplinas: 'Cód / Simb.',
+  responsaveisComerciais: 'Cód / Simb.',
   unidades: 'Cód / Simb.',
   regioes: 'Cód / Simb.',
   categorias: 'Tipo',
@@ -57,7 +66,15 @@ const ROTULO_COLUNA_CODIGO: Record<AbaConfig, string> = {
   clientes: 'CNPJ / CPF',
 };
 
-type ModalCadastro = 'disciplinas' | 'unidades' | 'regioes' | 'categorias' | 'maoDeObra' | null;
+type ModalCadastro =
+  | 'tiposObra'
+  | 'disciplinas'
+  | 'responsaveisComerciais'
+  | 'unidades'
+  | 'regioes'
+  | 'categorias'
+  | 'maoDeObra'
+  | null;
 
 const TIPOS_UNIDADE: TipoUnidade[] = ['unidade', 'comprimento', 'area', 'volume', 'outro'];
 const TIPOS_CATEGORIA: TipoCategoria[] = ['insumo', 'servico', 'equipamento'];
@@ -83,6 +100,7 @@ export function Configuracoes() {
     unidades,
     regioes,
     categorias,
+    criarTipoObra,
     criarDisciplina,
     criarUnidade,
     criarRegiao,
@@ -101,6 +119,8 @@ export function Configuracoes() {
   const [busca, setBusca] = useState('');
   const [tiposMO, setTiposMO] = useState<MaoDeObraTipo[]>([]);
   const [novoTipoMO, setNovoTipoMO] = useState('');
+  const [responsaveisComerciais, setResponsaveisComerciais] = useState<ResponsavelComercial[]>([]);
+  const [novoResponsavelComercial, setNovoResponsavelComercial] = useState('');
 
   // Carregar tipos de MO do Supabase quando a aba for ativada
   useEffect(() => {
@@ -109,12 +129,24 @@ export function Configuracoes() {
       .then(setTiposMO)
       .catch(console.error);
   }, [abaAtiva]);
+
+  useEffect(() => {
+    if (abaAtiva !== 'responsaveisComerciais') return;
+    responsaveisComerciaisRepository.listarTodos()
+      .then(setResponsaveisComerciais)
+      .catch(console.error);
+  }, [abaAtiva]);
   const [modalCadastro, setModalCadastro] = useState<ModalCadastro>(null);
   const [novaDisciplina, setNovaDisciplina] = useState({
     codigo: '',
     nome: '',
     especialidade: 'geral',
     ativa: true,
+  });
+  const [novoTipoObra, setNovoTipoObra] = useState({
+    nome: '',
+    descricao: '',
+    ativo: true,
   });
   const [novaUnidade, setNovaUnidade] = useState({
     simbolo: '',
@@ -135,7 +167,9 @@ export function Configuracoes() {
   const buscaNorm = busca.toLowerCase();
   const novoDirecionavel = abaAtiva === 'clientes';
   const novoModalDisponivel =
+    abaAtiva === 'tiposObra' ||
     abaAtiva === 'disciplinas' ||
+    abaAtiva === 'responsaveisComerciais' ||
     abaAtiva === 'unidades' ||
     abaAtiva === 'regioes' ||
     abaAtiva === 'categorias' ||
@@ -154,9 +188,21 @@ export function Configuracoes() {
       return;
     }
 
+    if (abaAtiva === 'tiposObra') {
+      setTentouSalvarModal(false);
+      setModalCadastro('tiposObra');
+      return;
+    }
+
     if (abaAtiva === 'disciplinas') {
       setTentouSalvarModal(false);
       setModalCadastro('disciplinas');
+      return;
+    }
+
+    if (abaAtiva === 'responsaveisComerciais') {
+      setTentouSalvarModal(false);
+      setModalCadastro('responsaveisComerciais');
       return;
     }
 
@@ -214,13 +260,25 @@ export function Configuracoes() {
     (c) => c.nome.toLowerCase() === novaCategoria.nome.trim().toLowerCase()
   );
 
+  const erroNomeTipoObraDuplicado = tiposObra.some(
+    (t) => t.nome.toLowerCase() === novoTipoObra.nome.trim().toLowerCase()
+  );
+
   const erroNomeTipoMODuplicado = tiposMO.some(
     (t) => t.nome.toLowerCase() === novoTipoMO.trim().toLowerCase()
+  );
+
+  const erroNomeResponsavelComercialDuplicado = responsaveisComerciais.some(
+    (r) => r.nome.toLowerCase() === novoResponsavelComercial.trim().toLowerCase()
   );
 
   const modalValido =
     modalCadastro === 'maoDeObra'
       ? Boolean(novoTipoMO.trim()) && !erroNomeTipoMODuplicado
+      : modalCadastro === 'tiposObra'
+      ? Boolean(novoTipoObra.nome.trim()) && !erroNomeTipoObraDuplicado
+      : modalCadastro === 'responsaveisComerciais'
+      ? Boolean(novoResponsavelComercial.trim()) && !erroNomeResponsavelComercialDuplicado
       : modalCadastro === 'disciplinas'
       ? Boolean(novaDisciplina.codigo.trim()) &&
         Boolean(novaDisciplina.nome.trim()) &&
@@ -231,68 +289,92 @@ export function Configuracoes() {
         Boolean(novaUnidade.descricao.trim()) &&
         !erroSimboloUnidadeDuplicado
       : modalCadastro === 'regioes'
-      ? Boolean(novaRegiao.nome.trim()) && Boolean(novaRegiao.uf.trim()) && novaRegiao.uf.trim().length === 2 && !erroNomeRegiaoDuplicado
+      ? Boolean(novaRegiao.nome.trim()) &&
+        Boolean(novaRegiao.uf.trim()) &&
+        novaRegiao.uf.trim().length === 2 &&
+        !erroNomeRegiaoDuplicado
       : modalCadastro === 'categorias'
       ? Boolean(novaCategoria.nome.trim()) && !erroNomeCategoriaDuplicado
       : false;
 
-  function salvarCadastroRapido() {
+  async function salvarCadastroRapido() {
     setTentouSalvarModal(true);
-    if (!modalValido) return;
+    if (!modalValido || !modalCadastro) return;
 
-    if (modalCadastro === 'maoDeObra') {
-      maoDeObraTiposRepository.criar(novoTipoMO.trim())
-        .then((criado) => {
-          setTiposMO((prev) => [...prev, criado].sort((a, b) => a.nome.localeCompare(b.nome)));
-          setNovoTipoMO('');
-          fecharModalCadastro();
-        })
-        .catch(console.error);
-      return;
-    }
+    try {
+      if (modalCadastro === 'maoDeObra') {
+        const novo = await maoDeObraTiposRepository.criar(novoTipoMO.trim());
+        setTiposMO((prev) => [...prev, novo].sort((a, b) => a.nome.localeCompare(b.nome)));
+        setNovoTipoMO('');
+        fecharModalCadastro();
+        return;
+      }
 
-    if (modalCadastro === 'disciplinas') {
-      criarDisciplina({
-        codigo: novaDisciplina.codigo.trim().toUpperCase(),
-        nome: novaDisciplina.nome.trim(),
-        especialidade: novaDisciplina.especialidade.trim().toLowerCase() || 'geral',
-        ativa: novaDisciplina.ativa,
-      });
-      setNovaDisciplina({ codigo: '', nome: '', especialidade: 'geral', ativa: true });
-      fecharModalCadastro();
-      return;
-    }
+      if (modalCadastro === 'disciplinas') {
+        await criarDisciplina({
+          codigo: novaDisciplina.codigo.trim().toUpperCase(),
+          nome: novaDisciplina.nome.trim(),
+          especialidade: novaDisciplina.especialidade.trim().toLowerCase() || 'geral',
+          ativa: novaDisciplina.ativa,
+        });
+        setNovaDisciplina({ codigo: '', nome: '', especialidade: 'geral', ativa: true });
+        fecharModalCadastro();
+        return;
+      }
 
-    if (modalCadastro === 'unidades') {
-      criarUnidade({
-        simbolo: novaUnidade.simbolo.trim(),
-        descricao: novaUnidade.descricao.trim(),
-        tipo: novaUnidade.tipo,
-      });
-      setNovaUnidade({ simbolo: '', descricao: '', tipo: 'unidade' });
-      fecharModalCadastro();
-      return;
-    }
+      if (modalCadastro === 'tiposObra') {
+        await criarTipoObra({
+          nome: novoTipoObra.nome.trim(),
+          descricao: novoTipoObra.descricao.trim() || undefined,
+          ativo: novoTipoObra.ativo,
+        });
+        setNovoTipoObra({ nome: '', descricao: '', ativo: true });
+        fecharModalCadastro();
+        return;
+      }
 
-    if (modalCadastro === 'regioes') {
-      criarRegiao({
-        nome: novaRegiao.nome.trim(),
-        uf: novaRegiao.uf.trim().toUpperCase(),
-        municipios: [],
-      });
-      setNovaRegiao({ nome: '', uf: '' });
-      fecharModalCadastro();
-      return;
-    }
+      if (modalCadastro === 'responsaveisComerciais') {
+        const novo = await responsaveisComerciaisRepository.criar(novoResponsavelComercial.trim().toUpperCase());
+        setResponsaveisComerciais((prev) => [...prev, novo].sort((a, b) => a.nome.localeCompare(b.nome)));
+        setNovoResponsavelComercial('');
+        fecharModalCadastro();
+        return;
+      }
 
-    if (modalCadastro === 'categorias') {
-      criarCategoria({
-        nome: novaCategoria.nome.trim(),
-        tipo: novaCategoria.tipo,
-        descricao: novaCategoria.descricao.trim() || undefined,
-      });
-      setNovaCategoria({ nome: '', tipo: 'insumo', descricao: '' });
-      fecharModalCadastro();
+      if (modalCadastro === 'unidades') {
+        await criarUnidade({
+          simbolo: novaUnidade.simbolo.trim(),
+          descricao: novaUnidade.descricao.trim(),
+          tipo: novaUnidade.tipo,
+        });
+        setNovaUnidade({ simbolo: '', descricao: '', tipo: 'unidade' });
+        fecharModalCadastro();
+        return;
+      }
+
+      if (modalCadastro === 'regioes') {
+        await criarRegiao({
+          nome: novaRegiao.nome.trim(),
+          uf: novaRegiao.uf.trim().toUpperCase(),
+          municipios: [],
+        });
+        setNovaRegiao({ nome: '', uf: '' });
+        fecharModalCadastro();
+        return;
+      }
+
+      if (modalCadastro === 'categorias') {
+        await criarCategoria({
+          nome: novaCategoria.nome.trim(),
+          tipo: novaCategoria.tipo,
+          descricao: novaCategoria.descricao.trim() || undefined,
+        });
+        setNovaCategoria({ nome: '', tipo: 'insumo', descricao: '' });
+        fecharModalCadastro();
+      }
+    } catch (e: any) {
+      console.error('Erro ao salvar cadastro mestre:', e);
+      alert(`Não foi possível salvar: ${e?.message || e}`);
     }
   }
 
@@ -313,8 +395,8 @@ export function Configuracoes() {
             status: t.ativo,
             codigo: '—',
             nome: t.nome,
-            onToggle: () => toggleAtivoTipoObra(t.id),
-            onExcluir: () => excluirTipoObra(t.id),
+            onToggle: () => { void toggleAtivoTipoObra(t.id).catch(console.error); },
+            onExcluir: () => { void excluirTipoObra(t.id).catch(console.error); },
           }));
       case 'disciplinas':
         return disciplinas
@@ -328,8 +410,31 @@ export function Configuracoes() {
             status: d.ativa,
             codigo: d.codigo,
             nome: d.nome,
-            onToggle: () => toggleAtivaDisciplina(d.id),
-            onExcluir: () => excluirDisciplina(d.id),
+            onToggle: () => { void toggleAtivaDisciplina(d.id).catch(console.error); },
+            onExcluir: () => { void excluirDisciplina(d.id).catch(console.error); },
+          }));
+      case 'responsaveisComerciais':
+        return responsaveisComerciais
+          .filter((r) => r.nome.toLowerCase().includes(buscaNorm))
+          .map((r) => ({
+            id: r.id,
+            status: r.ativo,
+            codigo: '—',
+            nome: r.nome,
+            onToggle: () => {
+              responsaveisComerciaisRepository.atualizarAtivo(r.id, !r.ativo)
+                .then(() =>
+                  setResponsaveisComerciais((prev) =>
+                    prev.map((x) => (x.id === r.id ? { ...x, ativo: !x.ativo } : x))
+                  )
+                )
+                .catch(console.error);
+            },
+            onExcluir: () => {
+              responsaveisComerciaisRepository.excluir(r.id)
+                .then(() => setResponsaveisComerciais((prev) => prev.filter((x) => x.id !== r.id)))
+                .catch(console.error);
+            },
           }));
       case 'unidades':
         return unidades
@@ -343,7 +448,7 @@ export function Configuracoes() {
             status: null,
             codigo: u.simbolo,
             nome: u.descricao,
-            onExcluir: () => excluirUnidade(u.id),
+            onExcluir: () => { void excluirUnidade(u.id).catch(console.error); },
           }));
       case 'regioes':
         return regioes
@@ -353,7 +458,7 @@ export function Configuracoes() {
             status: null,
             codigo: r.uf,
             nome: r.nome,
-            onExcluir: () => excluirRegiao(r.id),
+            onExcluir: () => { void excluirRegiao(r.id).catch(console.error); },
           }));
       case 'categorias':
         return categorias
@@ -363,7 +468,7 @@ export function Configuracoes() {
             status: null,
             codigo: c.tipo,
             nome: c.nome,
-            onExcluir: () => excluirCategoria(c.id),
+            onExcluir: () => { void excluirCategoria(c.id).catch(console.error); },
           }));
       case 'maoDeObra':
         return tiposMO
@@ -577,8 +682,10 @@ export function Configuracoes() {
             >
               <div className="px-5 py-4 border-b border-slate-200">
                 <h3 className="text-base font-semibold text-slate-800">
+                  {modalCadastro === 'tiposObra' && 'Novo Tipo de Obra'}
                   {modalCadastro === 'maoDeObra' && 'Novo Tipo de Mão de Obra'}
                   {modalCadastro === 'disciplinas' && 'Nova Disciplina'}
+                  {modalCadastro === 'responsaveisComerciais' && 'Novo Responsável Comercial'}
                   {modalCadastro === 'unidades' && 'Nova Unidade'}
                   {modalCadastro === 'regioes' && 'Nova Região'}
                   {modalCadastro === 'categorias' && 'Nova Categoria'}
@@ -586,6 +693,43 @@ export function Configuracoes() {
               </div>
 
               <div className="p-5 space-y-4">
+                {modalCadastro === 'tiposObra' && (
+                  <>
+                    <div>
+                      <label className="block text-xs text-slate-500 mb-1">Nome</label>
+                      <input
+                        autoFocus
+                        value={novoTipoObra.nome}
+                        onChange={(e) =>
+                          setNovoTipoObra((prev) => ({ ...prev, nome: e.target.value }))
+                        }
+                        onKeyDown={(e) => e.key === 'Enter' && salvarCadastroRapido()}
+                        className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="Ex: Hospitalar"
+                      />
+                      {tentouSalvarModal && !novoTipoObra.nome.trim() && (
+                        <p className="mt-1 text-xs text-red-600">Informe o nome.</p>
+                      )}
+                      {tentouSalvarModal && erroNomeTipoObraDuplicado && (
+                        <p className="mt-1 text-xs text-red-600">Tipo de obra já cadastrado.</p>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="block text-xs text-slate-500 mb-1">Descrição (opcional)</label>
+                      <textarea
+                        value={novoTipoObra.descricao}
+                        onChange={(e) =>
+                          setNovoTipoObra((prev) => ({ ...prev, descricao: e.target.value }))
+                        }
+                        className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        rows={3}
+                        placeholder="Descrição rápida desse tipo de obra"
+                      />
+                    </div>
+                  </>
+                )}
+
                 {modalCadastro === 'maoDeObra' && (
                   <div>
                     <label className="block text-xs text-slate-500 mb-1">Nome do tipo</label>
@@ -660,6 +804,26 @@ export function Configuracoes() {
                         )}
                     </div>
                   </>
+                )}
+
+                {modalCadastro === 'responsaveisComerciais' && (
+                  <div>
+                    <label className="block text-xs text-slate-500 mb-1">Nome do responsável</label>
+                    <input
+                      autoFocus
+                      value={novoResponsavelComercial}
+                      onChange={(e) => setNovoResponsavelComercial(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && salvarCadastroRapido()}
+                      className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm uppercase focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="Ex: ANTONIO"
+                    />
+                    {tentouSalvarModal && !novoResponsavelComercial.trim() && (
+                      <p className="mt-1 text-xs text-red-600">Informe o nome.</p>
+                    )}
+                    {tentouSalvarModal && erroNomeResponsavelComercialDuplicado && (
+                      <p className="mt-1 text-xs text-red-600">Responsável já cadastrado.</p>
+                    )}
+                  </div>
                 )}
 
                 {modalCadastro === 'unidades' && (

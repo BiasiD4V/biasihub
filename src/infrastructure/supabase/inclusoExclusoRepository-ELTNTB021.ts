@@ -1,39 +1,16 @@
 import { supabase } from './client'
 
-export type SituacaoEscopo = 'Fechado' | 'Fechado com premissa' | 'Pendente' | 'Precisa validar'
-export type RiscoEscopo = 'Baixo' | 'Médio' | 'Alto'
-export type DisciplinaEscopo = string
-
 export interface InclusoExclusoSupabase {
   id: string
   obra: string
-  disciplina: DisciplinaEscopo | null
-  area_ambiente: string | null
-  item_servico: string
-  antes_da_biasi: string | null
-  o_que_biasi_faz: string | null
-  onde_faz: string | null
-  ate_onde_vai: string | null
-  como_entrega: string | null
-  quem_entra_depois: string | null
-  o_que_nao_entra: string | null
-  base_usada: string | null
-  situacao: SituacaoEscopo
-  risco: RiscoEscopo
-  premissa: string | null
-  pendencia: string | null
-  responsavel: string | null
+  servico: string
+  tipo: 'incluso' | 'excluso'
+  padrao: boolean
+  motivo: string | null
+  observacao: string | null
   criado_em: string
   atualizado_em: string
 }
-
-export const DISCIPLINAS_ESCOPO: DisciplinaEscopo[] = [
-  'Elétrica', 'Hidráulica', 'Incêndio', 'Gás', 'SPDA',
-  'Dados / Infraestrutura seca', 'Ar comprimido', 'HVAC',
-]
-export const SITUACOES_ESCOPO: SituacaoEscopo[] = ['Fechado', 'Fechado com premissa', 'Pendente', 'Precisa validar']
-export const RISCOS_ESCOPO: RiscoEscopo[] = ['Baixo', 'Médio', 'Alto']
-export const RESPONSAVEIS_ESCOPO = ['Paulo', 'Ryan', 'Luan', 'Giovanni', 'Jennifer']
 
 const LS_KEY = 'biasi_incluso_excluso'
 
