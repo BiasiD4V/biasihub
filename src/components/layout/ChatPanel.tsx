@@ -263,33 +263,38 @@ export function ChatPanel({ aberto, onFechar, onUnreadChange }: ChatPanelProps) 
   // Video call (opens Jitsi Meet room)
   function iniciarVideoCall() {
     const room = `biasi-hub-${Date.now()}`;
-    const url = `https://meet.jit.si/${room}`;
-    // Send system message with link
+    const encodedName = encodeURIComponent(usuario?.nome ?? 'Anfitrião');
+    const participantUrl = `https://meet.jit.si/${room}#config.prejoinPageEnabled=false`;
+    const hostUrl = `https://meet.jit.si/${room}#userInfo.displayName=%22${encodedName}%22&config.prejoinPageEnabled=false`;
     if (usuario) {
       supabase.from('chat_mensagens').insert({
         usuario_id: usuario.id,
         usuario_nome: usuario.nome,
-        conteudo: `📹 ${usuario.nome} iniciou uma chamada de vídeo`,
+        conteudo: `📹 ${usuario.nome} iniciou uma videochamada — `,
         tipo: 'sistema',
-        arquivo_url: url,
+        arquivo_url: participantUrl,
+        arquivo_tipo: 'link/call',
       }).then();
     }
-    window.open(url, '_blank');
+    window.open(hostUrl, '_blank');
   }
 
   function iniciarVoiceCall() {
     const room = `biasi-hub-voice-${Date.now()}`;
-    const url = `https://meet.jit.si/${room}#config.startWithVideoMuted=true`;
+    const encodedName = encodeURIComponent(usuario?.nome ?? 'Anfitrião');
+    const participantUrl = `https://meet.jit.si/${room}#config.startWithVideoMuted=true&config.prejoinPageEnabled=false`;
+    const hostUrl = `https://meet.jit.si/${room}#config.startWithVideoMuted=true&userInfo.displayName=%22${encodedName}%22&config.prejoinPageEnabled=false`;
     if (usuario) {
       supabase.from('chat_mensagens').insert({
         usuario_id: usuario.id,
         usuario_nome: usuario.nome,
-        conteudo: `📞 ${usuario.nome} iniciou uma chamada de voz`,
+        conteudo: `📞 ${usuario.nome} iniciou uma chamada de voz — `,
         tipo: 'sistema',
-        arquivo_url: url,
+        arquivo_url: participantUrl,
+        arquivo_tipo: 'link/call',
       }).then();
     }
-    window.open(url, '_blank');
+    window.open(hostUrl, '_blank');
   }
 
   // Group by date

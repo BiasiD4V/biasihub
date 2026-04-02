@@ -163,10 +163,10 @@ export function LayoutAutenticado() {
           const ehDmParaMim = nova.canal === 'dm' && nova.destinatario_id === usuario.id;
 
           if (ehMensagemGeral || ehDmParaMim) {
-            // Check if it's a call
+            // Check if it's a call (works for both DM and group)
             const ehChamada = (nova as any).arquivo_tipo === 'link/call';
 
-            if (ehChamada && ehDmParaMim) {
+            if (ehChamada) {
               const ehVideo = nova.conteudo?.includes('vídeo') || nova.conteudo?.includes('videochamada');
               setCallNotif({
                 nome: nova.remetente_nome,

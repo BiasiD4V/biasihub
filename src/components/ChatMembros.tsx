@@ -633,10 +633,10 @@ export function ChatMembros({ aberto, onFechar }: ChatMembrosProps) {
   function iniciarLigacao() {
     const room = `biasi-${canalAtivo}-${Date.now()}`;
     const encodedName = encodeURIComponent(usuario?.nome ?? 'Anfitrião');
-    // Link para participantes (sem moderação)
-    const participantUrl = `https://meet.jit.si/${room}#config.startWithVideoMuted=true`;
-    // Link para o criador (anfitrião/moderador)
-    const hostUrl = `https://meet.jit.si/${room}#config.startWithVideoMuted=true&userInfo.displayName="${encodedName}"&config.enableLobbyChat=true&config.lobby.autoKnock=false&config.moderator.enable=true`;
+    // Link para participantes (entra direto, sem tela de pre-join)
+    const participantUrl = `https://meet.jit.si/${room}#config.startWithVideoMuted=true&config.prejoinPageEnabled=false`;
+    // Link para o criador (anfitrião — entra primeiro = moderador automático)
+    const hostUrl = `https://meet.jit.si/${room}#config.startWithVideoMuted=true&userInfo.displayName=%22${encodedName}%22&config.prejoinPageEnabled=false`;
     if (usuario) {
       supabase.from('chat_mensagens').insert({
         remetente_id: usuario.id,
@@ -655,10 +655,10 @@ export function ChatMembros({ aberto, onFechar }: ChatMembrosProps) {
   function iniciarVideoCall() {
     const room = `biasi-video-${canalAtivo}-${Date.now()}`;
     const encodedName = encodeURIComponent(usuario?.nome ?? 'Anfitrião');
-    // Link para participantes
-    const participantUrl = `https://meet.jit.si/${room}`;
-    // Link para o criador (anfitrião/moderador)
-    const hostUrl = `https://meet.jit.si/${room}#userInfo.displayName="${encodedName}"&config.enableLobbyChat=true&config.lobby.autoKnock=false&config.moderator.enable=true`;
+    // Link para participantes (entra direto, sem tela de pre-join)
+    const participantUrl = `https://meet.jit.si/${room}#config.prejoinPageEnabled=false`;
+    // Link para o criador (anfitrião — entra primeiro = moderador automático)
+    const hostUrl = `https://meet.jit.si/${room}#userInfo.displayName=%22${encodedName}%22&config.prejoinPageEnabled=false`;
     if (usuario) {
       supabase.from('chat_mensagens').insert({
         remetente_id: usuario.id,
