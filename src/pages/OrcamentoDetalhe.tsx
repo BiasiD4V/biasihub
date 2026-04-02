@@ -72,6 +72,7 @@ function rowParaMudanca(r: MudancaEtapaRow): MudancaEtapa {
     observacao: r.observacao ?? undefined,
     arquivo: r.arquivo ?? undefined,
     data: r.created_at,
+    status: (r.status as 'aprovado' | 'pendente') || 'aprovado',
   };
 }
 
@@ -230,14 +231,22 @@ export function OrcamentoDetalhe() {
     );
   }
 
-  function handleMudarEtapa(etapaNova: EtapaFunil, observacao?: string, arquivoUrl?: string) {
+  function handleMudarEtapa(etapaNova: EtapaFunil, observacao?: string, arquivoUrl?: string, skipHistorico?: boolean, etapaAnteriorOverride?: EtapaFunil) {
     if (!id) return;
     if (isSupa) {
-      const etapaAnterior = orc?.etapaFunil ?? null;
+      const etapaAnterior = etapaAnteriorOverride ?? orc?.etapaFunil ?? null;
       const resp = usuario?.nome ?? 'Usuário';
+      const papelAtual = usuario?.papel;
+      const autoAprovado = papelAtual && ['dono', 'admin', 'gestor'].includes(papelAtual);
+      const statusMudanca = autoAprovado ? 'aprovado' : 'pendente';
+
       propostasRepository.atualizar(id, { etapa_funil: etapaNova }).then((p) => {
         setPropostaSupa(p);
       }).catch(() => {});
+
+      // Se skipHistorico, só atualiza a etapa sem registrar transição
+      if (skipHistorico) return;
+
       // Criar registro local imediatamente (localStorage + state)
       const novaMudanca: MudancaEtapa = {
         id: crypto.randomUUID(),
@@ -248,6 +257,7 @@ export function OrcamentoDetalhe() {
         observacao,
         arquivo: arquivoUrl,
         data: new Date().toISOString(),
+        status: statusMudanca,
       };
       setLocalMudancas((prev) => {
         const next = [novaMudanca, ...prev];
@@ -262,6 +272,7 @@ export function OrcamentoDetalhe() {
         responsavel: resp,
         observacao: observacao ?? null,
         arquivo: arquivoUrl ?? null,
+        status: statusMudanca,
       }).catch(() => {});
     } else {
       atualizarEtapaFunil(id, etapaNova, usuario?.nome ?? 'Paulo Confar', observacao);
@@ -534,6 +545,16 @@ export function OrcamentoDetalhe() {
                     return next;
                   });
                   propostasRepository.deletarMudancaEtapa(mudancaId).catch(() => {});
+                }
+              }}
+              onAprovarMudanca={(mudancaId) => {
+                if (isSupa && id) {
+                  setLocalMudancas(prev => {
+                    const next = prev.map(m => m.id === mudancaId ? { ...m, status: 'aprovado' as const } : m);
+                    lsSaveMudancas(id, next);
+                    return next;
+                  });
+                  propostasRepository.atualizarMudancaEtapa(mudancaId, { status: 'aprovado' }).catch(() => {});
                 }
               }}
             />

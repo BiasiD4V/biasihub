@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { GitBranch, FileText, Edit2, X, Save, Trash2, Link, ExternalLink } from 'lucide-react';
+import { GitBranch, FileText, Edit2, X, Save, Trash2, Link, ExternalLink, CheckCircle, Clock } from 'lucide-react';
 import type { MudancaEtapa } from '../../domain/entities/MudancaEtapa';
 import { ETAPA_LABELS, ETAPA_CORES } from '../../domain/value-objects/EtapaFunil';
 import { abrirArquivo, nomeArquivo } from '../../infrastructure/supabase/storageService';
@@ -11,6 +11,7 @@ interface HistoricoEtapasProps {
   mudancas: MudancaEtapa[];
   onUpdateMudanca?: (mudanca: MudancaEtapa) => void;
   onDeleteMudanca?: (mudancaId: string) => void;
+  onAprovarMudanca?: (mudancaId: string) => void;
   papelUsuario?: PapelUsuario;
 }
 
@@ -43,7 +44,7 @@ function serializeArquivos(urls: string[]): string | undefined {
   return JSON.stringify(urls);
 }
 
-export function HistoricoEtapas({ mudancas, onUpdateMudanca, onDeleteMudanca, papelUsuario }: HistoricoEtapasProps) {
+export function HistoricoEtapas({ mudancas, onUpdateMudanca, onDeleteMudanca, onAprovarMudanca, papelUsuario }: HistoricoEtapasProps) {
   const [filePreviewOpen, setFilePreviewOpen] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<MudancaEtapa | null>(null);
@@ -51,6 +52,7 @@ export function HistoricoEtapas({ mudancas, onUpdateMudanca, onDeleteMudanca, pa
   const [novoLink, setNovoLink] = useState('');
 
   const podeExcluir = papelUsuario && PAPEIS_ADMIN.includes(papelUsuario);
+  const podeAprovar = papelUsuario && PAPEIS_ADMIN.includes(papelUsuario);
 
   if (mudancas.length === 0) {
     return (
@@ -125,6 +127,27 @@ export function HistoricoEtapas({ mudancas, onUpdateMudanca, onDeleteMudanca, pa
                     <span>{formatarData(m.data)}</span>
                     <span>·</span>
                     <span>{m.responsavel}</span>
+                    <span>·</span>
+                    {m.status === 'aprovado' ? (
+                      <span className="inline-flex items-center gap-1 text-green-700 bg-green-50 px-2 py-0.5 rounded-full font-medium">
+                        <CheckCircle size={10} />
+                        Aprovado
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full font-medium">
+                        <Clock size={10} />
+                        Pendente
+                      </span>
+                    )}
+                    {m.status === 'pendente' && podeAprovar && onAprovarMudanca && (
+                      <button
+                        onClick={() => onAprovarMudanca(m.id)}
+                        className="inline-flex items-center gap-1 text-green-700 bg-green-100 hover:bg-green-200 px-2 py-0.5 rounded-full font-medium transition-colors"
+                      >
+                        <CheckCircle size={10} />
+                        Aprovar
+                      </button>
+                    )}
                   </div>
 
                   {m.arquivo && parseArquivos(m.arquivo).map((arqUrl, idx) => (

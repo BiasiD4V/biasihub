@@ -45,6 +45,7 @@ export interface MudancaEtapaRow {
   responsavel: string
   observacao: string | null
   arquivo: string | null
+  status: string
   created_at: string
 }
 

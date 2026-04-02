@@ -11,7 +11,7 @@ import type { PapelUsuario } from '../../domain/value-objects/PapelUsuario';
 
 interface BlocoComercialProps {
   orc: OrcamentoCard;
-  onMudarEtapa: (etapaNova: EtapaFunil, observacao?: string, arquivoUrl?: string) => void;
+  onMudarEtapa: (etapaNova: EtapaFunil, observacao?: string, arquivoUrl?: string, skipHistorico?: boolean, etapaAnteriorOverride?: EtapaFunil) => void;
   onAtualizarValor: (valor: number) => void;
   onFechamento: (dados: DadosFechamento) => void;
   mudancasEtapa?: MudancaEtapa[];
@@ -37,24 +37,18 @@ export function BlocoComercial({ orc, onMudarEtapa, onAtualizarValor, onFechamen
   const corEtapa = ETAPA_CORES[orc.etapaFunil];
   const corResultado = RESULTADO_CORES[orc.resultadoComercial];
   const fechado = orc.resultadoComercial !== 'em_andamento';
-  const primeiraVez = mudancasEtapa.length === 0;
 
   function handleMudarEtapa(e: React.ChangeEvent<HTMLSelectElement>) {
     const etapaNova = e.target.value as EtapaFunil;
     if (etapaNova !== orc.etapaFunil) {
-      if (primeiraVez) {
-        // Primeira vez: muda direto sem modal
-        onMudarEtapa(etapaNova);
-      } else {
-        setEtapaSelecionada(etapaNova);
-        setModalConfirmacao(true);
-      }
+      setEtapaSelecionada(etapaNova);
+      setModalConfirmacao(true);
     }
   }
 
-  function handleConfirmarMudanca(observacao: string, arquivoUrl?: string) {
+  function handleConfirmarMudanca(observacao: string, arquivoUrl?: string, etapaAnteriorOverride?: EtapaFunil) {
     if (etapaSelecionada) {
-      onMudarEtapa(etapaSelecionada, observacao || undefined, arquivoUrl);
+      onMudarEtapa(etapaSelecionada, observacao || undefined, arquivoUrl, false, etapaAnteriorOverride);
       setModalConfirmacao(false);
       setEtapaSelecionada(null);
     }

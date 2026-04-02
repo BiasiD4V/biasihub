@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { AlertCircle, Link, Loader2, ShieldAlert } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import type { EtapaFunil } from '../../domain/value-objects/EtapaFunil';
-import { ETAPA_LABELS } from '../../domain/value-objects/EtapaFunil';
+import { ETAPA_LABELS, ORDEM_FUNIL } from '../../domain/value-objects/EtapaFunil';
 import type { PapelUsuario } from '../../domain/value-objects/PapelUsuario';
 
 const PAPEIS_APROVADORES: PapelUsuario[] = ['dono', 'admin', 'gestor'];
@@ -10,7 +10,7 @@ const PAPEIS_APROVADORES: PapelUsuario[] = ['dono', 'admin', 'gestor'];
 interface ModalConfirmarMudancaEtapaProps {
   aberto: boolean;
   onFechar: () => void;
-  onConfirmar: (observacao: string, arquivoUrl?: string) => void;
+  onConfirmar: (observacao: string, arquivoUrl?: string, etapaAnteriorOverride?: EtapaFunil) => void;
   etapaAtual: EtapaFunil;
   etapaNova: EtapaFunil;
   jaExisteTransicao?: boolean;
@@ -28,6 +28,7 @@ export function ModalConfirmarMudancaEtapa({
 }: ModalConfirmarMudancaEtapaProps) {
   const [observacao, setObservacao] = useState('');
   const [caminhoRede, setCaminhoRede] = useState('');
+  const [etapaAnteriorSelecionada, setEtapaAnteriorSelecionada] = useState<EtapaFunil>(etapaAtual);
   const [enviando, setEnviando] = useState(false);
 
   const bloqueadoPorDuplicata = !!(jaExisteTransicao && etapaNova === 'proposta_enviada' && papelUsuario && !PAPEIS_APROVADORES.includes(papelUsuario));
@@ -39,10 +40,12 @@ export function ModalConfirmarMudancaEtapa({
     try {
       const obs = observacao.trim() || undefined;
       const arquivoUrl = caminhoRede.trim();
+      const override = etapaAnteriorSelecionada !== etapaAtual ? etapaAnteriorSelecionada : undefined;
 
-      onConfirmar(obs || '', arquivoUrl);
+      onConfirmar(obs || '', arquivoUrl, override);
       setObservacao('');
       setCaminhoRede('');
+      setEtapaAnteriorSelecionada(etapaAtual);
     } finally {
       setEnviando(false);
     }
@@ -51,6 +54,7 @@ export function ModalConfirmarMudancaEtapa({
   function fechar() {
     setObservacao('');
     setCaminhoRede('');
+    setEtapaAnteriorSelecionada(etapaAtual);
     onFechar();
   }
 
@@ -63,16 +67,33 @@ export function ModalConfirmarMudancaEtapa({
     >
       <div className="px-6 py-5">
         {/* Info de confirmação */}
-        <div className="mb-5 bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 flex items-start gap-3">
-          <AlertCircle size={18} className="text-blue-600 flex-shrink-0 mt-0.5" />
+        <div className="mb-5 space-y-3">
+          {/* Etapa anterior (editável) */}
           <div>
-            <p className="text-sm font-semibold text-blue-900">Confirmação</p>
-            <p className="text-xs text-blue-700 mt-2">
-              Etapa atual: <strong>{ETAPA_LABELS[etapaAtual]}</strong>
-            </p>
-            <p className="text-xs text-blue-700">
-              Nova etapa: <strong className="text-blue-900">{ETAPA_LABELS[etapaNova]}</strong>
-            </p>
+            <label className="block text-xs font-medium text-slate-600 mb-1.5">
+              Etapa anterior
+            </label>
+            <select
+              value={etapaAnteriorSelecionada}
+              onChange={(e) => setEtapaAnteriorSelecionada(e.target.value as EtapaFunil)}
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-slate-700"
+            >
+              {ORDEM_FUNIL.filter((e) => e !== 'pos_venda' && e !== etapaNova).map((etapa) => (
+                <option key={etapa} value={etapa}>
+                  {ETAPA_LABELS[etapa]}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Etapa nova (somente leitura) */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 flex items-start gap-3">
+            <AlertCircle size={18} className="text-blue-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-xs text-blue-700">
+                <strong>{ETAPA_LABELS[etapaAnteriorSelecionada]}</strong> → <strong className="text-blue-900">{ETAPA_LABELS[etapaNova]}</strong>
+              </p>
+            </div>
           </div>
         </div>
 

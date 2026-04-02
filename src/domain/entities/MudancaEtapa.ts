@@ -1,5 +1,7 @@
 import type { EtapaFunil } from '../value-objects/EtapaFunil';
 
+export type StatusAprovacao = 'aprovado' | 'pendente';
+
 export interface MudancaEtapa {
   id: string;
   orcamentoId: string;
@@ -9,4 +11,5 @@ export interface MudancaEtapa {
   observacao?: string;
   data: string; // ISO datetime
   arquivo?: string; // URL do arquivo anexado
+  status: StatusAprovacao;
 }

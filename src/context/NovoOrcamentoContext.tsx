@@ -303,6 +303,7 @@ export function NovoOrcamentoProvider({ children }: { children: ReactNode }) {
       responsavel: input.responsavel || 'Paulo Confar',
       observacao: 'Oportunidade criada.',
       data: agora,
+      status: 'aprovado',
     };
     setMudancasEtapa((prev) => [...prev, mudancaInicial]);
 
@@ -422,6 +423,7 @@ export function NovoOrcamentoProvider({ children }: { children: ReactNode }) {
       responsavel,
       observacao,
       data: new Date().toISOString(),
+      status: 'aprovado',
     };
     setMudancasEtapa((prev) => [...prev, novaMudanca]);
 

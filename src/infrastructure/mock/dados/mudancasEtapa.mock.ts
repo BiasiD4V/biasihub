@@ -10,6 +10,7 @@ export const mockMudancasEtapa: MudancaEtapa[] = [
     responsavel: 'Paulo Confar',
     observacao: 'Oportunidade recebida via contato direto do cliente.',
     data: '2024-01-10T09:00:00.000Z',
+    status: 'aprovado',
   },
   {
     id: 'me2',
@@ -19,6 +20,7 @@ export const mockMudancasEtapa: MudancaEtapa[] = [
     responsavel: 'Paulo Confar',
     observacao: 'Documentação recebida. Iniciando análise de viabilidade.',
     data: '2024-01-15T10:30:00.000Z',
+    status: 'aprovado',
   },
   {
     id: 'me3',
@@ -28,6 +30,7 @@ export const mockMudancasEtapa: MudancaEtapa[] = [
     responsavel: 'Paulo Confar',
     observacao: 'Visita técnica realizada. Levantamento de campo concluído.',
     data: '2024-01-22T14:00:00.000Z',
+    status: 'aprovado',
   },
   {
     id: 'me4',
@@ -37,6 +40,7 @@ export const mockMudancasEtapa: MudancaEtapa[] = [
     responsavel: 'Paulo Confar',
     observacao: 'Dados levantados. Iniciando montagem do orçamento.',
     data: '2024-01-30T09:00:00.000Z',
+    status: 'aprovado',
   },
   {
     id: 'me5',
@@ -46,6 +50,7 @@ export const mockMudancasEtapa: MudancaEtapa[] = [
     responsavel: 'Paulo Confar',
     observacao: 'Orçamento elaborado. Enviado para revisão interna.',
     data: '2024-02-05T16:00:00.000Z',
+    status: 'aprovado',
   },
   {
     id: 'me6',
@@ -55,6 +60,7 @@ export const mockMudancasEtapa: MudancaEtapa[] = [
     responsavel: 'Paulo Confar',
     observacao: 'Revisão concluída. Proposta enviada ao cliente por e-mail.',
     data: '2024-02-12T11:00:00.000Z',
+    status: 'aprovado',
   },
   {
     id: 'me7',
@@ -64,6 +70,7 @@ export const mockMudancasEtapa: MudancaEtapa[] = [
     responsavel: 'Paulo Confar',
     observacao: 'Cliente solicitou ajuste de escopo. Entrando em negociação.',
     data: '2024-02-20T09:30:00.000Z',
+    status: 'aprovado',
   },
   {
     id: 'me8',
@@ -73,6 +80,7 @@ export const mockMudancasEtapa: MudancaEtapa[] = [
     responsavel: 'Paulo Confar',
     observacao: 'Contrato assinado. Negócio fechado com sucesso. Iniciando pós-venda.',
     data: '2024-03-01T15:00:00.000Z',
+    status: 'aprovado',
   },
 
   // orc3 — proposta enviada: entrada → analise → levantamento → cotacao → proposta_enviada
@@ -84,6 +92,7 @@ export const mockMudancasEtapa: MudancaEtapa[] = [
     responsavel: 'Lucas Mendes',
     observacao: 'Oportunidade identificada via contato do Shopping Center Guarulhos.',
     data: '2025-11-15T09:00:00.000Z',
+    status: 'aprovado',
   },
   {
     id: 'me13',
@@ -93,6 +102,7 @@ export const mockMudancasEtapa: MudancaEtapa[] = [
     responsavel: 'Lucas Mendes',
     observacao: 'Escopo técnico analisado. Projeto viável — especialidade elétrica.',
     data: '2025-11-18T10:00:00.000Z',
+    status: 'aprovado',
   },
   {
     id: 'me14',
@@ -102,6 +112,7 @@ export const mockMudancasEtapa: MudancaEtapa[] = [
     responsavel: 'Lucas Mendes',
     observacao: 'Visita técnica ao Bloco B realizada. Levantamento de campo concluído.',
     data: '2025-11-28T14:00:00.000Z',
+    status: 'aprovado',
   },
   {
     id: 'me15',
@@ -111,6 +122,7 @@ export const mockMudancasEtapa: MudancaEtapa[] = [
     responsavel: 'Lucas Mendes',
     observacao: 'Orçamento montado e revisado internamente. Proposta enviada ao cliente.',
     data: '2025-12-05T11:00:00.000Z',
+    status: 'aprovado',
   },
 
   // orc4 — em andamento: entrada → levantamento
@@ -122,6 +134,7 @@ export const mockMudancasEtapa: MudancaEtapa[] = [
     responsavel: 'Paulo Melo',
     observacao: 'Oportunidade recebida via Hospital São Lucas — instalação de CFTV.',
     data: '2026-02-20T09:00:00.000Z',
+    status: 'aprovado',
   },
   {
     id: 'me17',
@@ -131,6 +144,7 @@ export const mockMudancasEtapa: MudancaEtapa[] = [
     responsavel: 'Paulo Melo',
     observacao: 'Análise inicial concluída. Escopo de câmeras e cabeamento estruturado.',
     data: '2026-03-01T09:00:00.000Z',
+    status: 'aprovado',
   },
 
   // orc2 — em andamento: entrada → análise → montagem
@@ -142,6 +156,7 @@ export const mockMudancasEtapa: MudancaEtapa[] = [
     responsavel: 'Paulo Confar',
     observacao: 'Lead recebido via indicação de cliente existente.',
     data: '2024-03-05T09:00:00.000Z',
+    status: 'aprovado',
   },
   {
     id: 'me10',
@@ -151,6 +166,7 @@ export const mockMudancasEtapa: MudancaEtapa[] = [
     responsavel: 'Paulo Confar',
     observacao: 'Reunião de análise realizada. Projeto técnica e financeiramente viável.',
     data: '2024-03-12T11:00:00.000Z',
+    status: 'aprovado',
   },
   {
     id: 'me11',
@@ -160,5 +176,6 @@ export const mockMudancasEtapa: MudancaEtapa[] = [
     responsavel: 'Paulo Confar',
     observacao: 'Levantamento concluído. Iniciando montagem do orçamento.',
     data: '2024-03-18T14:00:00.000Z',
+    status: 'aprovado',
   },
 ];
