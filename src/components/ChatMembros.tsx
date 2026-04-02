@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { X, Send, Hash, ArrowLeft, Paperclip, CornerUpLeft, CheckCheck, Mic, Square, Phone, Video, Search, MessageCircle, Users, Smile } from 'lucide-react';
+import { X, Send, Hash, ArrowLeft, Paperclip, CornerUpLeft, CheckCheck, Mic, Square, Phone, Video, Search, MessageCircle, Users, Smile, Trash2, ExternalLink } from 'lucide-react';
 import { supabase } from '../infrastructure/supabase/client';
 import { useAuth } from '../context/AuthContext';
 
@@ -36,7 +36,18 @@ interface Mensagem {
   arquivo_url: string | null;
   arquivo_nome: string | null;
   arquivo_tipo: string | null;
+  tipo?: string | null;
 }
+
+interface ReacaoAgregada {
+  emoji: string;
+  usuarios: string[];  // nomes
+  userIds: string[];
+}
+
+const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '🙏'];
+
+const URL_REGEX = /https?:\/\/[^\s<]+[^\s<.,;:!?)}\]'"]/g;
 
 interface ChatMembrosProps {
   aberto: boolean;
@@ -128,6 +139,10 @@ export function ChatMembros({ aberto, onFechar }: ChatMembrosProps) {
   const [duracaoGravacao, setDuracaoGravacao] = useState(0);
   const [buscaMembro, setBuscaMembro] = useState('');
   const [emojiAberto, setEmojiAberto] = useState(false);
+  const [buscaMensagem, setBuscaMensagem] = useState('');
+  const [buscaMsgAberta, setBuscaMsgAberta] = useState(false);
+  const [reacoesPorMsg, setReacoesPorMsg] = useState<Record<string, ReacaoAgregada[]>>({});
+  const [reacaoPickerAberto, setReacaoPickerAberto] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const typingChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
@@ -242,7 +257,7 @@ export function ChatMembros({ aberto, onFechar }: ChatMembrosProps) {
       .from('chat_mensagens')
       .select('*')
       .order('criado_em', { ascending: true })
-      .limit(100);
+      .limit(200);
 
     if (canalAtivo === 'geral') {
       query = query.eq('canal', 'geral');
@@ -254,7 +269,27 @@ export function ChatMembros({ aberto, onFechar }: ChatMembrosProps) {
 
     const { data, error } = await query;
     if (!error && data) {
-      setMensagens(data);
+      // Separate reactions from messages
+      const reacoes: Record<string, ReacaoAgregada[]> = {};
+      const msgs: Mensagem[] = [];
+      for (const row of data as (Mensagem & { tipo?: string })[]) {
+        if (row.tipo === 'reacao' && row.resposta_id) {
+          // Aggregate reactions by message
+          if (!reacoes[row.resposta_id]) reacoes[row.resposta_id] = [];
+          const grupo = reacoes[row.resposta_id];
+          const existing = grupo.find(r => r.emoji === row.conteudo);
+          if (existing) {
+            existing.usuarios.push(row.remetente_nome);
+            existing.userIds.push(row.remetente_id);
+          } else {
+            grupo.push({ emoji: row.conteudo, usuarios: [row.remetente_nome], userIds: [row.remetente_id] });
+          }
+        } else {
+          msgs.push(row);
+        }
+      }
+      setMensagens(msgs);
+      setReacoesPorMsg(reacoes);
     }
     setCarregando(false);
   }, [usuario, canalAtivo, dmAtivo]);
@@ -274,7 +309,29 @@ export function ChatMembros({ aberto, onFechar }: ChatMembrosProps) {
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'chat_mensagens' },
         (payload) => {
-          const nova = payload.new as Mensagem;
+          const nova = payload.new as Mensagem & { tipo?: string };
+
+          // Handle reaction inserts
+          if (nova.tipo === 'reacao' && nova.resposta_id) {
+            setReacoesPorMsg(prev => {
+              const next = { ...prev };
+              if (!next[nova.resposta_id!]) next[nova.resposta_id!] = [];
+              const grupo = [...next[nova.resposta_id!]];
+              const existing = grupo.find(r => r.emoji === nova.conteudo);
+              if (existing) {
+                if (!existing.userIds.includes(nova.remetente_id)) {
+                  existing.usuarios = [...existing.usuarios, nova.remetente_nome];
+                  existing.userIds = [...existing.userIds, nova.remetente_id];
+                }
+              } else {
+                grupo.push({ emoji: nova.conteudo, usuarios: [nova.remetente_nome], userIds: [nova.remetente_id] });
+              }
+              next[nova.resposta_id!] = grupo;
+              return next;
+            });
+            return;
+          }
+
           if (canalAtivo === 'geral' && nova.canal === 'geral') {
             setMensagens(prev => [...prev, nova]);
           } else if (dmAtivo && nova.canal === 'dm') {
@@ -297,10 +354,33 @@ export function ChatMembros({ aberto, onFechar }: ChatMembrosProps) {
       )
       .on(
         'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'chat_mensagens', filter: `remetente_id=eq.${usuario.id}` },
+        { event: 'UPDATE', schema: 'public', table: 'chat_mensagens' },
         (payload) => {
-          const updated = payload.new as Mensagem;
-          setMensagens(prev => prev.map(m => m.id === updated.id ? { ...m, lido: updated.lido } : m));
+          const updated = payload.new as Mensagem & { tipo?: string };
+          setMensagens(prev => prev.map(m => m.id === updated.id ? { ...m, ...updated } : m));
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'chat_mensagens' },
+        (payload) => {
+          const deleted = payload.old as { id: string; resposta_id?: string; tipo?: string };
+          // If a reaction was deleted, remove it
+          if (deleted.tipo === 'reacao' && deleted.resposta_id) {
+            setReacoesPorMsg(prev => {
+              const next = { ...prev };
+              if (next[deleted.resposta_id!]) {
+                next[deleted.resposta_id!] = next[deleted.resposta_id!]
+                  .map(r => ({
+                    ...r,
+                    usuarios: r.usuarios.filter((_, i) => r.userIds[i] !== (payload.old as any).remetente_id),
+                    userIds: r.userIds.filter(id => id !== (payload.old as any).remetente_id),
+                  }))
+                  .filter(r => r.userIds.length > 0);
+              }
+              return next;
+            });
+          }
         }
       )
       .subscribe();
@@ -441,6 +521,96 @@ export function ChatMembros({ aberto, onFechar }: ChatMembrosProps) {
     }
   }
 
+  async function toggleReacao(msgId: string, emoji: string) {
+    if (!usuario) return;
+    setReacaoPickerAberto(null);
+    const reacoes = reacoesPorMsg[msgId] || [];
+    const existing = reacoes.find(r => r.emoji === emoji);
+    const jaReagi = existing?.userIds.includes(usuario.id);
+
+    if (jaReagi) {
+      // Remove reaction — find and delete the row
+      const { data } = await supabase
+        .from('chat_mensagens')
+        .select('id')
+        .eq('tipo', 'reacao')
+        .eq('resposta_id', msgId)
+        .eq('remetente_id', usuario.id)
+        .eq('conteudo', emoji)
+        .limit(1);
+      if (data?.[0]) {
+        await supabase.from('chat_mensagens').delete().eq('id', data[0].id);
+        // Update local state
+        setReacoesPorMsg(prev => {
+          const next = { ...prev };
+          if (next[msgId]) {
+            next[msgId] = next[msgId]
+              .map(r => r.emoji === emoji ? {
+                ...r,
+                usuarios: r.usuarios.filter((_, i) => r.userIds[i] !== usuario.id),
+                userIds: r.userIds.filter(id => id !== usuario.id),
+              } : r)
+              .filter(r => r.userIds.length > 0);
+          }
+          return next;
+        });
+      }
+    } else {
+      // Add reaction
+      const msg = mensagens.find(m => m.id === msgId);
+      if (!msg) return;
+      await supabase.from('chat_mensagens').insert({
+        remetente_id: usuario.id,
+        remetente_nome: usuario.nome,
+        conteudo: emoji,
+        canal: msg.canal,
+        tipo: 'reacao',
+        resposta_id: msgId,
+        ...(msg.destinatario_id ? { destinatario_id: msg.destinatario_id } : {}),
+      });
+    }
+  }
+
+  async function deletarMensagem(msgId: string) {
+    if (!usuario) return;
+    // Soft delete: update content
+    await supabase.from('chat_mensagens').update({
+      conteudo: '',
+      tipo: 'deletado',
+      arquivo_url: null,
+      arquivo_nome: null,
+      arquivo_tipo: null,
+    }).eq('id', msgId).eq('remetente_id', usuario.id);
+    // Update local state immediately
+    setMensagens(prev => prev.map(m => m.id === msgId ? { ...m, conteudo: '', tipo: 'deletado', arquivo_url: null, arquivo_nome: null, arquivo_tipo: null } : m));
+  }
+
+  function renderConteudoComLinks(text: string, isMine: boolean) {
+    if (!text) return null;
+    const parts = text.split(URL_REGEX);
+    const matches = text.match(URL_REGEX);
+    if (!matches) return <span>{text}</span>;
+    const elements: React.ReactNode[] = [];
+    parts.forEach((part, i) => {
+      if (part) elements.push(<span key={`t${i}`}>{part}</span>);
+      if (matches[i]) {
+        elements.push(
+          <a
+            key={`u${i}`}
+            href={matches[i]}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`inline-flex items-center gap-0.5 underline underline-offset-2 break-all ${isMine ? 'text-blue-200 hover:text-white' : 'text-blue-600 hover:text-blue-700'}`}
+          >
+            {matches[i].length > 40 ? matches[i].slice(0, 40) + '...' : matches[i]}
+            <ExternalLink size={10} className="inline flex-shrink-0" />
+          </a>
+        );
+      }
+    });
+    return <>{elements}</>;
+  }
+
   function abrirCanal(tipo: 'geral') {
     setCanalAtivo(tipo);
     setDmAtivo(null);
@@ -501,6 +671,9 @@ export function ChatMembros({ aberto, onFechar }: ChatMembrosProps) {
     setDmAtivo(null);
     setCanalAtivo('geral');
     setRespostaParaMsg(null);
+    setBuscaMsgAberta(false);
+    setBuscaMensagem('');
+    setReacaoPickerAberto(null);
   }
 
   if (!aberto) return null;
@@ -511,6 +684,9 @@ export function ChatMembros({ aberto, onFechar }: ChatMembrosProps) {
     : outrosMembros;
   const ultimaMinhaMensagemId = [...mensagens].reverse().find(m => m.remetente_id === usuario?.id)?.id;
   const onlineCount = outrosMembros.filter(m => m.esta_online).length;
+  const mensagensFiltradas = buscaMensagem.trim()
+    ? mensagens.filter(m => m.conteudo?.toLowerCase().includes(buscaMensagem.toLowerCase()) || m.remetente_nome?.toLowerCase().includes(buscaMensagem.toLowerCase()))
+    : mensagens;
 
   return (
     <div className="fixed bottom-0 right-0 sm:bottom-6 sm:right-6 z-50 w-full sm:w-[420px] h-[100dvh] sm:h-[620px] bg-white sm:rounded-2xl shadow-[0_8px_60px_rgba(0,0,0,0.18)] border border-slate-200/60 flex flex-col overflow-hidden backdrop-blur-sm">
@@ -582,6 +758,9 @@ export function ChatMembros({ aberto, onFechar }: ChatMembrosProps) {
         <div className="flex items-center gap-0.5">
           {!mostrarLista && (
             <>
+              <button onClick={() => { setBuscaMsgAberta(p => !p); setBuscaMensagem(''); }} className={`p-2 rounded-lg transition-colors ${buscaMsgAberta ? 'bg-white/20 text-white' : 'hover:bg-white/10'}`} title="Buscar mensagens">
+                <Search size={14} />
+              </button>
               <button onClick={iniciarLigacao} className="p-2 rounded-lg hover:bg-white/10 transition-colors" title="Chamada de voz">
                 <Phone size={14} />
               </button>
@@ -678,6 +857,26 @@ export function ChatMembros({ aberto, onFechar }: ChatMembrosProps) {
         </div>
       ) : (
         <>
+          {/* ═══════ Search Bar ═══════ */}
+          {buscaMsgAberta && (
+            <div className="px-3 pt-2 pb-1 bg-white border-b border-slate-100 flex items-center gap-2">
+              <Search size={13} className="text-slate-400 flex-shrink-0" />
+              <input
+                autoFocus
+                type="text"
+                value={buscaMensagem}
+                onChange={e => setBuscaMensagem(e.target.value)}
+                placeholder="Buscar nas mensagens..."
+                className="flex-1 text-sm bg-transparent focus:outline-none placeholder:text-slate-400"
+              />
+              {buscaMensagem && (
+                <span className="text-[10px] text-slate-400 flex-shrink-0">{mensagensFiltradas.length} resultado{mensagensFiltradas.length !== 1 ? 's' : ''}</span>
+              )}
+              <button onClick={() => { setBuscaMsgAberta(false); setBuscaMensagem(''); }} className="p-1 text-slate-400 hover:text-slate-600 rounded">
+                <X size={13} />
+              </button>
+            </div>
+          )}
           {/* ═══════ Messages Area ═══════ */}
           <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-0.5 bg-gradient-to-b from-slate-50/50 to-white">
             {carregando ? (
@@ -696,10 +895,12 @@ export function ChatMembros({ aberto, onFechar }: ChatMembrosProps) {
                 </div>
               </div>
             ) : (
-              mensagens.map((msg, idx) => {
+              mensagensFiltradas.map((msg, idx) => {
                 const isMine = msg.remetente_id === usuario?.id;
-                const consecutive = isConsecutive(mensagens, idx);
-                const showDate = shouldShowDateSeparator(mensagens, idx);
+                const consecutive = isConsecutive(mensagensFiltradas, idx);
+                const showDate = shouldShowDateSeparator(mensagensFiltradas, idx);
+                const isDeleted = msg.tipo === 'deletado';
+                const msgReacoes = reacoesPorMsg[msg.id] || [];
                 return (
                   <div key={msg.id}>
                     {/* Date separator */}
@@ -724,85 +925,158 @@ export function ChatMembros({ aberto, onFechar }: ChatMembrosProps) {
                         {!isMine && !consecutive && (
                           <p className="text-[10px] font-semibold text-slate-500 mb-1 ml-1">{msg.remetente_nome}</p>
                         )}
-                        <div className={`px-3.5 py-2 text-[13px] leading-relaxed shadow-sm ${
-                          isMine
-                            ? `bg-gradient-to-br from-blue-600 to-blue-700 text-white ${consecutive ? 'rounded-2xl rounded-tr-md' : 'rounded-2xl rounded-br-md'}`
-                            : `bg-white text-slate-800 border border-slate-100 ${consecutive ? 'rounded-2xl rounded-tl-md' : 'rounded-2xl rounded-bl-md'}`
-                        }`}>
-                          {/* Reply preview */}
-                          {msg.resposta_conteudo && (
-                            <div className={`text-[10px] mb-2 px-2.5 py-1.5 rounded-lg border-l-2 ${
-                              isMine
-                                ? 'bg-blue-500/30 border-blue-300 text-blue-100'
-                                : 'bg-slate-50 border-slate-300 text-slate-500'
-                            }`}>
-                              <p className="font-bold truncate">{msg.resposta_remetente_nome}</p>
-                              <p className="truncate opacity-80">{msg.resposta_conteudo}</p>
-                            </div>
-                          )}
-                          {/* File attachment */}
-                          {msg.arquivo_url && (
-                            msg.arquivo_tipo?.startsWith('image/')
-                              ? (
-                                <img
-                                  src={msg.arquivo_url}
-                                  alt={msg.arquivo_nome ?? 'imagem'}
-                                  className="max-w-full rounded-lg mb-1.5 max-h-48 object-cover cursor-pointer hover:opacity-90 transition-opacity"
-                                  onClick={() => window.open(msg.arquivo_url!, '_blank')}
-                                />
-                              ) : msg.arquivo_tipo?.startsWith('audio/')
-                              ? (
-                                <audio
-                                  src={msg.arquivo_url}
-                                  controls
-                                  className="max-w-full rounded-lg"
-                                  style={{ height: '36px', minWidth: '180px' }}
-                                />
-                              ) : msg.arquivo_tipo === 'link/call'
-                              ? (
-                                <a
-                                  href={msg.arquivo_url!}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors ${isMine ? 'bg-white/20 text-white hover:bg-white/30' : 'bg-blue-50 text-blue-700 hover:bg-blue-100'}`}
+
+                        {isDeleted ? (
+                          /* ── Deleted message placeholder ── */
+                          <div className={`px-3.5 py-2 text-[13px] leading-relaxed rounded-2xl border border-dashed ${
+                            isMine ? 'bg-slate-100 border-slate-300 text-slate-400' : 'bg-slate-50 border-slate-200 text-slate-400'
+                          }`}>
+                            <span className="italic flex items-center gap-1.5">
+                              <Trash2 size={11} className="opacity-50" />
+                              Mensagem apagada
+                            </span>
+                          </div>
+                        ) : (
+                          /* ── Normal message bubble ── */
+                          <div className={`px-3.5 py-2 text-[13px] leading-relaxed shadow-sm ${
+                            isMine
+                              ? `bg-gradient-to-br from-blue-600 to-blue-700 text-white ${consecutive ? 'rounded-2xl rounded-tr-md' : 'rounded-2xl rounded-br-md'}`
+                              : `bg-white text-slate-800 border border-slate-100 ${consecutive ? 'rounded-2xl rounded-tl-md' : 'rounded-2xl rounded-bl-md'}`
+                          }`}>
+                            {/* Reply preview */}
+                            {msg.resposta_conteudo && (
+                              <div className={`text-[10px] mb-2 px-2.5 py-1.5 rounded-lg border-l-2 ${
+                                isMine
+                                  ? 'bg-blue-500/30 border-blue-300 text-blue-100'
+                                  : 'bg-slate-50 border-slate-300 text-slate-500'
+                              }`}>
+                                <p className="font-bold truncate">{msg.resposta_remetente_nome}</p>
+                                <p className="truncate opacity-80">{msg.resposta_conteudo}</p>
+                              </div>
+                            )}
+                            {/* File attachment */}
+                            {msg.arquivo_url && (
+                              msg.arquivo_tipo?.startsWith('image/')
+                                ? (
+                                  <img
+                                    src={msg.arquivo_url}
+                                    alt={msg.arquivo_nome ?? 'imagem'}
+                                    className="max-w-full rounded-lg mb-1.5 max-h-48 object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                                    onClick={() => window.open(msg.arquivo_url!, '_blank')}
+                                  />
+                                ) : msg.arquivo_tipo?.startsWith('audio/')
+                                ? (
+                                  <audio
+                                    src={msg.arquivo_url}
+                                    controls
+                                    className="max-w-full rounded-lg"
+                                    style={{ height: '36px', minWidth: '180px' }}
+                                  />
+                                ) : msg.arquivo_tipo === 'link/call'
+                                ? (
+                                  <a
+                                    href={msg.arquivo_url!}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors ${isMine ? 'bg-white/20 text-white hover:bg-white/30' : 'bg-blue-50 text-blue-700 hover:bg-blue-100'}`}
+                                  >
+                                    {msg.conteudo?.includes('vídeo') ? <Video size={12} /> : <Phone size={12} />}
+                                    {msg.arquivo_nome}
+                                  </a>
+                                ) : (
+                                  <a
+                                    href={msg.arquivo_url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className={`flex items-center gap-1.5 text-xs ${isMine ? 'text-blue-200 hover:text-white' : 'text-blue-600 hover:text-blue-700'} transition-colors`}
+                                  >
+                                    <Paperclip size={11} />
+                                    <span className="underline underline-offset-2">{msg.arquivo_nome}</span>
+                                  </a>
+                                )
+                            )}
+                            {/* Text content with link detection */}
+                            {msg.conteudo && renderConteudoComLinks(msg.conteudo, isMine)}
+                          </div>
+                        )}
+
+                        {/* ── Reaction badges ── */}
+                        {msgReacoes.length > 0 && (
+                          <div className={`flex flex-wrap gap-1 mt-1 ${isMine ? 'justify-end' : 'justify-start'}`}>
+                            {msgReacoes.map(r => {
+                              const jaReagi = r.userIds.includes(usuario?.id ?? '');
+                              return (
+                                <button
+                                  key={r.emoji}
+                                  onClick={() => toggleReacao(msg.id, r.emoji)}
+                                  title={r.usuarios.join(', ')}
+                                  className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-xs border transition-all hover:scale-105 ${
+                                    jaReagi
+                                      ? 'bg-blue-50 border-blue-300 text-blue-700'
+                                      : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                                  }`}
                                 >
-                                  {msg.conteudo?.includes('vídeo') ? <Video size={12} /> : <Phone size={12} />}
-                                  {msg.arquivo_nome}
-                                </a>
-                              ) : (
-                                <a
-                                  href={msg.arquivo_url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className={`flex items-center gap-1.5 text-xs ${isMine ? 'text-blue-200 hover:text-white' : 'text-blue-600 hover:text-blue-700'} transition-colors`}
-                                >
-                                  <Paperclip size={11} />
-                                  <span className="underline underline-offset-2">{msg.arquivo_nome}</span>
-                                </a>
-                              )
-                          )}
-                          {/* Text content */}
-                          {msg.conteudo && <span>{msg.conteudo}</span>}
-                        </div>
+                                  <span>{r.emoji}</span>
+                                  <span className="text-[10px] font-medium">{r.userIds.length}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+
                         {/* Time + actions row */}
-                        <div className={`flex items-center gap-1.5 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity ${isMine ? 'justify-end mr-1' : 'ml-1'}`}>
-                          <button
-                            onClick={() => setRespostaParaMsg(msg)}
-                            className="p-0.5 text-slate-300 hover:text-blue-500 transition-colors"
-                            title="Responder"
-                          >
-                            <CornerUpLeft size={10} />
-                          </button>
-                          <p className="text-[10px] text-slate-400">
-                            {new Date(msg.criado_em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                          </p>
-                          {isMine && dmAtivo && msg.id === ultimaMinhaMensagemId && msg.lido && (
-                            <>
-                              <CheckCheck size={11} className="text-blue-400" />
-                              <span className="text-[9px] text-blue-400 font-medium">Lido</span>
-                            </>
-                          )}
-                        </div>
+                        {!isDeleted && (
+                          <div className={`flex items-center gap-1 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity ${isMine ? 'justify-end mr-1' : 'ml-1'}`}>
+                            {/* Quick reactions */}
+                            <div className="relative">
+                              <button
+                                onClick={() => setReacaoPickerAberto(reacaoPickerAberto === msg.id ? null : msg.id)}
+                                className="p-0.5 text-slate-300 hover:text-amber-500 transition-colors"
+                                title="Reagir"
+                              >
+                                <Smile size={10} />
+                              </button>
+                              {reacaoPickerAberto === msg.id && (
+                                <div className={`absolute ${isMine ? 'right-0' : 'left-0'} bottom-full mb-1 flex items-center gap-0.5 bg-white border border-slate-200 rounded-full shadow-lg px-1.5 py-1 z-50`}>
+                                  {QUICK_REACTIONS.map(emoji => (
+                                    <button
+                                      key={emoji}
+                                      onClick={() => toggleReacao(msg.id, emoji)}
+                                      className="w-6 h-6 flex items-center justify-center text-sm hover:bg-slate-100 rounded-full transition-colors active:scale-90"
+                                    >
+                                      {emoji}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                            <button
+                              onClick={() => setRespostaParaMsg(msg)}
+                              className="p-0.5 text-slate-300 hover:text-blue-500 transition-colors"
+                              title="Responder"
+                            >
+                              <CornerUpLeft size={10} />
+                            </button>
+                            {isMine && (
+                              <button
+                                onClick={() => { if (confirm('Apagar esta mensagem?')) deletarMensagem(msg.id); }}
+                                className="p-0.5 text-slate-300 hover:text-red-500 transition-colors"
+                                title="Apagar"
+                              >
+                                <Trash2 size={10} />
+                              </button>
+                            )}
+                            <p className="text-[10px] text-slate-400">
+                              {new Date(msg.criado_em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                            </p>
+                            {isMine && dmAtivo && msg.id === ultimaMinhaMensagemId && msg.lido && (
+                              <>
+                                <CheckCheck size={11} className="text-blue-400" />
+                                <span className="text-[9px] text-blue-400 font-medium">Lido</span>
+                              </>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>

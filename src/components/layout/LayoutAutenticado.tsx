@@ -31,6 +31,13 @@ export function LayoutAutenticado() {
     }
   }, [chatAberto]);
 
+  // Request browser notification permission on mount
+  useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  }, []);
+
   // Toca som quando a contagem de não lidas aumenta
   useEffect(() => {
     if (mensagensNaoLidas > ultimoCountRef.current) {
@@ -179,6 +186,19 @@ export function LayoutAutenticado() {
               if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
               setToastNotif({ nome: nova.remetente_nome, conteudo: preview });
               toastTimeoutRef.current = setTimeout(() => setToastNotif(null), 4000);
+
+              // Browser push notification when tab is not focused
+              if (document.visibilityState === 'hidden' && 'Notification' in window && Notification.permission === 'granted') {
+                try {
+                  const n = new Notification(`${nova.remetente_nome}`, {
+                    body: preview.length > 60 ? preview.slice(0, 60) + '...' : preview,
+                    icon: '/logo-biasi.png',
+                    tag: 'biasi-chat-' + nova.remetente_id,
+                  });
+                  n.onclick = () => { window.focus(); setChatAberto(true); n.close(); };
+                  setTimeout(() => n.close(), 5000);
+                } catch { /* ignore */ }
+              }
             }
           }
         }
