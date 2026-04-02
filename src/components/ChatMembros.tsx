@@ -1,7 +1,16 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { X, Send, Hash, ArrowLeft, Paperclip, CornerUpLeft, CheckCheck, Mic, Square, Phone, Video, Search, MessageCircle, Users } from 'lucide-react';
+import { X, Send, Hash, ArrowLeft, Paperclip, CornerUpLeft, CheckCheck, Mic, Square, Phone, Video, Search, MessageCircle, Users, Smile } from 'lucide-react';
 import { supabase } from '../infrastructure/supabase/client';
 import { useAuth } from '../context/AuthContext';
+
+const EMOJI_CATEGORIES: { label: string; emojis: string[] }[] = [
+  { label: '😀 Mais usados', emojis: ['😀','😂','😍','🥰','😎','😭','🤣','😅','🙏','👍','👋','❤️','🔥','🎉','✅','👏','💪','🤝','👀','💯'] },
+  { label: '😊 Rostos', emojis: ['😊','😁','😆','🤩','😘','😋','🤔','🤨','😐','😑','🙄','😏','😬','😴','🤮','🤯','🥳','😇','🤗','🫡'] },
+  { label: '👋 Gestos', emojis: ['👍','👎','👌','✌️','🤞','🤙','👋','🖐️','🙌','👏','🤝','💪','🙏','☝️','👆','👇','👈','👉','🫶','✊'] },
+  { label: '❤️ Corações', emojis: ['❤️','🧡','💛','💚','💙','💜','🖤','🤍','💔','❣️','💕','💞','💓','💗','💖','💘','💝','♥️','🩷','🩵'] },
+  { label: '🎉 Objetos', emojis: ['🎉','🎊','🎁','🏆','⭐','🌟','💡','📌','📎','✏️','📝','📊','📈','💰','💼','🔑','🔔','📱','💻','⏰'] },
+  { label: '✅ Símbolos', emojis: ['✅','❌','⚠️','🚫','💯','‼️','❓','❗','🔥','💥','✨','🎯','🆗','🆕','🔴','🟢','🟡','⬆️','⬇️','➡️'] },
+];
 
 interface Membro {
   id: string;
@@ -118,6 +127,7 @@ export function ChatMembros({ aberto, onFechar }: ChatMembrosProps) {
   const [gravando, setGravando] = useState(false);
   const [duracaoGravacao, setDuracaoGravacao] = useState(0);
   const [buscaMembro, setBuscaMembro] = useState('');
+  const [emojiAberto, setEmojiAberto] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const typingChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
@@ -136,7 +146,17 @@ export function ChatMembros({ aberto, onFechar }: ChatMembrosProps) {
     typingChannelRef.current = tc;
     tc.on('broadcast', { event: 'digitando' }, ({ payload }) => {
       if (payload.user_id === usuario.id) return;
-      if (payload.canal !== canalAtivoRef.current) return;
+      // Para DMs: o remetente envia target_id = destinatário. Mostrar se eu sou o target e estou na DM dele.
+      const meuCanal = canalAtivoRef.current;
+      if (payload.canal === 'geral' && meuCanal === 'geral') {
+        // OK — ambos no geral
+      } else if (payload.canal.startsWith('dm:') && meuCanal === `dm-${payload.user_id}`) {
+        // DM: o remetente mandou pra mim e eu estou na DM dele
+        const targetId = payload.canal.replace('dm:', '');
+        if (targetId !== usuario.id) return;
+      } else {
+        return;
+      }
       setQuemDigitando(payload.user_nome as string);
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
       typingTimeoutRef.current = setTimeout(() => setQuemDigitando(null), 3000);
@@ -159,7 +179,7 @@ export function ChatMembros({ aberto, onFechar }: ChatMembrosProps) {
     }
   }, [aberto]);
 
-  useEffect(() => { setQuemDigitando(null); }, [canalAtivo]);
+  useEffect(() => { setQuemDigitando(null); setEmojiAberto(false); }, [canalAtivo]);
 
   useEffect(() => {
     if (!aberto || !usuario) return;
@@ -312,11 +332,14 @@ export function ChatMembros({ aberto, onFechar }: ChatMembrosProps) {
 
   function handleTextoChange(val: string) {
     setTexto(val);
+    setEmojiAberto(false);
     try {
+      // Para DMs, enviar canal como 'dm:{targetId}' para que o destinatário saiba que é pra ele
+      const canalBroadcast = dmAtivo ? `dm:${dmAtivo.id}` : 'geral';
       typingChannelRef.current?.send({
         type: 'broadcast',
         event: 'digitando',
-        payload: { user_id: usuario?.id, user_nome: usuario?.nome, canal: canalAtivoRef.current },
+        payload: { user_id: usuario?.id, user_nome: usuario?.nome, canal: canalBroadcast },
       });
     } catch { /* ignore */ }
   }
@@ -386,8 +409,13 @@ export function ChatMembros({ aberto, onFechar }: ChatMembrosProps) {
     setEnviandoArquivo(false);
   }
 
+  function inserirEmoji(emoji: string) {
+    setTexto(prev => prev + emoji);
+  }
+
   async function enviarMensagem() {
     if (!texto.trim() || !usuario) return;
+    setEmojiAberto(false);
 
     const msg: Record<string, unknown> = {
       remetente_id: usuario.id,
@@ -514,7 +542,18 @@ export function ChatMembros({ aberto, onFechar }: ChatMembrosProps) {
               </div>
               <div>
                 <span className="font-semibold text-sm block leading-tight">{dmAtivo.nome}</span>
-                <span className="text-[10px] text-slate-400">{dmAtivo.esta_online ? formatTempoOnline(dmAtivo.conectado_desde) : formatUltimoVisto(dmAtivo.ultimo_visto)}</span>
+                {quemDigitando ? (
+                  <span className="text-[10px] text-emerald-400 font-medium flex items-center gap-1">
+                    digitando
+                    <span className="flex gap-0.5">
+                      <span className="w-1 h-1 bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                      <span className="w-1 h-1 bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                      <span className="w-1 h-1 bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                    </span>
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-slate-400">{dmAtivo.esta_online ? formatTempoOnline(dmAtivo.conectado_desde) : formatUltimoVisto(dmAtivo.ultimo_visto)}</span>
+                )}
               </div>
             </div>
           ) : (
@@ -524,7 +563,18 @@ export function ChatMembros({ aberto, onFechar }: ChatMembrosProps) {
               </div>
               <div>
                 <span className="font-semibold text-sm block leading-tight">Geral</span>
-                <span className="text-[10px] text-slate-400">Canal da equipe</span>
+                {quemDigitando ? (
+                  <span className="text-[10px] text-emerald-400 font-medium flex items-center gap-1">
+                    {quemDigitando} digitando
+                    <span className="flex gap-0.5">
+                      <span className="w-1 h-1 bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                      <span className="w-1 h-1 bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                      <span className="w-1 h-1 bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                    </span>
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-slate-400">Canal da equipe</span>
+                )}
               </div>
             </div>
           )}
@@ -829,6 +879,37 @@ export function ChatMembros({ aberto, onFechar }: ChatMembrosProps) {
                 >
                   <Paperclip size={16} />
                 </button>
+                <div className="relative flex-shrink-0">
+                  <button
+                    onClick={() => setEmojiAberto(prev => !prev)}
+                    className={`p-2 rounded-xl transition-colors ${emojiAberto ? 'text-blue-600 bg-blue-50' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'}`}
+                    title="Emojis"
+                  >
+                    <Smile size={16} />
+                  </button>
+                  {emojiAberto && (
+                    <div className="absolute bottom-full left-0 mb-2 w-[280px] max-h-[260px] bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden z-50">
+                      <div className="overflow-y-auto max-h-[260px] p-2">
+                        {EMOJI_CATEGORIES.map(cat => (
+                          <div key={cat.label} className="mb-2">
+                            <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider px-1 mb-1">{cat.label}</p>
+                            <div className="flex flex-wrap gap-0.5">
+                              {cat.emojis.map(e => (
+                                <button
+                                  key={e}
+                                  onClick={() => inserirEmoji(e)}
+                                  className="w-8 h-8 flex items-center justify-center text-lg hover:bg-slate-100 rounded-lg transition-colors active:scale-90"
+                                >
+                                  {e}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -843,6 +924,7 @@ export function ChatMembros({ aberto, onFechar }: ChatMembrosProps) {
                   value={texto}
                   onChange={e => handleTextoChange(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviarMensagem(); } }}
+                  onFocus={() => setEmojiAberto(false)}
                   placeholder={dmAtivo ? `Mensagem para ${dmAtivo.nome}...` : 'Mensagem no # geral...'}
                   className="flex-1 px-3.5 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-300 focus:bg-white transition-all placeholder:text-slate-400"
                 />
