@@ -20,10 +20,30 @@ function formatarData(iso: string): string {
   });
 }
 
+/** Parse arquivo field: supports JSON array or legacy single URL */
+function parseArquivos(arquivo?: string): string[] {
+  if (!arquivo) return [];
+  try {
+    if (arquivo.startsWith('[')) {
+      const parsed = JSON.parse(arquivo);
+      if (Array.isArray(parsed)) return parsed.filter(Boolean);
+    }
+  } catch { /* ignore */ }
+  return [arquivo];
+}
+
+/** Serialize array of URLs back to arquivo field */
+function serializeArquivos(urls: string[]): string | undefined {
+  if (urls.length === 0) return undefined;
+  if (urls.length === 1) return urls[0];
+  return JSON.stringify(urls);
+}
+
 export function HistoricoEtapas({ mudancas, onUpdateMudanca, onDeleteMudanca }: HistoricoEtapasProps) {
   const [filePreviewOpen, setFilePreviewOpen] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<MudancaEtapa | null>(null);
+  const [editArquivos, setEditArquivos] = useState<string[]>([]);
   const [fileInputKey, setFileInputKey] = useState(0);
   const [uploading, setUploading] = useState(false);
 
@@ -85,6 +105,7 @@ export function HistoricoEtapas({ mudancas, onUpdateMudanca, onDeleteMudanca }: 
                         const mudanca = mudancas.find(mu => mu.id === m.id);
                         if (mudanca) {
                           setEditForm(mudanca);
+                          setEditArquivos(parseArquivos(mudanca.arquivo));
                           setEditingId(m.id);
                         }
                       }}
@@ -101,17 +122,17 @@ export function HistoricoEtapas({ mudancas, onUpdateMudanca, onDeleteMudanca }: 
                     <span>{m.responsavel}</span>
                   </div>
 
-                  {m.arquivo && (
-                    <div className="mt-2 flex items-center gap-2">
+                  {m.arquivo && parseArquivos(m.arquivo).map((arqUrl, idx) => (
+                    <div key={idx} className="mt-2 flex items-center gap-2">
                       <FileText size={14} className="text-slate-400" />
                       <button
-                        onClick={() => abrirArquivo(m.arquivo!)}
+                        onClick={() => abrirArquivo(arqUrl)}
                         className="text-xs text-blue-600 hover:text-blue-700 hover:underline font-medium"
                       >
-                        📎 {nomeArquivo(m.arquivo)}
+                        📎 {nomeArquivo(arqUrl)}
                       </button>
                     </div>
-                  )}
+                  ))}
 
                   {m.observacao && (
                     <p className="text-xs text-slate-500 mt-1 leading-relaxed">{m.observacao}</p>
@@ -184,37 +205,44 @@ export function HistoricoEtapas({ mudancas, onUpdateMudanca, onDeleteMudanca }: 
                 />
               </div>
 
-              {/* Arquivo */}
+              {/* Arquivos */}
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                  Arquivo Anexado
+                  Arquivos Anexados
                 </label>
-                {editForm.arquivo && (
-                  <div className="mb-2 flex items-center justify-between bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
-                    <span className="text-xs text-blue-700 truncate">📎 {nomeArquivo(editForm.arquivo)}</span>
-                    <div className="flex items-center gap-1 flex-shrink-0">
-                      <button
-                        onClick={() => abrirArquivo(editForm.arquivo!)}
-                        className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 font-medium px-2 py-1 rounded hover:bg-blue-100 transition-colors"
-                        title="Abrir arquivo"
-                      >
-                        <ExternalLink size={12} />
-                        Abrir
-                      </button>
-                      <button
-                        onClick={() => setEditForm({ ...editForm, arquivo: undefined })}
-                        className="text-blue-600 hover:text-blue-700 p-1 rounded hover:bg-blue-100 transition-colors"
-                        title="Remover arquivo"
-                      >
-                        <X size={14} />
-                      </button>
-                    </div>
+                {editArquivos.length > 0 && (
+                  <div className="space-y-2 mb-2">
+                    {editArquivos.map((arqUrl, idx) => (
+                      <div key={idx} className="flex items-center justify-between bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
+                        <span className="text-xs text-blue-700 truncate">📎 {nomeArquivo(arqUrl)}</span>
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <button
+                            onClick={() => abrirArquivo(arqUrl)}
+                            className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 font-medium px-2 py-1 rounded hover:bg-blue-100 transition-colors"
+                            title="Abrir arquivo"
+                          >
+                            <ExternalLink size={12} />
+                            Abrir
+                          </button>
+                          <button
+                            onClick={() => {
+                              const next = editArquivos.filter((_, i) => i !== idx);
+                              setEditArquivos(next);
+                            }}
+                            className="text-blue-600 hover:text-blue-700 p-1 rounded hover:bg-blue-100 transition-colors"
+                            title="Remover arquivo"
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
                 <label className={`flex items-center justify-center w-full px-3 py-2 border border-dashed border-slate-300 rounded-lg transition-colors ${uploading ? 'opacity-50 cursor-wait' : 'cursor-pointer hover:bg-slate-50'}`}>
                   <div className="flex items-center gap-2 text-slate-500 text-sm">
                     {uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
-                    <span>{uploading ? 'Enviando...' : 'Escolher arquivo'}</span>
+                    <span>{uploading ? 'Enviando...' : 'Adicionar arquivo'}</span>
                   </div>
                   <input
                     key={fileInputKey}
@@ -226,7 +254,7 @@ export function HistoricoEtapas({ mudancas, onUpdateMudanca, onDeleteMudanca }: 
                         setUploading(true);
                         const result = await uploadArquivo(file, 'mudancas-etapa');
                         if (result) {
-                          setEditForm({ ...editForm, arquivo: result.url });
+                          setEditArquivos(prev => [...prev, result.url]);
                         } else {
                           alert('Erro ao enviar arquivo. Verifique sua conexão e tente novamente.');
                         }
@@ -267,9 +295,10 @@ export function HistoricoEtapas({ mudancas, onUpdateMudanca, onDeleteMudanca }: 
               <button
                 onClick={() => {
                   if (onUpdateMudanca) {
-                    onUpdateMudanca(editForm);
+                    onUpdateMudanca({ ...editForm, arquivo: serializeArquivos(editArquivos) });
                     setEditingId(null);
                     setEditForm(null);
+                    setEditArquivos([]);
                   }
                 }}
                 className="flex items-center gap-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors text-sm"
