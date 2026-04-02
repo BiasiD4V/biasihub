@@ -122,30 +122,27 @@ export function BlocoComercial({ orc, onMudarEtapa, onAtualizarValor, onFechamen
 
           {/* Etapa do funil — somente leitura quando fechado */}
           <div>
-            <p className="text-xs text-slate-400 mb-1.5">Etapa atual</p>
-            <div className="flex items-center gap-2">
-              <span
-                className={`inline-flex text-xs font-medium px-2.5 py-1 rounded-full ${corEtapa.bg} ${corEtapa.text}`}
-              >
-                {ETAPA_LABELS[orc.etapaFunil]}
-              </span>
-            </div>
-            {!fechado && (
-              <>
-                <p className="text-xs text-slate-400 mt-3 mb-1.5">Mover para</p>
-                <select
-                  value=""
-                  onChange={handleMudarEtapa}
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-slate-700"
+            <p className="text-xs text-slate-400 mb-1.5">Etapa do funil</p>
+            {fechado ? (
+              <div className="flex items-center gap-2">
+                <span
+                  className={`inline-flex text-xs font-medium px-2.5 py-1 rounded-full ${corEtapa.bg} ${corEtapa.text}`}
                 >
-                  <option value="" disabled>Selecione a nova etapa...</option>
-                  {ORDEM_FUNIL.filter((e) => e !== 'pos_venda' && e !== orc.etapaFunil).map((etapa) => (
-                    <option key={etapa} value={etapa}>
-                      {ETAPA_LABELS[etapa]}
-                    </option>
-                  ))}
-                </select>
-              </>
+                  {ETAPA_LABELS[orc.etapaFunil]}
+                </span>
+              </div>
+            ) : (
+              <select
+                value={orc.etapaFunil}
+                onChange={handleMudarEtapa}
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-slate-700"
+              >
+                {ORDEM_FUNIL.filter((e) => e !== 'pos_venda').map((etapa) => (
+                  <option key={etapa} value={etapa}>
+                    {ETAPA_LABELS[etapa]}
+                  </option>
+                ))}
+              </select>
             )}
           </div>
 
