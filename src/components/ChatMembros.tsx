@@ -739,7 +739,7 @@ export function ChatMembros({ aberto, onFechar }: ChatMembrosProps) {
     : mensagens;
 
   return (
-    <div className="fixed bottom-0 right-0 sm:bottom-6 sm:right-6 z-50 w-full sm:w-[420px] h-[100dvh] sm:h-[620px] bg-white sm:rounded-2xl shadow-[0_8px_60px_rgba(0,0,0,0.18)] border border-slate-200/60 flex flex-col overflow-hidden backdrop-blur-sm">
+    <div className="fixed bottom-0 right-0 sm:bottom-6 sm:right-6 z-50 w-full max-w-[420px] h-[100dvh] max-h-[620px] bg-white rounded-t-2xl sm:rounded-2xl shadow-[0_8px_60px_rgba(0,0,0,0.18)] border border-slate-200/60 flex flex-col overflow-hidden backdrop-blur-sm">
       {/* ═══════ Header ═══════ */}
       <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white px-5 py-3.5 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-3">
