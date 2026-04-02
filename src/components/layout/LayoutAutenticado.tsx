@@ -6,6 +6,7 @@ import { ChatMembros } from '../ChatMembros';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../infrastructure/supabase/client';
 import { ChevronsLeft, ChevronsRight, Menu, X, Phone, Video, PhoneOff } from 'lucide-react';
+import { UpdateChecker } from './UpdateChecker';
 
 const STORAGE_KEY_SIDEBAR_HIDDEN = 'layout-sidebar-hidden-v1';
 
@@ -424,6 +425,9 @@ export function LayoutAutenticado() {
           </button>
         </div>
       )}
+
+      {/* Version update checker */}
+      <UpdateChecker />
 
       {/* Incoming call notification */}
       {callNotif && (
