@@ -27,6 +27,11 @@ export interface PropostaSupabase {
   ultima_interacao: string | null
   observacao_comercial: string | null
   link_arquivo: string | null
+  fit_tecnico: string | null
+  clareza_documentos: string | null
+  valor_estrategico: string | null
+  cliente_estrategico: string | null
+  prazo_resposta: string | null
 }
 
 export interface FiltrosPropostas {

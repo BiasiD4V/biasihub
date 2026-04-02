@@ -156,6 +156,8 @@ export function OrcamentosNovos() {
 
   function getAlertasProposta(p: PropostaSupabase): string[] {
     const alertas: string[] = [];
+    // Só mostra alertas se a proposta já tem funil comercial configurado
+    if (!p.etapa_funil && !p.resultado_comercial) return alertas;
     if (p.resultado_comercial && p.resultado_comercial !== 'em_andamento') return alertas;
     if (p.data_proxima_acao) {
       const hoje = new Date();

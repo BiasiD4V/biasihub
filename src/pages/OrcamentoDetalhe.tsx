@@ -123,6 +123,11 @@ function propostaParaOrc(p: PropostaSupabase): OrcamentoCard {
     chanceFechamento: (p.chance_fechamento as any) ?? undefined,
     urgencia: (p.urgencia as any) ?? undefined,
     observacaoComercial: p.observacao_comercial ?? undefined,
+    fitTecnico: (p.fit_tecnico as any) ?? undefined,
+    clarezaDocumentos: (p.clareza_documentos as any) ?? undefined,
+    valorEstrategico: (p.valor_estrategico as any) ?? undefined,
+    clienteEstrategico: (p.cliente_estrategico as any) ?? undefined,
+    prazoResposta: p.prazo_resposta ?? undefined,
     linkArquivo: p.link_arquivo ?? undefined,
   };
 }
@@ -297,6 +302,11 @@ export function OrcamentoDetalhe() {
         chance_fechamento: dados.chanceFechamento ?? null,
         urgencia: dados.urgencia ?? null,
         observacao_comercial: dados.observacaoComercial ?? null,
+        fit_tecnico: dados.fitTecnico ?? null,
+        clareza_documentos: dados.clarezaDocumentos ?? null,
+        valor_estrategico: dados.valorEstrategico ?? null,
+        cliente_estrategico: dados.clienteEstrategico ?? null,
+        prazo_resposta: dados.prazoResposta ?? null,
       }).then((p) => { setPropostaSupa(p); }).catch(() => {});
     } else {
       atualizarQualificacao(id, dados);
