@@ -1,8 +1,8 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
 import {
   Search, RefreshCw, List, LayoutGrid, ArrowUpDown, XCircle, ExternalLink, Plus,
-  X, ChevronDown, Send, Zap, BookOpen, Bug, CheckSquare, Star, Package, GitBranch,
-  Clock, Tag, User, AlertCircle, MessageSquare,
+  X, ChevronDown, ChevronRight, Send, Zap, BookOpen, Bug, CheckSquare, Star, Package, GitBranch,
+  Clock, Tag, User, AlertCircle, MessageSquare, Calendar, GanttChart,
 } from 'lucide-react';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -505,6 +505,452 @@ function CreateIssueModal({ onClose, onCreate }: {
   );
 }
 
+// ── Lista Hierárquica (pai → filhos → subtasks) ───────────────────────────────
+function ListaHierarquica({ issues, onOpenPanel, onStatusChange }: {
+  issues: JiraIssue[];
+  onOpenPanel: (i: JiraIssue) => void;
+  onStatusChange: (key: string, t: typeof TRANSITIONS[0]) => void;
+}) {
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  // Build hierarchy: parents = issues with no parentKey, children = grouped by parentKey
+  const parentIssues = issues.filter(i => !i.parentKey);
+  const childMap = useMemo(() => {
+    const map: Record<string, JiraIssue[]> = {};
+    issues.forEach(i => {
+      if (i.parentKey) {
+        if (!map[i.parentKey]) map[i.parentKey] = [];
+        map[i.parentKey].push(i);
+      }
+    });
+    return map;
+  }, [issues]);
+
+  // Standalone children (whose parent isn't in the list)
+  const parentKeys = new Set(parentIssues.map(p => p.key));
+  const orphans = issues.filter(i => i.parentKey && !parentKeys.has(i.parentKey));
+
+  function toggle(key: string) {
+    setExpanded(prev => {
+      const s = new Set(prev);
+      s.has(key) ? s.delete(key) : s.add(key);
+      return s;
+    });
+  }
+
+  function IssueRow({ issue, depth }: { issue: JiraIssue; depth: number }) {
+    const children = childMap[issue.key] || [];
+    const hasChildren = children.length > 0;
+    const isOpen = expanded.has(issue.key);
+    const TypeIcon = ISSUE_TYPE_ICON[issue.issuetype] || CheckSquare;
+    const isConcluido = issue.status === 'Concluído';
+
+    return (
+      <>
+        <tr onClick={() => onOpenPanel(issue)}
+          className="hover:bg-blue-50/40 transition-colors cursor-pointer group border-b border-slate-50">
+          <td className="px-4 py-3">
+            <div className="flex items-center gap-1" style={{ paddingLeft: depth * 24 }}>
+              {hasChildren ? (
+                <button onClick={e => { e.stopPropagation(); toggle(issue.key); }}
+                  className="p-0.5 rounded hover:bg-slate-200 text-slate-400 transition-colors flex-shrink-0">
+                  {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                </button>
+              ) : (
+                <span className="w-5 flex-shrink-0" />
+              )}
+              <TypeIcon size={12} className="text-slate-400 flex-shrink-0" />
+              <span className={`font-mono text-xs font-bold ${depth === 0 ? 'text-violet-600' : depth === 1 ? 'text-blue-600' : 'text-slate-500'}`}>{issue.key}</span>
+            </div>
+          </td>
+          <td className="px-4 py-3 max-w-md">
+            <span className={`font-medium text-[13px] leading-snug ${isConcluido ? 'line-through text-slate-400' : 'text-slate-800'}`}>
+              {issue.summary}
+            </span>
+          </td>
+          <td className="px-4 py-3">
+            {issue.assigneeName ? (
+              <div className="flex items-center gap-1.5">
+                {issue.assigneeAvatar
+                  ? <img src={issue.assigneeAvatar} alt="" className="w-5 h-5 rounded-full flex-shrink-0" />
+                  : <div className="w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0"><span className="text-[9px] text-white font-bold">{issue.assigneeName.charAt(0)}</span></div>
+                }
+                <span className="text-xs text-slate-500 truncate max-w-[90px]">{issue.assigneeName.split(' ')[0]}</span>
+              </div>
+            ) : <span className="text-xs text-slate-300">—</span>}
+          </td>
+          <td className="px-4 py-3">
+            <span className={`text-xs font-bold ${PRIORITY_CLS[issue.priority] ?? 'text-slate-400'}`}>
+              {PRIORITY_ICON[issue.priority] ?? '–'}
+            </span>
+          </td>
+          <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+            <StatusDropdown current={issue.status} onSelect={t => onStatusChange(issue.key, t)} />
+          </td>
+          <td className="px-4 py-3 text-xs text-slate-400">{formatDate(issue.created)}</td>
+          <td className="px-4 py-3 text-xs text-slate-400">{formatDate(issue.updated)}</td>
+          <td className="px-4 py-3">
+            <a href={issue.webUrl} target="_blank" rel="noopener noreferrer"
+              onClick={e => e.stopPropagation()}
+              className="p-1.5 rounded text-slate-300 hover:text-blue-500 opacity-0 group-hover:opacity-100 transition-all inline-flex">
+              <ExternalLink size={12} />
+            </a>
+          </td>
+        </tr>
+        {hasChildren && isOpen && children.map(child => (
+          <IssueRow key={child.key} issue={child} depth={depth + 1} />
+        ))}
+      </>
+    );
+  }
+
+  return (
+    <div className="p-4">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[960px]">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-100">
+                <th className="text-left px-4 py-3 w-44 text-xs font-semibold text-slate-400 uppercase tracking-wide">Ticket</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wide">Resumo</th>
+                <th className="text-left px-4 py-3 w-36 text-xs font-semibold text-slate-400 uppercase tracking-wide">Responsável</th>
+                <th className="text-left px-4 py-3 w-20 text-xs font-semibold text-slate-400 uppercase tracking-wide">Prior.</th>
+                <th className="text-left px-4 py-3 w-36 text-xs font-semibold text-slate-400 uppercase tracking-wide">Status</th>
+                <th className="text-left px-4 py-3 w-24 text-xs font-semibold text-slate-400 uppercase tracking-wide">Criado</th>
+                <th className="text-left px-4 py-3 w-28 text-xs font-semibold text-slate-400 uppercase tracking-wide">Atualizado</th>
+                <th className="w-10" />
+              </tr>
+            </thead>
+            <tbody>
+              {parentIssues.map(p => <IssueRow key={p.key} issue={p} depth={0} />)}
+              {orphans.length > 0 && orphans.map(o => <IssueRow key={o.key} issue={o} depth={0} />)}
+              {issues.length === 0 && (
+                <tr><td colSpan={8} className="px-4 py-16 text-center text-slate-400 text-sm">Nenhum issue encontrado</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Calendário ─────────────────────────────────────────────────────────────────
+function CalendarioView({ issues, onOpenPanel }: {
+  issues: JiraIssue[];
+  onOpenPanel: (i: JiraIssue) => void;
+}) {
+  const [current, setCurrent] = useState(() => { const d = new Date(); return { year: d.getFullYear(), month: d.getMonth() }; });
+
+  const daysInMonth = new Date(current.year, current.month + 1, 0).getDate();
+  const firstDayOfWeek = new Date(current.year, current.month, 1).getDay(); // 0=Sun
+  // Adjust to Monday start: 0=Mon..6=Sun
+  const startOffset = firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1;
+
+  const monthName = new Date(current.year, current.month).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+
+  // Group issues by duedate day
+  const issuesByDay = useMemo(() => {
+    const map: Record<number, JiraIssue[]> = {};
+    issues.forEach(i => {
+      if (!i.duedate) return;
+      const d = new Date(i.duedate);
+      if (d.getFullYear() === current.year && d.getMonth() === current.month) {
+        const day = d.getDate();
+        if (!map[day]) map[day] = [];
+        map[day].push(i);
+      }
+    });
+    return map;
+  }, [issues, current]);
+
+  // Unscheduled issues (no duedate)
+  const unscheduled = useMemo(() => issues.filter(i => !i.duedate && i.status !== 'Concluído'), [issues]);
+
+  function prev() {
+    setCurrent(c => c.month === 0 ? { year: c.year - 1, month: 11 } : { year: c.year, month: c.month - 1 });
+  }
+  function next() {
+    setCurrent(c => c.month === 11 ? { year: c.year + 1, month: 0 } : { year: c.year, month: c.month + 1 });
+  }
+  function goToday() {
+    const d = new Date();
+    setCurrent({ year: d.getFullYear(), month: d.getMonth() });
+  }
+
+  const today = new Date();
+  const isCurrentMonth = today.getFullYear() === current.year && today.getMonth() === current.month;
+  const todayDay = today.getDate();
+
+  const cells: (number | null)[] = [];
+  for (let i = 0; i < startOffset; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+  while (cells.length % 7 !== 0) cells.push(null);
+
+  return (
+    <div className="p-4 flex gap-4">
+      {/* Calendar grid */}
+      <div className="flex-1">
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          {/* Month navigation */}
+          <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100">
+            <button onClick={goToday} className="text-xs font-medium text-slate-500 hover:bg-slate-100 px-3 py-1.5 rounded-lg transition-colors">Hoje</button>
+            <div className="flex items-center gap-3">
+              <button onClick={prev} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors">&lt;</button>
+              <span className="text-sm font-semibold text-slate-700 capitalize min-w-[140px] text-center">{monthName}</span>
+              <button onClick={next} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors">&gt;</button>
+            </div>
+            <span className="text-xs text-slate-400">Mês</span>
+          </div>
+
+          {/* Day headers */}
+          <div className="grid grid-cols-7 border-b border-slate-100">
+            {['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'].map(d => (
+              <div key={d} className="text-center text-[10px] font-semibold text-slate-400 uppercase tracking-wider py-2">{d}</div>
+            ))}
+          </div>
+
+          {/* Day cells */}
+          <div className="grid grid-cols-7">
+            {cells.map((day, idx) => {
+              const dayIssues = day ? (issuesByDay[day] || []) : [];
+              const isToday = isCurrentMonth && day === todayDay;
+              return (
+                <div key={idx} className={`min-h-[100px] border-b border-r border-slate-100 p-1.5 ${day ? 'bg-white' : 'bg-slate-50/50'} ${isToday ? 'bg-blue-50/50' : ''}`}>
+                  {day && (
+                    <>
+                      <span className={`text-xs font-medium ${isToday ? 'bg-blue-600 text-white w-6 h-6 rounded-full flex items-center justify-center' : 'text-slate-500'}`}>
+                        {day}
+                      </span>
+                      <div className="mt-1 space-y-0.5">
+                        {dayIssues.slice(0, 3).map(i => (
+                          <button key={i.key} onClick={() => onOpenPanel(i)}
+                            className={`w-full text-left text-[10px] px-1.5 py-0.5 rounded truncate font-medium transition-colors ${statusCls(i.status)} hover:opacity-80`}>
+                            {i.summary}
+                          </button>
+                        ))}
+                        {dayIssues.length > 3 && (
+                          <span className="text-[9px] text-slate-400 px-1.5">+{dayIssues.length - 3} mais</span>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* Sidebar: unscheduled */}
+      <div className="w-72 flex-shrink-0">
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+          <h3 className="text-sm font-semibold text-slate-700 mb-1">Trabalho não agendado</h3>
+          <p className="text-[10px] text-slate-400 mb-3">Issues sem data de entrega</p>
+          <div className="space-y-2 max-h-[calc(100vh-280px)] overflow-y-auto">
+            {unscheduled.map(i => (
+              <button key={i.key} onClick={() => onOpenPanel(i)}
+                className="w-full text-left p-2.5 rounded-lg border border-slate-100 hover:border-blue-200 hover:bg-blue-50/30 transition-all group">
+                <p className="text-xs font-medium text-slate-700 leading-snug line-clamp-2 group-hover:text-blue-700">{i.summary}</p>
+                <div className="flex items-center gap-2 mt-1.5">
+                  <span className="font-mono text-[10px] text-blue-600 font-bold">{i.key}</span>
+                  <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full ${statusCls(i.status)}`}>{i.status}</span>
+                  <span className={`text-[10px] font-bold ${PRIORITY_CLS[i.priority] ?? 'text-slate-400'}`}>{PRIORITY_ICON[i.priority]}</span>
+                  {i.assigneeAvatar && <img src={i.assigneeAvatar} alt="" className="w-4 h-4 rounded-full ml-auto" />}
+                </div>
+              </button>
+            ))}
+            {unscheduled.length === 0 && (
+              <p className="text-xs text-slate-400 text-center py-4">Todos os issues têm data ✓</p>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Cronograma (Timeline / Gantt) ──────────────────────────────────────────────
+function CronogramaView({ issues, onOpenPanel }: {
+  issues: JiraIssue[];
+  onOpenPanel: (i: JiraIssue) => void;
+}) {
+  const [escala, setEscala] = useState<'semanas' | 'meses' | 'trimestres'>('meses');
+
+  // Build hierarchy for timeline
+  const parentIssues = issues.filter(i => !i.parentKey);
+  const childMap = useMemo(() => {
+    const map: Record<string, JiraIssue[]> = {};
+    issues.forEach(i => {
+      if (i.parentKey) {
+        if (!map[i.parentKey]) map[i.parentKey] = [];
+        map[i.parentKey].push(i);
+      }
+    });
+    return map;
+  }, [issues]);
+
+  const parentKeys = new Set(parentIssues.map(p => p.key));
+  const orphans = issues.filter(i => i.parentKey && !parentKeys.has(i.parentKey));
+
+  // Determine timeline range
+  const allDates = issues.flatMap(i => [i.created, i.duedate, i.updated].filter(Boolean) as string[]).map(d => new Date(d).getTime());
+  const minTime = allDates.length > 0 ? Math.min(...allDates) : Date.now();
+  const maxTime = allDates.length > 0 ? Math.max(...allDates, Date.now() + 90 * 86400000) : Date.now() + 180 * 86400000;
+
+  const timelineStart = new Date(minTime);
+  timelineStart.setDate(1); // start of month
+  const timelineEnd = new Date(maxTime);
+  timelineEnd.setMonth(timelineEnd.getMonth() + 1, 0); // end of month
+
+  const totalDays = Math.max(1, Math.ceil((timelineEnd.getTime() - timelineStart.getTime()) / 86400000));
+
+  // Generate month headers
+  const months = useMemo(() => {
+    const result: { label: string; startPx: number; widthPx: number }[] = [];
+    const d = new Date(timelineStart);
+    while (d <= timelineEnd) {
+      const monthStart = new Date(d);
+      const nextMonth = new Date(d.getFullYear(), d.getMonth() + 1, 1);
+      const monthEnd = new Date(Math.min(nextMonth.getTime() - 1, timelineEnd.getTime()));
+      const startDay = Math.max(0, Math.ceil((monthStart.getTime() - timelineStart.getTime()) / 86400000));
+      const endDay = Math.ceil((monthEnd.getTime() - timelineStart.getTime()) / 86400000);
+      const px = (startDay / totalDays) * 100;
+      const w = ((endDay - startDay + 1) / totalDays) * 100;
+      result.push({
+        label: monthStart.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }),
+        startPx: px,
+        widthPx: w,
+      });
+      d.setMonth(d.getMonth() + 1);
+      d.setDate(1);
+    }
+    return result;
+  }, [timelineStart, timelineEnd, totalDays]);
+
+  // Today line
+  const todayPx = ((Date.now() - timelineStart.getTime()) / 86400000 / totalDays) * 100;
+
+  function getBar(issue: JiraIssue) {
+    const start = issue.created ? new Date(issue.created) : new Date();
+    const end = issue.duedate ? new Date(issue.duedate) : (issue.updated ? new Date(issue.updated) : new Date(start.getTime() + 7 * 86400000));
+    const startDay = Math.max(0, (start.getTime() - timelineStart.getTime()) / 86400000);
+    const endDay = Math.max(startDay + 1, (end.getTime() - timelineStart.getTime()) / 86400000);
+    const left = (startDay / totalDays) * 100;
+    const width = Math.max(0.5, ((endDay - startDay) / totalDays) * 100);
+    return { left, width };
+  }
+
+  const BAR_COLORS: Record<string, string> = {
+    'Concluído': 'bg-green-400',
+    'Em andamento': 'bg-blue-500',
+    'A fazer': 'bg-yellow-400',
+    'Em análise': 'bg-amber-400',
+    'Ideia': 'bg-slate-300',
+  };
+
+  function TimelineRow({ issue, depth }: { issue: JiraIssue; depth: number }) {
+    const children = childMap[issue.key] || [];
+    const [open, setOpen] = useState(true);
+    const bar = getBar(issue);
+    const barColor = BAR_COLORS[issue.status] || 'bg-purple-400';
+    const isConcluido = issue.status === 'Concluído';
+
+    return (
+      <>
+        <div className="flex border-b border-slate-100 hover:bg-blue-50/30 transition-colors group" style={{ minHeight: 40 }}>
+          {/* Left label */}
+          <div className="w-[340px] flex-shrink-0 flex items-center gap-1 px-3 py-2 border-r border-slate-200 bg-white"
+            style={{ paddingLeft: 12 + depth * 20 }}>
+            {children.length > 0 ? (
+              <button onClick={() => setOpen(o => !o)} className="p-0.5 rounded hover:bg-slate-200 text-slate-400 flex-shrink-0">
+                {open ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+              </button>
+            ) : <span className="w-5 flex-shrink-0" />}
+            <button onClick={() => onOpenPanel(issue)} className="flex items-center gap-1.5 min-w-0 group/link">
+              <span className={`font-mono text-[10px] font-bold flex-shrink-0 ${depth === 0 ? 'text-violet-600' : 'text-blue-600'}`}>{issue.key}</span>
+              <span className={`text-xs truncate max-w-[180px] ${isConcluido ? 'line-through text-slate-400' : 'text-slate-700 group-hover/link:text-blue-600'}`}>
+                {issue.summary}
+              </span>
+            </button>
+            {isConcluido && <span className="text-[9px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full font-bold ml-auto flex-shrink-0">✓</span>}
+          </div>
+
+          {/* Right timeline */}
+          <div className="flex-1 relative">
+            <div
+              onClick={() => onOpenPanel(issue)}
+              className={`absolute top-2 h-5 rounded-full ${barColor} cursor-pointer hover:opacity-80 transition-opacity shadow-sm`}
+              style={{ left: `${bar.left}%`, width: `${bar.width}%`, minWidth: 6 }}
+              title={`${issue.key}: ${issue.summary}`}
+            />
+          </div>
+        </div>
+        {open && children.map(child => (
+          <TimelineRow key={child.key} issue={child} depth={depth + 1} />
+        ))}
+      </>
+    );
+  }
+
+  return (
+    <div className="p-4">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        {/* Controls */}
+        <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-100">
+          <div className="flex items-center gap-2">
+            {(['semanas', 'meses', 'trimestres'] as const).map(e => (
+              <button key={e} onClick={() => setEscala(e)}
+                className={`text-xs font-medium px-3 py-1.5 rounded-lg transition-colors capitalize ${escala === e ? 'bg-blue-100 text-blue-700' : 'text-slate-400 hover:bg-slate-100'}`}>
+                {e}
+              </button>
+            ))}
+          </div>
+          <span className="text-[10px] text-slate-400">Hoje: {new Date().toLocaleDateString('pt-BR')}</span>
+        </div>
+
+        <div className="overflow-x-auto">
+          <div style={{ minWidth: Math.max(900, totalDays * (escala === 'semanas' ? 8 : escala === 'meses' ? 3 : 1.5)) }}>
+            {/* Month header row */}
+            <div className="flex border-b border-slate-200">
+              <div className="w-[340px] flex-shrink-0 border-r border-slate-200 bg-slate-50 px-3 py-2">
+                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Ticket</span>
+              </div>
+              <div className="flex-1 relative bg-slate-50">
+                <div className="flex h-full">
+                  {months.map((m, i) => (
+                    <div key={i} className="border-r border-slate-200 text-center py-2" style={{ width: `${m.widthPx}%` }}>
+                      <span className="text-[10px] font-semibold text-slate-500 uppercase">{m.label}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Rows */}
+            <div className="relative">
+              {/* Today line */}
+              {todayPx >= 0 && todayPx <= 100 && (
+                <div className="absolute top-0 bottom-0 w-px bg-blue-500 z-10 pointer-events-none"
+                  style={{ left: `calc(340px + (100% - 340px) * ${todayPx / 100})` }}>
+                  <div className="absolute -top-0.5 -left-1 w-2.5 h-2.5 bg-blue-500 rounded-full" />
+                </div>
+              )}
+
+              {parentIssues.map(p => <TimelineRow key={p.key} issue={p} depth={0} />)}
+              {orphans.map(o => <TimelineRow key={o.key} issue={o} depth={0} />)}
+
+              {issues.length === 0 && (
+                <div className="px-4 py-16 text-center text-slate-400 text-sm">Nenhum issue encontrado</div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main Component ─────────────────────────────────────────────────────────────
 export function Bira() {
   const [issues, setIssues] = useState<JiraIssue[]>([]);
@@ -524,7 +970,7 @@ export function Bira() {
   const [filtroStatus, setFiltroStatus] = useState('');
   const [filtroTipo, setFiltroTipo] = useState('');
   const [filtroResponsavel, setFiltroResponsavel] = useState('');
-  const [aba, setAba] = useState<'lista' | 'quadro'>('quadro');
+  const [aba, setAba] = useState<'quadro' | 'lista' | 'calendario' | 'cronograma'>('quadro');
   const [sortField, setSortField] = useState<keyof JiraIssue>('created');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
@@ -679,7 +1125,7 @@ export function Bira() {
 
         {/* Tabs */}
         <div className="flex items-center gap-4 border-b border-slate-200 -mb-[17px]">
-          {([['lista', 'Lista', List], ['quadro', 'Quadro', LayoutGrid]] as const).map(([id, label, Icon]) => (
+          {([['quadro', 'Quadro', LayoutGrid], ['lista', 'Lista', List], ['calendario', 'Calendário', Calendar], ['cronograma', 'Cronograma', GanttChart]] as const).map(([id, label, Icon]) => (
             <button key={id} onClick={() => setAba(id)}
               className={`flex items-center gap-1.5 pb-3 text-sm font-medium border-b-2 transition-colors ${aba === id ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>
               <Icon size={14} />{label}
@@ -722,103 +1168,21 @@ export function Bira() {
       {/* ── Content ── */}
       <div className="flex-1 overflow-auto">
 
-        {/* ── LISTA ── */}
+        {/* ── LISTA (hierárquica: pai → filho → subtask) ── */}
         {aba === 'lista' && (
-          <div className="p-4">
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm min-w-[860px]">
-                  <thead>
-                    <tr className="bg-slate-50 border-b border-slate-100">
-                      <th className="text-left px-4 py-3 w-28">
-                        <button onClick={() => toggleSort('key')} className="flex items-center gap-1 text-xs font-semibold text-slate-400 uppercase tracking-wide hover:text-slate-600">
-                          Ticket <ArrowUpDown size={10} />
-                        </button>
-                      </th>
-                      <th className="text-left px-4 py-3">
-                        <button onClick={() => toggleSort('summary')} className="flex items-center gap-1 text-xs font-semibold text-slate-400 uppercase tracking-wide hover:text-slate-600">
-                          Resumo <ArrowUpDown size={10} />
-                        </button>
-                      </th>
-                      <th className="text-left px-4 py-3 w-28 text-xs font-semibold text-slate-400 uppercase tracking-wide">Tipo</th>
-                      <th className="text-left px-4 py-3 w-36 text-xs font-semibold text-slate-400 uppercase tracking-wide">Responsável</th>
-                      <th className="text-left px-4 py-3 w-36">
-                        <button onClick={() => toggleSort('status')} className="flex items-center gap-1 text-xs font-semibold text-slate-400 uppercase tracking-wide hover:text-slate-600">
-                          Status <ArrowUpDown size={10} />
-                        </button>
-                      </th>
-                      <th className="text-left px-4 py-3 w-20 text-xs font-semibold text-slate-400 uppercase tracking-wide">Prior.</th>
-                      <th className="text-left px-4 py-3 w-24">
-                        <button onClick={() => toggleSort('created')} className="flex items-center gap-1 text-xs font-semibold text-slate-400 uppercase tracking-wide hover:text-slate-600">
-                          Criado <ArrowUpDown size={10} />
-                        </button>
-                      </th>
-                      <th className="w-10" />
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-50">
-                    {filtrados.map(issue => {
-                      const TypeIcon = ISSUE_TYPE_ICON[issue.issuetype] || CheckSquare;
-                      const isConcluido = issue.status === 'Concluído';
-                      return (
-                        <tr key={issue.key} onClick={() => openPanel(issue)}
-                          className="hover:bg-blue-50/40 transition-colors cursor-pointer group">
-                          <td className="px-4 py-3">
-                            <span className="font-mono text-xs font-bold text-blue-600">{issue.key}</span>
-                          </td>
-                          <td className="px-4 py-3 max-w-xs">
-                            <span className={`font-medium text-[13px] leading-snug ${isConcluido ? 'line-through text-slate-400' : 'text-slate-800'}`}>
-                              {issue.summary}
-                            </span>
-                            {issue.parentSummary && (
-                              <div className="text-[10px] text-slate-400 truncate mt-0.5">{issue.parentKey} · {issue.parentSummary}</div>
-                            )}
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="flex items-center gap-1.5">
-                              <TypeIcon size={12} className="text-slate-400 flex-shrink-0" />
-                              <span className="text-xs text-slate-500">{issue.issuetype}</span>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3">
-                            {issue.assigneeName ? (
-                              <div className="flex items-center gap-1.5">
-                                {issue.assigneeAvatar
-                                  ? <img src={issue.assigneeAvatar} alt="" className="w-5 h-5 rounded-full flex-shrink-0" />
-                                  : <div className="w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0"><span className="text-[9px] text-white font-bold">{issue.assigneeName.charAt(0)}</span></div>
-                                }
-                                <span className="text-xs text-slate-500 truncate max-w-[90px]">{issue.assigneeName.split(' ')[0]}</span>
-                              </div>
-                            ) : <span className="text-xs text-slate-300">—</span>}
-                          </td>
-                          <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
-                            <StatusDropdown current={issue.status}
-                              onSelect={t => handleStatusChange(issue.key, t)} />
-                          </td>
-                          <td className="px-4 py-3">
-                            <span className={`text-xs font-bold ${PRIORITY_CLS[issue.priority] ?? 'text-slate-400'}`}>
-                              {PRIORITY_ICON[issue.priority] ?? '–'}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-xs text-slate-400">{formatDate(issue.created)}</td>
-                          <td className="px-4 py-3">
-                            <a href={issue.webUrl} target="_blank" rel="noopener noreferrer"
-                              onClick={e => e.stopPropagation()}
-                              className="p-1.5 rounded text-slate-300 hover:text-blue-500 opacity-0 group-hover:opacity-100 transition-all inline-flex">
-                              <ExternalLink size={12} />
-                            </a>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                    {filtrados.length === 0 && (
-                      <tr><td colSpan={8} className="px-4 py-16 text-center text-slate-400 text-sm">Nenhum issue encontrado</td></tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
+          <ListaHierarquica issues={filtrados} onOpenPanel={openPanel} onStatusChange={handleStatusChange} />
+        )}
+
+        {/* ── CALENDÁRIO ── */}
+        {aba === 'calendario' && (
+          <CalendarioView issues={filtrados} onOpenPanel={openPanel} />
+        )
+
+        }
+
+        {/* ── CRONOGRAMA (Timeline / Gantt) ── */}
+        {aba === 'cronograma' && (
+          <CronogramaView issues={filtrados} onOpenPanel={openPanel} />
         )}
 
         {/* ── QUADRO ── */}
