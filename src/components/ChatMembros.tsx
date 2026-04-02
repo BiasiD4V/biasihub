@@ -632,38 +632,46 @@ export function ChatMembros({ aberto, onFechar }: ChatMembrosProps) {
 
   function iniciarLigacao() {
     const room = `biasi-${canalAtivo}-${Date.now()}`;
-    const url = `https://meet.jit.si/${room}#config.startWithVideoMuted=true`;
+    const encodedName = encodeURIComponent(usuario?.nome ?? 'Anfitrião');
+    // Link para participantes (sem moderação)
+    const participantUrl = `https://meet.jit.si/${room}#config.startWithVideoMuted=true`;
+    // Link para o criador (anfitrião/moderador)
+    const hostUrl = `https://meet.jit.si/${room}#config.startWithVideoMuted=true&userInfo.displayName="${encodedName}"&config.enableLobbyChat=true&config.lobby.autoKnock=false&config.moderator.enable=true`;
     if (usuario) {
       supabase.from('chat_mensagens').insert({
         remetente_id: usuario.id,
         remetente_nome: usuario.nome,
-        conteudo: `📞 ${usuario.nome} iniciou uma chamada de voz — `,
+        conteudo: `📞 ${usuario.nome} iniciou uma chamada de voz (anfitrião) — `,
         canal: canalAtivo === 'geral' ? 'geral' : 'dm',
-        arquivo_url: url,
+        arquivo_url: participantUrl,
         arquivo_nome: 'Entrar na chamada',
         arquivo_tipo: 'link/call',
         ...(dmAtivo ? { destinatario_id: dmAtivo.id } : {}),
       }).then();
     }
-    window.open(url, '_blank');
+    window.open(hostUrl, '_blank');
   }
 
   function iniciarVideoCall() {
     const room = `biasi-video-${canalAtivo}-${Date.now()}`;
-    const url = `https://meet.jit.si/${room}`;
+    const encodedName = encodeURIComponent(usuario?.nome ?? 'Anfitrião');
+    // Link para participantes
+    const participantUrl = `https://meet.jit.si/${room}`;
+    // Link para o criador (anfitrião/moderador)
+    const hostUrl = `https://meet.jit.si/${room}#userInfo.displayName="${encodedName}"&config.enableLobbyChat=true&config.lobby.autoKnock=false&config.moderator.enable=true`;
     if (usuario) {
       supabase.from('chat_mensagens').insert({
         remetente_id: usuario.id,
         remetente_nome: usuario.nome,
-        conteudo: `📹 ${usuario.nome} iniciou uma videochamada — `,
+        conteudo: `📹 ${usuario.nome} iniciou uma videochamada (anfitrião) — `,
         canal: canalAtivo === 'geral' ? 'geral' : 'dm',
-        arquivo_url: url,
+        arquivo_url: participantUrl,
         arquivo_nome: 'Entrar na chamada',
         arquivo_tipo: 'link/call',
         ...(dmAtivo ? { destinatario_id: dmAtivo.id } : {}),
       }).then();
     }
-    window.open(url, '_blank');
+    window.open(hostUrl, '_blank');
   }
 
   function voltarParaLista() {
