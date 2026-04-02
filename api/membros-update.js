@@ -24,8 +24,15 @@ export default async function handler(req, res) {
   const supabaseUrl = 'https://vzaabtzcilyoknksvhrc.supabase.co';
   const userToken = authHeader.split(' ')[1];
 
+  // Hierarchy: who can manage whom
+  // dono/admin can manage everyone
+  // gestor can manage users in their departamento
+  const PAPEIS_SUPERIORES = ['admin', 'dono'];
+  const PAPEIS_GESTORES = ['gestor'];
+  const PAPEIS_VALIDOS = ['admin', 'dono', 'gestor', 'orcamentista', 'comercial', 'engenheiro'];
+
   try {
-    // 1. Verificar JWT do chamador
+    // 1. Verify caller JWT
     const userRes = await fetch(`${supabaseUrl}/auth/v1/user`, {
       headers: {
         'Authorization': `Bearer ${userToken}`,
@@ -40,9 +47,9 @@ export default async function handler(req, res) {
     const userData = await userRes.json();
     const callerId = userData.id;
 
-    // 2. Verificar se o chamador é admin
+    // 2. Get caller profile
     const perfilRes = await fetch(
-      `${supabaseUrl}/rest/v1/usuarios?id=eq.${callerId}&select=papel`,
+      `${supabaseUrl}/rest/v1/usuarios?id=eq.${callerId}&select=papel,departamento`,
       {
         headers: {
           'Authorization': `Bearer ${serviceKey}`,
@@ -52,27 +59,68 @@ export default async function handler(req, res) {
     );
 
     const perfilData = await perfilRes.json();
-    if (!perfilData[0] || perfilData[0].papel !== 'admin') {
-      return res.status(403).json({ error: 'Admin access required' });
+    if (!perfilData[0]) {
+      return res.status(403).json({ error: 'Profile not found' });
     }
 
-    const { userId, papel, novaSenha } = req.body || {};
+    const callerPapel = perfilData[0].papel;
+    const callerDepto = perfilData[0].departamento;
+    const isSuper = PAPEIS_SUPERIORES.includes(callerPapel);
+    const isGestor = PAPEIS_GESTORES.includes(callerPapel);
+
+    if (!isSuper && !isGestor) {
+      return res.status(403).json({ error: 'Acesso negado. Você precisa ser admin, dono ou gestor.' });
+    }
+
+    const { userId, papel, novaSenha, ativo, departamento } = req.body || {};
 
     if (!userId) {
       return res.status(400).json({ error: 'userId is required' });
     }
 
-    // Impedir admin de alterar a si mesmo
+    // Prevent editing self
     if (userId === callerId) {
       return res.status(400).json({ error: 'Não é possível alterar o próprio usuário' });
     }
 
+    // 3. Get target user info for hierarchy check
+    const targetRes = await fetch(
+      `${supabaseUrl}/rest/v1/usuarios?id=eq.${userId}&select=papel,departamento`,
+      {
+        headers: {
+          'Authorization': `Bearer ${serviceKey}`,
+          'apikey': serviceKey,
+        },
+      }
+    );
+    const targetData = await targetRes.json();
+    if (!targetData[0]) {
+      return res.status(404).json({ error: 'Usuário não encontrado' });
+    }
+
+    const targetPapel = targetData[0].papel;
+    const targetDepto = targetData[0].departamento;
+
+    // Hierarchy check: gestores can only manage users in their department, not other gestores/admins/donos
+    if (isGestor && !isSuper) {
+      if (PAPEIS_SUPERIORES.includes(targetPapel) || PAPEIS_GESTORES.includes(targetPapel)) {
+        return res.status(403).json({ error: 'Gestores não podem gerenciar outros gestores, admins ou o dono' });
+      }
+      if (targetDepto !== callerDepto) {
+        return res.status(403).json({ error: `Você só pode gerenciar membros do departamento "${callerDepto}"` });
+      }
+    }
+
+    // Only dono can remove admin; only admin/dono can remove gestor
+    if (PAPEIS_SUPERIORES.includes(targetPapel) && callerPapel !== 'dono' && callerPapel !== 'admin') {
+      return res.status(403).json({ error: 'Apenas o dono ou admin pode gerenciar administradores' });
+    }
+
     const results = {};
 
-    // 3. Atualizar papel se fornecido
+    // 4. Update papel if provided
     if (papel) {
-      const papeisValidos = ['admin', 'gestor', 'orcamentista'];
-      if (!papeisValidos.includes(papel)) {
+      if (!PAPEIS_VALIDOS.includes(papel)) {
         return res.status(400).json({ error: 'Papel inválido' });
       }
 
@@ -98,10 +146,58 @@ export default async function handler(req, res) {
       results.papel = papel;
     }
 
-    // 4. Redefinir senha se fornecida
+    // 5. Update departamento if provided
+    if (departamento !== undefined) {
+      const deptRes = await fetch(
+        `${supabaseUrl}/rest/v1/usuarios?id=eq.${userId}`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Authorization': `Bearer ${serviceKey}`,
+            'apikey': serviceKey,
+            'Content-Type': 'application/json',
+            'Prefer': 'return=minimal',
+          },
+          body: JSON.stringify({ departamento }),
+        }
+      );
+
+      if (!deptRes.ok) {
+        const err = await deptRes.text();
+        return res.status(500).json({ error: 'Erro ao atualizar departamento', detail: err });
+      }
+
+      results.departamento = departamento;
+    }
+
+    // 6. Toggle ativo status
+    if (ativo !== undefined) {
+      const ativoRes = await fetch(
+        `${supabaseUrl}/rest/v1/usuarios?id=eq.${userId}`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Authorization': `Bearer ${serviceKey}`,
+            'apikey': serviceKey,
+            'Content-Type': 'application/json',
+            'Prefer': 'return=minimal',
+          },
+          body: JSON.stringify({ ativo: !!ativo }),
+        }
+      );
+
+      if (!ativoRes.ok) {
+        const err = await ativoRes.text();
+        return res.status(500).json({ error: 'Erro ao alterar status', detail: err });
+      }
+
+      results.ativo = !!ativo;
+    }
+
+    // 7. Reset password if provided
     if (novaSenha) {
-      if (novaSenha.length < 6) {
-        return res.status(400).json({ error: 'Senha deve ter no mínimo 6 caracteres' });
+      if (novaSenha.length < 4) {
+        return res.status(400).json({ error: 'Senha deve ter no mínimo 4 caracteres' });
       }
 
       const authUpdateRes = await fetch(

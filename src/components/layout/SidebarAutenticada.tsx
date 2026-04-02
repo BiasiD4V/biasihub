@@ -130,7 +130,7 @@ export function SidebarAutenticada({ onNavigate, onAbrirPaulo, onAbrirChat, unre
         ))}
 
         {/* Menu admin e gestor */}
-        {(usuario?.papel === 'admin' || usuario?.papel === 'gestor') && MENU_ADMIN.map((secao) => (
+        {(usuario?.papel === 'admin' || usuario?.papel === 'gestor' || usuario?.papel === 'dono') && MENU_ADMIN.map((secao) => (
           <div key={secao.titulo}>
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider px-3 mb-2">
               {secao.titulo}

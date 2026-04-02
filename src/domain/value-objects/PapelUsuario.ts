@@ -1,1 +1,1 @@
-export type PapelUsuario = 'admin' | 'gestor' | 'orcamentista';
+export type PapelUsuario = 'admin' | 'dono' | 'gestor' | 'orcamentista' | 'comercial' | 'engenheiro';

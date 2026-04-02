@@ -41,9 +41,9 @@ export default async function handler(req, res) {
     const userData = await userRes.json();
     const userId = userData.id;
 
-    // 2. Verificar se o usuário é admin
+    // 2. Verificar se o usuário é admin ou gestor
     const perfilRes = await fetch(
-      `${supabaseUrl}/rest/v1/usuarios?id=eq.${userId}&select=papel`,
+      `${supabaseUrl}/rest/v1/usuarios?id=eq.${userId}&select=papel,departamento`,
       {
         headers: {
           'Authorization': `Bearer ${serviceKey}`,
@@ -53,13 +53,14 @@ export default async function handler(req, res) {
     );
 
     const perfilData = await perfilRes.json();
-    if (!perfilData[0] || perfilData[0].papel !== 'admin') {
-      return res.status(403).json({ error: 'Admin access required' });
+    const callerPapel = perfilData[0]?.papel;
+    if (!callerPapel || !['admin', 'dono', 'gestor'].includes(callerPapel)) {
+      return res.status(403).json({ error: 'Acesso restrito a admin, dono ou gestor' });
     }
 
     // 3. Buscar todos os membros com service_role (bypass RLS)
     const membrosRes = await fetch(
-      `${supabaseUrl}/rest/v1/usuarios?select=id,nome,email,papel,ativo,criado_em&order=criado_em.asc`,
+      `${supabaseUrl}/rest/v1/usuarios?select=id,nome,email,papel,ativo,criado_em,departamento&order=criado_em.asc`,
       {
         headers: {
           'Authorization': `Bearer ${serviceKey}`,
