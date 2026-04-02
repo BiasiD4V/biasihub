@@ -1,9 +1,8 @@
-import { useState, useRef } from 'react';
-import { AlertCircle, Upload, X, Loader2, ShieldAlert } from 'lucide-react';
+import { useState } from 'react';
+import { AlertCircle, Link, Loader2, ShieldAlert } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import type { EtapaFunil } from '../../domain/value-objects/EtapaFunil';
 import { ETAPA_LABELS } from '../../domain/value-objects/EtapaFunil';
-import { uploadArquivo } from '../../infrastructure/supabase/storageService';
 import type { PapelUsuario } from '../../domain/value-objects/PapelUsuario';
 
 const PAPEIS_APROVADORES: PapelUsuario[] = ['dono', 'admin', 'gestor'];
@@ -28,51 +27,21 @@ export function ModalConfirmarMudancaEtapa({
   papelUsuario,
 }: ModalConfirmarMudancaEtapaProps) {
   const [observacao, setObservacao] = useState('');
-  const [arquivo, setArquivo] = useState<File | null>(null);
   const [caminhoRede, setCaminhoRede] = useState('');
   const [enviando, setEnviando] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const bloqueadoPorDuplicata = !!(jaExisteTransicao && etapaNova === 'proposta_enviada' && papelUsuario && !PAPEIS_APROVADORES.includes(papelUsuario));
 
-  function handleArquivoChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (file) {
-      setArquivo(file);
-    }
-  }
-
-  function handleRemoverArquivo() {
-    setArquivo(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-  }
-
   async function handleConfirmar() {
-    if (!arquivo && !caminhoRede.trim()) return;
+    if (!caminhoRede.trim()) return;
 
     setEnviando(true);
     try {
-      let arquivoUrl: string | undefined;
       const obs = observacao.trim() || undefined;
-
-      if (arquivo) {
-        const result = await uploadArquivo(arquivo, 'mudancas-etapa');
-        if (result) {
-          arquivoUrl = result.url;
-        } else {
-          alert('Erro ao enviar arquivo. Tente novamente.');
-          setEnviando(false);
-          return;
-        }
-      } else if (caminhoRede.trim()) {
-        arquivoUrl = caminhoRede.trim();
-      }
+      const arquivoUrl = caminhoRede.trim();
 
       onConfirmar(obs || '', arquivoUrl);
       setObservacao('');
-      setArquivo(null);
       setCaminhoRede('');
     } finally {
       setEnviando(false);
@@ -81,7 +50,6 @@ export function ModalConfirmarMudancaEtapa({
 
   function fechar() {
     setObservacao('');
-    setArquivo(null);
     setCaminhoRede('');
     onFechar();
   }
@@ -127,77 +95,25 @@ export function ModalConfirmarMudancaEtapa({
         )}
 
         <div className="space-y-4">
-          {/* Anexar arquivo - OBRIGATÓRIO */}
+          {/* Link ou caminho - OBRIGATÓRIO */}
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-3 flex items-center gap-2">
-              <Upload size={14} className="text-red-600" />
-              Anexar arquivo ou caminho
+            <label className="block text-xs font-semibold text-slate-700 mb-2 flex items-center gap-2">
+              <Link size={14} className="text-blue-600" />
+              Link ou caminho da pasta
               <span className="text-red-600 font-bold">*</span>
             </label>
             
-            {arquivo ? (
-              <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-3 flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2 min-w-0">
-                  <div className="text-green-600">✓</div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-green-900 truncate">{arquivo.name}</p>
-                    <p className="text-xs text-green-700">
-                      {(arquivo.size / 1024 / 1024).toFixed(2)} MB
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={handleRemoverArquivo}
-                  className="text-green-600 hover:text-green-700 flex-shrink-0"
-                  title="Remover arquivo"
-                >
-                  <X size={16} />
-                </button>
-              </div>
-            ) : (
-              <div
-                onClick={() => fileInputRef.current?.click()}
-                className="border-2 border-dashed border-blue-300 bg-blue-50 rounded-lg p-6 hover:bg-blue-100 hover:border-blue-400 transition-all cursor-pointer mb-3"
-              >
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  onChange={handleArquivoChange}
-                  className="hidden"
-                />
-                <div className="flex flex-col items-center gap-2 text-center">
-                  <Upload size={24} className="text-blue-600" />
-                  <div>
-                    <p className="text-sm font-semibold text-blue-700">Clique para selecionar</p>
-                    <p className="text-xs text-blue-600 mt-1">ou arraste um arquivo</p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* OU separador */}
-            <div className="relative mb-3">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-slate-200"></div>
-              </div>
-              <div className="relative flex justify-center">
-                <span className="px-2 bg-white text-xs text-slate-400">OU</span>
-              </div>
-            </div>
-
-            {/* Caminho da rede - obrigatório se não tiver arquivo */}
             <input
               type="text"
               value={caminhoRede}
               onChange={(e) => setCaminhoRede(e.target.value)}
               placeholder="Ex: \\FILESERVER\COMERCIAL\ORC-2024-001"
-              disabled={!!arquivo}
-              className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono disabled:bg-slate-50 mb-2"
+              className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono mb-2"
             />
             
-            {!arquivo && !caminhoRede.trim() && (
+            {!caminhoRede.trim() && (
               <p className="text-xs text-red-600 font-medium">
-                ⚠️ Arquivo ou caminho é obrigatório
+                ⚠️ Link ou caminho é obrigatório
               </p>
             )}
           </div>
@@ -228,10 +144,10 @@ export function ModalConfirmarMudancaEtapa({
           </button>
           <button
             onClick={handleConfirmar}
-            disabled={(!arquivo && !caminhoRede.trim()) || enviando || bloqueadoPorDuplicata}
+            disabled={!caminhoRede.trim() || enviando || bloqueadoPorDuplicata}
             className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm hover:bg-blue-700 transition-colors font-medium flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {enviando ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+            {enviando ? <Loader2 size={14} className="animate-spin" /> : <Link size={14} />}
             {enviando ? 'Enviando...' : 'Confirmar mudança'}
           </button>
         </div>
