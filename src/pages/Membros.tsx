@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Users, Shield, ShieldCheck, HardHat, Circle, Pencil, Eye, EyeOff, KeyRound, X, Copy, Check, Wifi, WifiOff, Clock } from 'lucide-react';
+import { Users, Shield, ShieldCheck, HardHat, Circle, Pencil, Eye, EyeOff, KeyRound, X, Copy, Check, Wifi, Clock } from 'lucide-react';
 import { supabase } from '../infrastructure/supabase/client';
 import { useAuth } from '../context/AuthContext';
 import { Navigate } from 'react-router-dom';
@@ -18,6 +18,7 @@ interface Membro {
   papel: string;
   ativo: boolean;
   criado_em: string;
+  ultimo_login: string | null;
 }
 
 const ICONE_PAPEL: Record<string, React.ElementType> = {
@@ -45,6 +46,17 @@ function formatarData(iso: string): string {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
+  });
+}
+
+function formatarUltimoAcesso(iso: string | null): string {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleString('pt-BR', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
   });
 }
 
@@ -222,17 +234,6 @@ export function Membros() {
     }
     carregarPresencas();
 
-    // Registrar própria presença
-    if (usuario?.id) {
-      supabase.from('presenca_usuarios').upsert({
-        usuario_id: usuario.id,
-        usuario_nome: usuario.nome,
-        online: true,
-        ultimo_visto: new Date().toISOString(),
-        conectado_desde: new Date().toISOString(),
-      }).then();
-    }
-
     // Realtime presença
     const channel = supabase
       .channel('presenca-realtime')
@@ -247,34 +248,9 @@ export function Membros() {
     // Refresh timer (atualiza tempos a cada 30s)
     const timer = setInterval(() => setTick((t) => t + 1), 30000);
 
-    // Heartbeat (confirma online a cada 60s)
-    const heartbeat = setInterval(() => {
-      if (usuario?.id) {
-        supabase.from('presenca_usuarios').update({
-          online: true,
-          ultimo_visto: new Date().toISOString(),
-        }).eq('usuario_id', usuario.id).then();
-      }
-    }, 60000);
-
-    // Marcar offline ao sair
-    const handleBeforeUnload = () => {
-      if (usuario?.id) {
-        navigator.sendBeacon?.('/api/membros', '');
-        supabase.from('presenca_usuarios').update({
-          online: false,
-          ultimo_visto: new Date().toISOString(),
-          conectado_desde: null,
-        }).eq('usuario_id', usuario.id).then();
-      }
-    };
-    window.addEventListener('beforeunload', handleBeforeUnload);
-
     return () => {
       supabase.removeChannel(channel);
       clearInterval(timer);
-      clearInterval(heartbeat);
-      window.removeEventListener('beforeunload', handleBeforeUnload);
     };
   }, [usuario?.id, usuario?.nome]);
 
@@ -351,75 +327,75 @@ export function Membros() {
                 <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">E-mail</th>
                 <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Papel</th>
                 <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Status</th>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Presença</th>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Desde</th>
+                <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Último acesso</th>
                 <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {membros.map((m) => {
                 const Icone = ICONE_PAPEL[m.papel] || Users;
+                const p = presencas[m.id];
+                const isOnline = p?.online;
                 return (
-                  <tr key={m.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-5 py-3.5">
-                      <div className="flex items-center gap-3">
-                        <div className="bg-blue-600 rounded-full w-8 h-8 flex items-center justify-center flex-shrink-0">
-                          <span className="text-white text-xs font-bold">
-                            {m.nome.charAt(0).toUpperCase()}
-                          </span>
-                        </div>
-                        <span className="font-medium text-slate-700">{m.nome}</span>
-                      </div>
-                    </td>
-                    <td className="px-5 py-3.5 text-slate-500">{m.email}</td>
-                    <td className="px-5 py-3.5">
-                      <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border ${COR_PAPEL[m.papel] || 'bg-slate-50 text-slate-600 border-slate-200'}`}>
-                        <Icone size={12} />
-                        {ROTULO_PAPEL[m.papel] || m.papel}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ${m.ativo ? 'bg-green-50 text-green-700' : 'bg-slate-100 text-slate-500'}`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${m.ativo ? 'bg-green-500' : 'bg-slate-400'}`} />
-                        {m.ativo ? 'Ativo' : 'Inativo'}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3.5">
-                      {(() => {
-                        const p = presencas[m.id];
-                        const isOnline = p?.online;
-                        return (
-                          <div className="flex items-center gap-2">
-                            <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ${isOnline ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-                              {isOnline ? <Wifi size={11} /> : <WifiOff size={11} />}
-                              {isOnline ? 'Online' : 'Offline'}
-                            </span>
-                            {isOnline && p?.conectado_desde && (
-                              <span className="flex items-center gap-1 text-[10px] text-emerald-600">
-                                <Clock size={10} />
-                                {formatarTempo(p.conectado_desde)}
-                              </span>
-                            )}
-                            {!isOnline && p?.ultimo_visto && (
-                              <span className="text-[10px] text-slate-400">
-                                Visto {formatarUltimoVisto(p.ultimo_visto)}
-                              </span>
-                            )}
+                      <tr key={m.id} className="hover:bg-slate-50 transition-colors">
+                        <td className="px-5 py-3.5">
+                          <div className="flex items-center gap-3">
+                            <div className="relative flex-shrink-0">
+                              <div className="bg-blue-600 rounded-full w-8 h-8 flex items-center justify-center">
+                                <span className="text-white text-xs font-bold">
+                                  {m.nome.charAt(0).toUpperCase()}
+                                </span>
+                              </div>
+                              {isOnline && (
+                                <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white animate-pulse" />
+                              )}
+                            </div>
+                            <div>
+                              <span className="font-medium text-slate-700">{m.nome}</span>
+                              {isOnline ? (
+                                <div className="flex items-center gap-1 text-[10px] text-emerald-600 font-medium">
+                                  <Wifi size={9} />
+                                  Online {p?.conectado_desde ? `· ${formatarTempo(p.conectado_desde)}` : ''}
+                                </div>
+                              ) : p?.ultimo_visto ? (
+                                <div className="text-[10px] text-slate-400">
+                                  Visto {formatarUltimoVisto(p.ultimo_visto)}
+                                </div>
+                              ) : null}
+                            </div>
                           </div>
-                        );
-                      })()}
-                    </td>
-                    <td className="px-5 py-3.5 text-slate-500">{formatarData(m.criado_em)}</td>
-                    <td className="px-5 py-3.5">
-                      <button
-                        onClick={() => abrirEdicao(m)}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
-                        title="Editar membro"
-                      >
-                        <Pencil size={15} />
-                      </button>
-                    </td>
-                  </tr>
+                        </td>
+                        <td className="px-5 py-3.5 text-slate-500">{m.email}</td>
+                        <td className="px-5 py-3.5">
+                          <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border ${COR_PAPEL[m.papel] || 'bg-slate-50 text-slate-600 border-slate-200'}`}>
+                            <Icone size={12} />
+                            {ROTULO_PAPEL[m.papel] || m.papel}
+                          </span>
+                        </td>
+                        <td className="px-5 py-3.5">
+                          <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ${m.ativo ? 'bg-green-50 text-green-700' : 'bg-slate-100 text-slate-500'}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${m.ativo ? 'bg-green-500' : 'bg-slate-400'}`} />
+                            {m.ativo ? 'Ativo' : 'Inativo'}
+                          </span>
+                        </td>
+                        <td className="px-5 py-3.5">
+                          <div className="flex items-center gap-1.5">
+                            <Clock size={12} className="text-slate-400 flex-shrink-0" />
+                            <span className="text-xs text-slate-600">
+                              {formatarUltimoAcesso(m.ultimo_login)}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-5 py-3.5">
+                          <button
+                            onClick={() => abrirEdicao(m)}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                            title="Editar membro"
+                          >
+                            <Pencil size={15} />
+                          </button>
+                        </td>
+                      </tr>
                 );
               })}
             </tbody>

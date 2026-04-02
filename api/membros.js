@@ -69,7 +69,34 @@ export default async function handler(req, res) {
     );
 
     const membros = await membrosRes.json();
-    return res.status(200).json(membros);
+
+    // 4. Buscar último login de cada usuário via device_sessions
+    const sessionsRes = await fetch(
+      `${supabaseUrl}/rest/v1/device_sessions?select=user_id,last_login_at&order=last_login_at.desc`,
+      {
+        headers: {
+          'Authorization': `Bearer ${serviceKey}`,
+          'apikey': serviceKey,
+        },
+      }
+    );
+
+    let ultimoLoginMap = {};
+    if (sessionsRes.ok) {
+      const sessions = await sessionsRes.json();
+      for (const s of sessions) {
+        if (s.user_id && s.last_login_at && !ultimoLoginMap[s.user_id]) {
+          ultimoLoginMap[s.user_id] = s.last_login_at;
+        }
+      }
+    }
+
+    const membrosComLogin = membros.map(m => ({
+      ...m,
+      ultimo_login: ultimoLoginMap[m.id] || null,
+    }));
+
+    return res.status(200).json(membrosComLogin);
   } catch (error) {
     console.error('Erro ao buscar membros:', error);
     return res.status(500).json({ error: 'Internal error' });
