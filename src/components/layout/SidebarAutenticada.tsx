@@ -18,8 +18,10 @@ import {
   MessageCircle,
   KanbanSquare,
   HardHat,
+  Download,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { useState, useEffect } from 'react';
 
 interface ItemMenu {
   rotulo: string;
@@ -96,6 +98,27 @@ interface SidebarProps {
 
 export function SidebarAutenticada({ onNavigate, onAbrirPaulo, onAbrirChat, unreadCount = 0 }: SidebarProps) {
   const { usuario, logout } = useAuth();
+  const [installPrompt, setInstallPrompt] = useState<any>(null);
+  const [jaInstalado, setJaInstalado] = useState(false);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      e.preventDefault();
+      setInstallPrompt(e);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    window.addEventListener('appinstalled', () => setJaInstalado(true));
+    if (window.matchMedia('(display-mode: standalone)').matches) setJaInstalado(true);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  async function instalarApp() {
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    const { outcome } = await installPrompt.userChoice;
+    if (outcome === 'accepted') setJaInstalado(true);
+    setInstallPrompt(null);
+  }
 
   return (
     <aside className="h-full w-[85vw] sm:w-64 bg-slate-900 flex flex-col">
@@ -157,6 +180,19 @@ export function SidebarAutenticada({ onNavigate, onAbrirPaulo, onAbrirChat, unre
           </div>
         ))}
       </nav>
+
+      {/* Botão instalar PWA */}
+      {!jaInstalado && installPrompt && (
+        <div className="px-3 pb-2">
+          <button
+            onClick={instalarApp}
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium bg-blue-600 hover:bg-blue-500 text-white transition-colors"
+          >
+            <Download size={14} />
+            Instalar App no dispositivo
+          </button>
+        </div>
+      )}
 
       {/* Rodapé com usuário */}
       <div className="border-t border-slate-800 px-4 py-4">
