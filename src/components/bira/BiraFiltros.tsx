@@ -43,7 +43,7 @@ export function BiraFiltros({
   filtroTipo, setFiltroTipo,
   filtroResponsavel, setFiltroResponsavel,
   aba, setAba,
-  allStatuses, allTipos, responsaveis,
+  allTipos, responsaveis,
   stats,
   lastSync, syncing,
   onRefresh, onShowCreate,
