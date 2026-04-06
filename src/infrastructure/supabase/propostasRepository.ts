@@ -305,6 +305,7 @@ export const propostasRepository = {
     disciplina: string | null;
     data_entrada: string;
     responsavel: string;
+    responsavel_comercial?: string | null;
   }): Promise<PropostaSupabase> {
     const ano = new Date().getFullYear();
 
@@ -326,6 +327,7 @@ export const propostasRepository = {
         disciplina: dados.disciplina,
         data_entrada: dados.data_entrada,
         responsavel: dados.responsavel,
+        responsavel_comercial: dados.responsavel_comercial ?? null,
         status: 'EM_ABERTO',
         ano,
         etapa_funil: 'entrada_oportunidade',

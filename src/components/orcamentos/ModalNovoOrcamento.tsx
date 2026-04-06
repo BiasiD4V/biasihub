@@ -5,6 +5,7 @@ import type { CriarOrcamentoInput } from '../../context/NovoOrcamentoContext';
 import { useAuth } from '../../context/AuthContext';
 import { clientesRepository, type ClienteSupabase } from '../../infrastructure/supabase/clientesRepository';
 import { propostasRepository } from '../../infrastructure/supabase/propostasRepository';
+import { responsaveisComerciaisRepository, type ResponsavelComercial } from '../../infrastructure/supabase/responsaveisComerciaisRepository';
 import { Search, Loader2, X } from 'lucide-react';
 
 interface ModalNovoOrcamentoProps {
@@ -22,6 +23,7 @@ const CAMPOS_VAZIOS: CriarOrcamentoInput = {
   disciplinaIds: [],
 };
 
+
 export function ModalNovoOrcamento({ aberto, onFechar, onCriado }: ModalNovoOrcamentoProps) {
   const { tiposObra, disciplinas } = useCadastrosMestres();
   const { usuario } = useAuth();
@@ -30,8 +32,17 @@ export function ModalNovoOrcamento({ aberto, onFechar, onCriado }: ModalNovoOrca
     ...CAMPOS_VAZIOS,
     responsavel: usuario?.nome ?? '',
   });
+  const [responsavelComercialSelecionado, setResponsavelComercialSelecionado] = useState('');
   const [erro, setErro] = useState('');
   const [salvando, setSalvando] = useState(false);
+
+  // ── Responsáveis do config ──
+  const [responsaveis, setResponsaveis] = useState<ResponsavelComercial[]>([]);
+  useEffect(() => {
+    responsaveisComerciaisRepository.listarTodos()
+      .then((r) => setResponsaveis(r.filter((x) => x.ativo)))
+      .catch(() => {});
+  }, []);
 
   // ── Clientes do Supabase ──
   const [clientes, setClientes] = useState<ClienteSupabase[]>([]);
@@ -89,7 +100,8 @@ export function ModalNovoOrcamento({ aberto, onFechar, onCriado }: ModalNovoOrca
   }
 
   function resetar() {
-    setForm({ ...CAMPOS_VAZIOS, responsavel: usuario?.nome ?? '' });
+    setForm({ ...CAMPOS_VAZIOS, responsavel: '' });
+    setResponsavelComercialSelecionado('');
     setErro('');
     setClienteSelecionado(null);
     setClienteBusca('');
@@ -147,7 +159,8 @@ export function ModalNovoOrcamento({ aberto, onFechar, onCriado }: ModalNovoOrca
         tipo: tipoNome,
         disciplina: disciplinaNomes || null,
         data_entrada: form.dataBase,
-        responsavel: form.responsavel.trim() || usuario?.nome || '',
+        responsavel: form.responsavel.trim() || '',
+        responsavel_comercial: responsavelComercialSelecionado || null,
       });
 
       resetar();
@@ -285,31 +298,51 @@ export function ModalNovoOrcamento({ aberto, onFechar, onCriado }: ModalNovoOrca
           </div>
         </div>
 
-        {/* Data-base + Responsável */}
+        {/* Data-base */}
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1.5">
+            Data-base <span className="text-red-500">*</span>
+          </label>
+          <input
+            type="date"
+            value={form.dataBase}
+            onChange={(e) => setForm((p) => ({ ...p, dataBase: e.target.value }))}
+            className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+
+        {/* Responsável técnico + Responsável Comercial */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1.5">
-              Data-base <span className="text-red-500">*</span>
+              Responsável Técnico
             </label>
-            <input
-              type="date"
-              value={form.dataBase}
-              onChange={(e) => setForm((p) => ({ ...p, dataBase: e.target.value }))}
-              className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+            <select
+              value={form.responsavel}
+              onChange={(e) => setForm((p) => ({ ...p, responsavel: e.target.value }))}
+              className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+            >
+              <option value="">Selecionar...</option>
+              {responsaveis.map((r) => (
+                <option key={r.id} value={r.nome}>{r.nome}</option>
+              ))}
+            </select>
           </div>
 
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1.5">
-              Responsável
+              Responsável Comercial
             </label>
-            <input
-              type="text"
-              value={form.responsavel}
-              onChange={(e) => setForm((p) => ({ ...p, responsavel: e.target.value }))}
-              placeholder="Nome do responsável"
-              className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+            <select
+              value={responsavelComercialSelecionado}
+              onChange={(e) => setResponsavelComercialSelecionado(e.target.value)}
+              className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+            >
+              <option value="">Selecionar...</option>
+              {responsaveis.map((r) => (
+                <option key={r.id} value={r.nome}>{r.nome}</option>
+              ))}
+            </select>
           </div>
         </div>
 
