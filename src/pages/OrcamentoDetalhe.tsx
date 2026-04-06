@@ -21,6 +21,7 @@ import type { DadosFechamento } from '../components/orcamentos/ModalFechamentoCo
 import type { AtualizarQualificacaoInput } from '../context/NovoOrcamentoContext';
 import type { OrcamentoCard } from '../context/NovoOrcamentoContext';
 import { calcularPrioridade, PRIORIDADE_CONFIG, calcularScoreABC, PRIORIDADE_ABC_CONFIG } from '../utils/prioridade';
+import { formatarData } from '../utils/datas';
 import type { StatusRevisao } from '../domain/value-objects/StatusRevisao';
 import type { EtapaFunil } from '../domain/value-objects/EtapaFunil';
 import { ETAPA_CORES } from '../domain/value-objects/EtapaFunil';
@@ -51,6 +52,73 @@ function lsGetPendencias(propostaId: string): Pendencia[] {
 }
 function lsSavePendencias(propostaId: string, items: Pendencia[]) {
   try { localStorage.setItem(lsKey(propostaId, 'pendencias'), JSON.stringify(items)); } catch { /* */ }
+}
+
+function assinaturaMudanca(m: MudancaEtapa): string {
+  return [
+    m.orcamentoId,
+    m.etapaAnterior ?? '',
+    m.etapaNova,
+    m.responsavel,
+    m.data,
+    m.observacao ?? '',
+    m.arquivo ?? '',
+  ].join('|');
+}
+
+function assinaturaFollowUp(f: FollowUp): string {
+  return [
+    f.orcamentoId,
+    f.tipo,
+    f.data,
+    f.responsavel,
+    f.resumo,
+    f.proximaAcao ?? '',
+    f.dataProximaAcao ?? '',
+    f.arquivo ?? '',
+  ].join('|');
+}
+
+function mesclarMudancas(remotas: MudancaEtapa[], locais: MudancaEtapa[]): MudancaEtapa[] {
+  const vistos = new Set<string>();
+  const merged: MudancaEtapa[] = [];
+
+  for (const item of remotas) {
+    const assinatura = assinaturaMudanca(item);
+    if (!vistos.has(assinatura)) {
+      vistos.add(assinatura);
+      merged.push(item);
+    }
+  }
+  for (const item of locais) {
+    const assinatura = assinaturaMudanca(item);
+    if (!vistos.has(assinatura)) {
+      vistos.add(assinatura);
+      merged.push(item);
+    }
+  }
+  return merged.sort((a, b) => b.data.localeCompare(a.data));
+}
+
+function mesclarFollowUps(remotos: FollowUp[], locais: FollowUp[]): FollowUp[] {
+  const vistos = new Set<string>();
+  const merged: FollowUp[] = [];
+
+  for (const item of remotos) {
+    const assinatura = assinaturaFollowUp(item);
+    if (!vistos.has(assinatura)) {
+      vistos.add(assinatura);
+      merged.push(item);
+    }
+  }
+  for (const item of locais) {
+    const assinatura = assinaturaFollowUp(item);
+    if (!vistos.has(assinatura)) {
+      vistos.add(assinatura);
+      merged.push(item);
+    }
+  }
+  return merged.sort((a, b) => b.data.localeCompare(a.data));
 }
 
 function etapaSegura(v: string | null): EtapaFunil {
@@ -169,10 +237,14 @@ export function OrcamentoDetalhe() {
     ]).then(([p, mudancas, fups]) => {
       if (!cancelado) {
         setPropostaSupa(p);
-        // Se Supabase retornou dados do histórico, usar; senão fallback localStorage
-        const m = mudancas.length > 0 ? mudancas.map(rowParaMudanca) : lsGetMudancas(id);
-        const f = fups.length > 0 ? fups.map(rowParaFollowUp) : lsGetFollowUps(id);
+        const locaisMudancas = lsGetMudancas(id);
+        const locaisFollowUps = lsGetFollowUps(id);
+        // Mescla Supabase + localStorage para evitar "sumir" em cenários de persistência parcial.
+        const m = mesclarMudancas(mudancas.map(rowParaMudanca), locaisMudancas);
+        const f = mesclarFollowUps(fups.map(rowParaFollowUp), locaisFollowUps);
         const pends = lsGetPendencias(id); // Pendências são sempre do localStorage
+        lsSaveMudancas(id, m);
+        lsSaveFollowUps(id, f);
         setLocalMudancas(m);
         setLocalFollowUps(f);
         setLocalPendencias(pends);
@@ -264,12 +336,14 @@ export function OrcamentoDetalhe() {
         data: new Date().toISOString(),
         status: statusMudanca,
       };
+      const tempId = novaMudanca.id;
       setLocalMudancas((prev) => {
         const next = [novaMudanca, ...prev];
         lsSaveMudancas(id, next);
         return next;
       });
-      // Tentar salvar no Supabase também (best-effort)
+      // Salvar no Supabase e, ao ter sucesso, substituir o registro local pelo do banco
+      // (garante que o ID e timestamp usados são os do Supabase, evitando duplicatas no merge)
       propostasRepository.inserirMudancaEtapa({
         proposta_id: id,
         etapa_anterior: etapaAnterior,
@@ -278,6 +352,15 @@ export function OrcamentoDetalhe() {
         observacao: observacao ?? null,
         arquivo: arquivoUrl ?? null,
         status: statusMudanca,
+      }).then((dbRow) => {
+        if (dbRow) {
+          const fromDb = rowParaMudanca(dbRow);
+          setLocalMudancas((prev) => {
+            const next = prev.map((m) => m.id === tempId ? fromDb : m);
+            lsSaveMudancas(id, next);
+            return next;
+          });
+        }
       }).catch(() => {});
     } else {
       atualizarEtapaFunil(id, etapaNova, usuario?.nome ?? 'Paulo Confar', observacao);
@@ -456,7 +539,7 @@ export function OrcamentoDetalhe() {
             <div className="flex items-center gap-2">
               <Calendar size={14} className="text-slate-400 flex-shrink-0" />
               <span className="text-slate-600 text-xs">
-                {new Date(orc.dataProximaAcao + 'T12:00:00').toLocaleDateString('pt-BR')}
+                {formatarData(orc.dataProximaAcao)}
               </span>
             </div>
           )}
@@ -467,7 +550,7 @@ export function OrcamentoDetalhe() {
               <Calendar size={14} className="text-slate-400 flex-shrink-0" />
               <span className="text-slate-600 text-xs">
                 Fechado em{' '}
-                {new Date(orc.dataFechamento + 'T12:00:00').toLocaleDateString('pt-BR')}
+                {formatarData(orc.dataFechamento)}
               </span>
             </div>
           )}
@@ -619,9 +702,7 @@ export function OrcamentoDetalhe() {
                   <div>
                     <p className="text-xs text-slate-400">Data-base</p>
                     <p className="text-sm font-medium text-slate-700">
-                      {orc.dataBase
-                        ? new Date(orc.dataBase + 'T12:00:00').toLocaleDateString('pt-BR')
-                        : '—'}
+                      {formatarData(orc.dataBase)}
                     </p>
                   </div>
                 </div>

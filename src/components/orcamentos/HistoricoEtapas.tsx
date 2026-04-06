@@ -4,6 +4,7 @@ import type { MudancaEtapa } from '../../domain/entities/MudancaEtapa';
 import { ETAPA_LABELS, ETAPA_CORES } from '../../domain/value-objects/EtapaFunil';
 import { abrirArquivo, nomeArquivo } from '../../infrastructure/supabase/storageService';
 import type { PapelUsuario } from '../../domain/value-objects/PapelUsuario';
+import { formatarDataHora } from '../../utils/datas';
 
 const PAPEIS_ADMIN: PapelUsuario[] = ['dono', 'admin', 'gestor'];
 
@@ -13,16 +14,6 @@ interface HistoricoEtapasProps {
   onDeleteMudanca?: (mudancaId: string) => void;
   onAprovarMudanca?: (mudancaId: string) => void;
   papelUsuario?: PapelUsuario;
-}
-
-function formatarData(iso: string): string {
-  return new Date(iso).toLocaleDateString('pt-BR', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
 }
 
 /** Parse arquivo field: supports JSON array or legacy single URL */
@@ -124,7 +115,7 @@ export function HistoricoEtapas({ mudancas, onUpdateMudanca, onDeleteMudanca, on
                   </div>
 
                   <div className="flex items-center gap-2 text-xs text-slate-400 mt-0.5">
-                    <span>{formatarData(m.data)}</span>
+                    <span>{formatarDataHora(m.data)}</span>
                     <span>·</span>
                     <span>{m.responsavel}</span>
                     <span>·</span>
