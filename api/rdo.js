@@ -1,15 +1,18 @@
 // Vercel Serverless: proxy para API do Diário de Obra
-// GET /api/rdo?path=obras
-// GET /api/rdo?path=obras/{id}/relatorios&limite=50&ordem=desc
-// GET /api/rdo?path=obras/{id}/relatorios/{relId}
+import { verificarAuth, setCorsHeaders } from './_auth.js';
 
 const RDO_TOKEN = process.env.RDO_TOKEN;
 const BASE = 'https://apiexterna.diariodeobra.app/v1';
 
 export default async function handler(req, res) {
+  setCorsHeaders(res, 'GET, OPTIONS');
+  if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
+
+  const user = await verificarAuth(req, res);
+  if (!user) return;
 
   if (!RDO_TOKEN) {
     return res.status(500).json({ error: 'RDO_TOKEN not configured' });

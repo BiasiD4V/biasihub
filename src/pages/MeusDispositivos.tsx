@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Trash2, Smartphone, MapPin, Clock } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { 
-  listUserSessions, 
-  revokeDeviceSession, 
+import {
+  listUserSessions,
+  revokeDeviceSession,
   revokeAllDeviceSessions,
-  type DeviceSession 
+  type DeviceSession
 } from '../infrastructure/services/deviceSessionService';
+import { formatarData } from '../utils/calculos';
 
 export function MeusDispositivos() {
   const { usuario } = useAuth();
@@ -46,16 +47,6 @@ export function MeusDispositivos() {
     if (sucesso) {
       setSessoes([]);
     }
-  }
-
-  function formatarData(data: string) {
-    return new Date(data).toLocaleDateString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
   }
 
   return (

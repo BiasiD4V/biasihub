@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../infrastructure/supabase/client';
 import { useAuth } from '../../context/AuthContext';
+import { formatarData } from '../../utils/calculos';
 
 // ── Types ──────────────────────────────────────────────
 interface Mensagem {
@@ -44,16 +45,6 @@ function playNotificationSound() {
 // ── Helpers ────────────────────────────────────────────
 function formatarHora(iso: string) {
   return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-}
-
-function formatarData(iso: string) {
-  const d = new Date(iso);
-  const hoje = new Date();
-  if (d.toDateString() === hoje.toDateString()) return 'Hoje';
-  const ontem = new Date(hoje);
-  ontem.setDate(ontem.getDate() - 1);
-  if (d.toDateString() === ontem.toDateString()) return 'Ontem';
-  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
 }
 
 // ── Component ──────────────────────────────────────────

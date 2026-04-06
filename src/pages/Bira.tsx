@@ -1,1028 +1,14 @@
-import { useEffect, useState, useMemo, useRef } from 'react';
-import {
-  Search, RefreshCw, List, LayoutGrid, XCircle, ExternalLink, Plus,
-  X, ChevronDown, ChevronRight, Send, Zap, BookOpen, Bug, CheckSquare, Star, Package, GitBranch,
-  Clock, Tag, User, AlertCircle, MessageSquare, Calendar, GanttChart,
-} from 'lucide-react';
+import { useEffect, useState, useMemo } from 'react';
+import { RefreshCw } from 'lucide-react';
+import type { JiraIssue, JiraComment, JiraIssueDetail } from '../components/bira/biraTypes';
+import { TRANSITIONS } from '../components/bira/biraTypes';
+import { BiraFiltros } from '../components/bira/BiraFiltros';
+import { BiraTabela } from '../components/bira/BiraTabela';
+import { IssuePanel, CreateIssueModal } from '../components/bira/BiraFormulario';
+import { LoadingSpinner } from '../components/ui/LoadingSpinner';
+import { ErrorAlert } from '../components/ui/ErrorAlert';
+import { fetchAutenticado } from '../utils/fetchAutenticado';
 
-// ── Types ──────────────────────────────────────────────────────────────────────
-interface JiraIssue {
-  key: string;
-  summary: string;
-  status: string;
-  statusCategory: string;
-  issuetype: string;
-  assigneeName: string | null;
-  assigneeAvatar: string | null;
-  priority: string;
-  created: string | null;
-  updated: string | null;
-  duedate: string | null;
-  parentKey: string | null;
-  parentSummary: string | null;
-  labels: string[];
-  webUrl: string;
-}
-
-interface JiraComment {
-  id: string;
-  author: string;
-  authorAvatar: string | null;
-  body: string;
-  created: string;
-}
-
-interface JiraIssueDetail extends JiraIssue {
-  description: string;
-  comments: JiraComment[];
-}
-
-// ── Constants ──────────────────────────────────────────────────────────────────
-const TRANSITIONS: { id: string; name: string }[] = [
-  { id: '11', name: 'Ideia' },
-  { id: '21', name: 'A fazer' },
-  { id: '31', name: 'Em andamento' },
-  { id: '41', name: 'Em análise' },
-  { id: '51', name: 'Concluído' },
-];
-
-const STATUS_CONFIG: Record<string, { cls: string; dot: string }> = {
-  'Ideia':        { cls: 'bg-slate-100 text-slate-600 border border-slate-200',   dot: 'bg-slate-400' },
-  'A fazer':      { cls: 'bg-yellow-100 text-yellow-700 border border-yellow-200', dot: 'bg-yellow-400' },
-  'Em andamento': { cls: 'bg-blue-100 text-blue-700 border border-blue-200',       dot: 'bg-blue-500' },
-  'Em análise':   { cls: 'bg-amber-100 text-amber-700 border border-amber-200',    dot: 'bg-amber-500' },
-  'Concluído':    { cls: 'bg-green-100 text-green-700 border border-green-200',    dot: 'bg-green-500' },
-};
-function statusCls(s: string) { return STATUS_CONFIG[s]?.cls ?? 'bg-slate-100 text-slate-500 border border-slate-200'; }
-function statusDot(s: string) { return STATUS_CONFIG[s]?.dot ?? 'bg-slate-400'; }
-
-const COLUNAS_QUADRO = [
-  { status: 'Ideia',        titulo: 'IDEIA',        cor: 'border-slate-300 bg-slate-50/60',  badge: 'bg-slate-100 text-slate-600' },
-  { status: 'A fazer',      titulo: 'A FAZER',      cor: 'border-yellow-300 bg-yellow-50/60', badge: 'bg-yellow-100 text-yellow-700' },
-  { status: 'Em andamento', titulo: 'EM ANDAMENTO', cor: 'border-blue-300 bg-blue-50/60',     badge: 'bg-blue-100 text-blue-700' },
-  { status: 'Em análise',   titulo: 'EM ANÁLISE',   cor: 'border-amber-300 bg-amber-50/60',   badge: 'bg-amber-100 text-amber-700' },
-  { status: 'Concluído',    titulo: 'CONCLUÍDO',    cor: 'border-green-300 bg-green-50/60',   badge: 'bg-green-100 text-green-700' },
-];
-
-const PRIORITY_CLS: Record<string, string> = {
-  Highest: 'text-red-600', High: 'text-orange-500', Medium: 'text-yellow-500',
-  Low: 'text-blue-400', Lowest: 'text-slate-400',
-};
-const PRIORITY_ICON: Record<string, string> = {
-  Highest: '↑↑', High: '↑', Medium: '–', Low: '↓', Lowest: '↓↓',
-};
-
-const ISSUE_TYPE_ICON: Record<string, React.ElementType> = {
-  Epic: Zap, Feature: Star, Tarefa: CheckSquare, História: BookOpen,
-  Bug: Bug, Recurso: Package, Subtask: GitBranch,
-};
-
-const ISSUE_TYPES_CREATE = [
-  { id: '10003', name: 'Feature', icon: Star },
-  { id: '10004', name: 'Tarefa', icon: CheckSquare },
-  { id: '10005', name: 'História', icon: BookOpen },
-  { id: '10006', name: 'Bug', icon: Bug },
-  { id: '10007', name: 'Recurso', icon: Package },
-];
-
-const PRIORITIES_CREATE = [
-  { id: '1', name: 'Highest' }, { id: '2', name: 'High' },
-  { id: '3', name: 'Medium' }, { id: '4', name: 'Low' }, { id: '5', name: 'Lowest' },
-];
-
-// ── Helpers ────────────────────────────────────────────────────────────────────
-function formatDate(iso: string | null) {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: '2-digit' });
-}
-function formatDateTime(iso: string | null) {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' });
-}
-function timeAgo(iso: string | null) {
-  if (!iso) return '';
-  const diff = Date.now() - new Date(iso).getTime();
-  const m = Math.floor(diff / 60000);
-  if (m < 1) return 'agora';
-  if (m < 60) return `há ${m}min`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `há ${h}h`;
-  return `há ${Math.floor(h / 24)}d`;
-}
-
-// ── Status Dropdown ────────────────────────────────────────────────────────────
-function StatusDropdown({ current, onSelect, disabled }: {
-  current: string; onSelect: (t: typeof TRANSITIONS[0]) => void; disabled?: boolean;
-}) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    function handler(e: MouseEvent) { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); }
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
-  return (
-    <div ref={ref} className="relative inline-block">
-      <button
-        disabled={disabled}
-        onClick={() => setOpen(o => !o)}
-        className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full cursor-pointer transition-opacity ${statusCls(current)} ${disabled ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-80'}`}
-      >
-        <span className={`w-1.5 h-1.5 rounded-full ${statusDot(current)}`} />
-        {current}
-        <ChevronDown size={10} />
-      </button>
-      {open && (
-        <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 w-44 py-1 overflow-hidden">
-          {TRANSITIONS.map(t => (
-            <button
-              key={t.id}
-              onClick={() => { onSelect(t); setOpen(false); }}
-              className={`w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-slate-50 transition-colors ${t.name === current ? 'font-semibold' : ''}`}
-            >
-              <span className={`w-2 h-2 rounded-full flex-shrink-0 ${statusDot(t.name)}`} />
-              {t.name}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── Issue Detail Panel ─────────────────────────────────────────────────────────
-function IssuePanel({
-  issue, detail, loadingDetail, onClose, onStatusChange, onCommentAdded,
-}: {
-  issue: JiraIssue;
-  detail: JiraIssueDetail | null;
-  loadingDetail: boolean;
-  onClose: () => void;
-  onStatusChange: (key: string, t: typeof TRANSITIONS[0]) => void;
-  onCommentAdded: (key: string, comment: JiraComment) => void;
-}) {
-  const [changingStatus, setChangingStatus] = useState(false);
-  const [comment, setComment] = useState('');
-  const [sendingComment, setSendingComment] = useState(false);
-  const TypeIcon = ISSUE_TYPE_ICON[issue.issuetype] || CheckSquare;
-
-  async function handleStatusChange(t: typeof TRANSITIONS[0]) {
-    setChangingStatus(true);
-    try {
-      const res = await fetch('/api/jira-transition', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key: issue.key, transitionId: t.id }),
-      });
-      if (res.ok) onStatusChange(issue.key, t);
-    } catch {}
-    setChangingStatus(false);
-  }
-
-  async function handleSendComment() {
-    if (!comment.trim()) return;
-    setSendingComment(true);
-    try {
-      const res = await fetch('/api/jira-comment', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key: issue.key, body: comment.trim() }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        onCommentAdded(issue.key, {
-          id: data.id,
-          author: 'Você',
-          authorAvatar: null,
-          body: comment.trim(),
-          created: data.created || new Date().toISOString(),
-        });
-        setComment('');
-      }
-    } catch {}
-    setSendingComment(false);
-  }
-
-  return (
-    <div className="fixed inset-0 z-40 flex">
-      {/* Backdrop */}
-      <div className="flex-1 bg-black/20" onClick={onClose} />
-      {/* Panel */}
-      <div className="w-full max-w-2xl bg-white shadow-2xl flex flex-col h-full overflow-hidden border-l border-slate-200">
-        {/* Panel Header */}
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 flex-shrink-0">
-          <div className="flex items-center gap-2">
-            <TypeIcon size={15} className="text-slate-400" />
-            <span className="text-sm font-mono text-blue-600 font-bold">{issue.key}</span>
-            {issue.parentKey && (
-              <span className="text-xs text-slate-400">· {issue.parentKey}</span>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            <a href={issue.webUrl} target="_blank" rel="noopener noreferrer"
-              className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-blue-600 px-2 py-1 rounded-lg hover:bg-blue-50 transition-colors">
-              <ExternalLink size={13} />
-              Abrir no Jira
-            </a>
-            <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600">
-              <X size={16} />
-            </button>
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-y-auto">
-          <div className="px-5 pt-4 pb-6 space-y-5">
-            {/* Summary */}
-            <h2 className="text-lg font-bold text-slate-800 leading-snug">{issue.summary}</h2>
-
-            {/* Status + Priority */}
-            <div className="flex items-center gap-3 flex-wrap">
-              <StatusDropdown current={issue.status} onSelect={handleStatusChange} disabled={changingStatus} />
-              <span className={`text-xs font-bold ${PRIORITY_CLS[issue.priority] ?? 'text-slate-400'}`}>
-                {PRIORITY_ICON[issue.priority] ?? '–'} {issue.priority}
-              </span>
-            </div>
-
-            {/* Metadata */}
-            <div className="grid grid-cols-2 gap-3 bg-slate-50 rounded-xl p-4 text-xs">
-              <div>
-                <p className="text-slate-400 mb-1 flex items-center gap-1"><User size={10} /> Responsável</p>
-                {issue.assigneeName ? (
-                  <div className="flex items-center gap-1.5">
-                    {issue.assigneeAvatar
-                      ? <img src={issue.assigneeAvatar} alt="" className="w-5 h-5 rounded-full" />
-                      : <div className="w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center"><span className="text-[9px] text-white font-bold">{issue.assigneeName.charAt(0)}</span></div>
-                    }
-                    <span className="font-medium text-slate-700">{issue.assigneeName}</span>
-                  </div>
-                ) : <span className="text-slate-400">—</span>}
-              </div>
-              <div>
-                <p className="text-slate-400 mb-1 flex items-center gap-1"><Tag size={10} /> Tipo</p>
-                <span className="font-medium text-slate-700">{issue.issuetype}</span>
-              </div>
-              <div>
-                <p className="text-slate-400 mb-1 flex items-center gap-1"><Clock size={10} /> Criado</p>
-                <span className="text-slate-600">{formatDateTime(issue.created)}</span>
-              </div>
-              <div>
-                <p className="text-slate-400 mb-1 flex items-center gap-1"><Clock size={10} /> Atualizado</p>
-                <span className="text-slate-600">{timeAgo(issue.updated)}</span>
-              </div>
-              {issue.duedate && (
-                <div>
-                  <p className="text-slate-400 mb-1 flex items-center gap-1"><AlertCircle size={10} /> Prazo</p>
-                  <span className="text-slate-600">{formatDate(issue.duedate)}</span>
-                </div>
-              )}
-              {issue.parentSummary && (
-                <div className="col-span-2">
-                  <p className="text-slate-400 mb-1">Epic / Pai</p>
-                  <span className="font-mono text-blue-600 font-bold text-[10px]">{issue.parentKey}</span>
-                  <span className="text-slate-600 ml-1">{issue.parentSummary}</span>
-                </div>
-              )}
-            </div>
-
-            {/* Description */}
-            <div>
-              <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Descrição</h3>
-              {loadingDetail ? (
-                <div className="h-16 bg-slate-100 rounded-lg animate-pulse" />
-              ) : detail?.description ? (
-                <pre className="text-sm text-slate-700 whitespace-pre-wrap font-sans leading-relaxed bg-slate-50 rounded-xl p-3">
-                  {detail.description}
-                </pre>
-              ) : (
-                <p className="text-sm text-slate-400 italic">Sem descrição</p>
-              )}
-            </div>
-
-            {/* Comments */}
-            <div>
-              <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
-                <MessageSquare size={11} />
-                Comentários {detail && `(${detail.comments.length})`}
-              </h3>
-
-              {loadingDetail ? (
-                <div className="space-y-3">
-                  {[1,2].map(i => <div key={i} className="h-14 bg-slate-100 rounded-lg animate-pulse" />)}
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {(detail?.comments || []).map(c => (
-                    <div key={c.id} className="flex gap-2.5">
-                      <div className="flex-shrink-0 mt-0.5">
-                        {c.authorAvatar
-                          ? <img src={c.authorAvatar} alt="" className="w-7 h-7 rounded-full" />
-                          : <div className="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center"><span className="text-[10px] text-white font-bold">{c.author.charAt(0)}</span></div>
-                        }
-                      </div>
-                      <div className="flex-1 bg-slate-50 rounded-xl px-3 py-2">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-xs font-semibold text-slate-700">{c.author}</span>
-                          <span className="text-[10px] text-slate-400">{timeAgo(c.created)}</span>
-                        </div>
-                        <p className="text-sm text-slate-700 whitespace-pre-wrap">{c.body}</p>
-                      </div>
-                    </div>
-                  ))}
-
-                  {/* Add comment */}
-                  <div className="flex gap-2.5 mt-2">
-                    <div className="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0 mt-0.5">
-                      <span className="text-[10px] text-white font-bold">V</span>
-                    </div>
-                    <div className="flex-1">
-                      <textarea
-                        value={comment}
-                        onChange={e => setComment(e.target.value)}
-                        placeholder="Adicionar comentário..."
-                        rows={2}
-                        className="w-full text-sm border border-slate-200 rounded-xl px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-slate-400"
-                        onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleSendComment(); }}
-                      />
-                      {comment.trim() && (
-                        <div className="flex justify-end mt-1.5">
-                          <button
-                            onClick={handleSendComment}
-                            disabled={sendingComment}
-                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-lg transition-colors"
-                          >
-                            <Send size={11} />
-                            {sendingComment ? 'Enviando...' : 'Comentar'}
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Create Issue Modal ─────────────────────────────────────────────────────────
-function CreateIssueModal({ onClose, onCreate }: {
-  onClose: () => void;
-  onCreate: (key: string) => void;
-}) {
-  const [summary, setSummary] = useState('');
-  const [typeId, setTypeId] = useState('10004');
-  const [priorityId, setPriorityId] = useState('3');
-  const [parentKey, setParentKey] = useState('');
-  const [description, setDescription] = useState('');
-  const [creating, setCreating] = useState(false);
-  const [error, setError] = useState('');
-
-  async function handleCreate() {
-    if (!summary.trim()) { setError('Resumo é obrigatório'); return; }
-    setCreating(true);
-    setError('');
-    try {
-      const res = await fetch('/api/jira-create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          summary: summary.trim(),
-          issuetypeId: typeId,
-          priorityId,
-          parentKey: parentKey.trim() || undefined,
-          description: description.trim() || undefined,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) { setError(data.error || 'Erro ao criar'); setCreating(false); return; }
-      onCreate(data.key);
-    } catch {
-      setError('Erro de conexão');
-    }
-    setCreating(false);
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
-          <h3 className="font-semibold text-slate-800 flex items-center gap-2"><Plus size={16} className="text-blue-600" /> Criar Issue</h3>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600"><X size={16} /></button>
-        </div>
-
-        <div className="p-5 space-y-4">
-          {/* Type */}
-          <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1.5">Tipo</label>
-            <div className="flex flex-wrap gap-2">
-              {ISSUE_TYPES_CREATE.map(t => {
-                const Icon = t.icon;
-                return (
-                  <button
-                    key={t.id}
-                    onClick={() => setTypeId(t.id)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all ${
-                      typeId === t.id ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-600 hover:border-slate-300'
-                    }`}
-                  >
-                    <Icon size={13} /> {t.name}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Summary */}
-          <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1.5">Resumo *</label>
-            <input
-              type="text"
-              value={summary}
-              onChange={e => setSummary(e.target.value)}
-              placeholder="Descreva a tarefa em uma linha..."
-              className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              autoFocus
-            />
-          </div>
-
-          {/* Description */}
-          <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1.5">Descrição</label>
-            <textarea
-              value={description}
-              onChange={e => setDescription(e.target.value)}
-              placeholder="Detalhes adicionais..."
-              rows={3}
-              className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
-
-          {/* Priority + Parent */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-slate-500 mb-1.5">Prioridade</label>
-              <select
-                value={priorityId}
-                onChange={e => setPriorityId(e.target.value)}
-                className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                {PRIORITIES_CREATE.map(p => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-500 mb-1.5">Epic / Pai (opcional)</label>
-              <input
-                type="text"
-                value={parentKey}
-                onChange={e => setParentKey(e.target.value.toUpperCase())}
-                placeholder="ORC-59"
-                className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
-              />
-            </div>
-          </div>
-
-          {error && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
-        </div>
-
-        <div className="flex items-center justify-end gap-3 px-5 py-4 border-t border-slate-100">
-          <button onClick={onClose} className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">Cancelar</button>
-          <button
-            onClick={handleCreate}
-            disabled={creating || !summary.trim()}
-            className="px-5 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors flex items-center gap-2"
-          >
-            {creating ? <RefreshCw size={13} className="animate-spin" /> : <Plus size={13} />}
-            {creating ? 'Criando...' : 'Criar'}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Lista Hierárquica (pai → filho → subtask, 3 níveis) ───────────────────────
-function ListaHierarquica({ issues, onOpenPanel, onStatusChange }: {
-  issues: JiraIssue[];
-  onOpenPanel: (i: JiraIssue) => void;
-  onStatusChange: (key: string, t: typeof TRANSITIONS[0]) => void;
-}) {
-  const [expanded, setExpanded] = useState<Set<string>>(() => new Set(issues.filter(i => !i.parentKey).map(i => i.key)));
-
-  // Build lookup & child map
-  const issueMap = useMemo(() => {
-    const m: Record<string, JiraIssue> = {};
-    issues.forEach(i => { m[i.key] = i; });
-    return m;
-  }, [issues]);
-
-  const childMap = useMemo(() => {
-    const map: Record<string, JiraIssue[]> = {};
-    issues.forEach(i => {
-      if (i.parentKey) {
-        if (!map[i.parentKey]) map[i.parentKey] = [];
-        map[i.parentKey].push(i);
-      }
-    });
-    return map;
-  }, [issues]);
-
-  // Find true roots: issues whose full ancestor chain leads to no parentKey
-  // An issue is a root if it has no parentKey, OR its parentKey isn't in our list AND its grandparent isn't either
-  const roots = useMemo(() => {
-    function findRoot(key: string, visited: Set<string>): string | null {
-      const issue = issueMap[key];
-      if (!issue) return null;
-      if (!issue.parentKey) return key;
-      if (visited.has(issue.parentKey)) return key; // circular
-      if (!issueMap[issue.parentKey]) return key; // parent not in list = treat as root
-      visited.add(issue.parentKey);
-      return findRoot(issue.parentKey, visited);
-    }
-    const rootKeys = new Set<string>();
-    issues.forEach(i => {
-      const r = findRoot(i.key, new Set());
-      if (r) rootKeys.add(r);
-    });
-    return issues.filter(i => rootKeys.has(i.key) && !i.parentKey)
-      .concat(issues.filter(i => rootKeys.has(i.key) && i.parentKey && !issueMap[i.parentKey]));
-  }, [issues, issueMap]);
-
-  function toggle(key: string) {
-    setExpanded(prev => {
-      const s = new Set(prev);
-      s.has(key) ? s.delete(key) : s.add(key);
-      return s;
-    });
-  }
-
-  const DEPTH_COLORS = ['text-violet-600', 'text-blue-600', 'text-cyan-600', 'text-slate-500'];
-  const DEPTH_BG = ['', 'bg-blue-50/20', 'bg-violet-50/20', 'bg-slate-50/20'];
-  const DEPTH_BORDER = ['border-l-violet-400', 'border-l-blue-400', 'border-l-cyan-400', 'border-l-slate-300'];
-
-  function IssueRow({ issue, depth }: { issue: JiraIssue; depth: number }) {
-    const children = childMap[issue.key] || [];
-    const hasChildren = children.length > 0;
-    const isOpen = expanded.has(issue.key);
-    const TypeIcon = ISSUE_TYPE_ICON[issue.issuetype] || CheckSquare;
-    const isConcluido = issue.status === 'Concluído';
-    const depthColor = DEPTH_COLORS[Math.min(depth, DEPTH_COLORS.length - 1)];
-    const depthBg = DEPTH_BG[Math.min(depth, DEPTH_BG.length - 1)];
-
-    return (
-      <>
-        <tr onClick={() => onOpenPanel(issue)}
-          className={`hover:bg-blue-50/40 transition-colors cursor-pointer group border-b border-slate-100 ${depthBg}`}>
-          <td className="px-4 py-2.5">
-            <div className="flex items-center gap-1" style={{ paddingLeft: depth * 28 }}>
-              {depth > 0 && (
-                <span className={`absolute left-0 w-0.5 top-0 bottom-0 ${DEPTH_BORDER[Math.min(depth, DEPTH_BORDER.length - 1)]}`} />
-              )}
-              {hasChildren ? (
-                <button onClick={e => { e.stopPropagation(); toggle(issue.key); }}
-                  className="p-0.5 rounded hover:bg-slate-200 text-slate-400 transition-all flex-shrink-0">
-                  <ChevronRight size={14} className={`transition-transform duration-200 ${isOpen ? 'rotate-90' : ''}`} />
-                </button>
-              ) : (
-                <span className="w-5 flex-shrink-0" />
-              )}
-              <TypeIcon size={13} className={`flex-shrink-0 ${depth === 0 ? 'text-violet-500' : depth === 1 ? 'text-blue-400' : 'text-slate-400'}`} />
-              <span className={`font-mono text-[11px] font-bold ${depthColor}`}>{issue.key}</span>
-              {hasChildren && (
-                <span className="text-[9px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-full font-medium ml-1">
-                  {children.length}
-                </span>
-              )}
-            </div>
-          </td>
-          <td className="px-4 py-2.5 max-w-md">
-            <span className={`font-medium text-[13px] leading-snug ${isConcluido ? 'line-through text-slate-400' : depth === 0 ? 'text-slate-900 font-semibold' : 'text-slate-700'}`}>
-              {issue.summary}
-            </span>
-          </td>
-          <td className="px-4 py-2.5">
-            {issue.assigneeName ? (
-              <div className="flex items-center gap-1.5">
-                {issue.assigneeAvatar
-                  ? <img src={issue.assigneeAvatar} alt="" className="w-5 h-5 rounded-full flex-shrink-0" />
-                  : <div className="w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0"><span className="text-[9px] text-white font-bold">{issue.assigneeName.charAt(0)}</span></div>
-                }
-                <span className="text-xs text-slate-500 truncate max-w-[90px]">{issue.assigneeName.split(' ')[0]}</span>
-              </div>
-            ) : <span className="text-xs text-slate-300">—</span>}
-          </td>
-          <td className="px-4 py-2.5">
-            <span className={`text-xs font-bold ${PRIORITY_CLS[issue.priority] ?? 'text-slate-400'}`}>
-              {PRIORITY_ICON[issue.priority] ?? '–'}
-            </span>
-          </td>
-          <td className="px-4 py-2.5" onClick={e => e.stopPropagation()}>
-            <StatusDropdown current={issue.status} onSelect={t => onStatusChange(issue.key, t)} />
-          </td>
-          <td className="px-4 py-2.5 text-xs text-slate-400">{formatDate(issue.created)}</td>
-          <td className="px-4 py-2.5 text-xs text-slate-400">{formatDate(issue.updated)}</td>
-          <td className="px-4 py-2.5">
-            <a href={issue.webUrl} target="_blank" rel="noopener noreferrer"
-              onClick={e => e.stopPropagation()}
-              className="p-1.5 rounded text-slate-300 hover:text-blue-500 opacity-0 group-hover:opacity-100 transition-all inline-flex">
-              <ExternalLink size={12} />
-            </a>
-          </td>
-        </tr>
-        {hasChildren && isOpen && children.map(child => (
-          <IssueRow key={child.key} issue={child} depth={depth + 1} />
-        ))}
-      </>
-    );
-  }
-
-  return (
-    <div className="p-4">
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm min-w-[960px]">
-            <thead>
-              <tr className="bg-slate-50 border-b border-slate-100">
-                <th className="text-left px-4 py-3 w-52 text-xs font-semibold text-slate-400 uppercase tracking-wide">Ticket</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wide">Resumo</th>
-                <th className="text-left px-4 py-3 w-36 text-xs font-semibold text-slate-400 uppercase tracking-wide">Responsável</th>
-                <th className="text-left px-4 py-3 w-20 text-xs font-semibold text-slate-400 uppercase tracking-wide">Prior.</th>
-                <th className="text-left px-4 py-3 w-36 text-xs font-semibold text-slate-400 uppercase tracking-wide">Status</th>
-                <th className="text-left px-4 py-3 w-24 text-xs font-semibold text-slate-400 uppercase tracking-wide">Criado</th>
-                <th className="text-left px-4 py-3 w-28 text-xs font-semibold text-slate-400 uppercase tracking-wide">Atualizado</th>
-                <th className="w-10" />
-              </tr>
-            </thead>
-            <tbody>
-              {roots.map(p => <IssueRow key={p.key} issue={p} depth={0} />)}
-              {issues.length === 0 && (
-                <tr><td colSpan={8} className="px-4 py-16 text-center text-slate-400 text-sm">Nenhum issue encontrado</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Calendário (com drag & drop) ───────────────────────────────────────────────
-function CalendarioView({ issues, onOpenPanel, onDuedateChange }: {
-  issues: JiraIssue[];
-  onOpenPanel: (i: JiraIssue) => void;
-  onDuedateChange: (key: string, newDate: string | null) => void;
-}) {
-  const [current, setCurrent] = useState(() => { const d = new Date(); return { year: d.getFullYear(), month: d.getMonth() }; });
-  const [dragOverDay, setDragOverDay] = useState<number | null>(null);
-  const [dragOverSidebar, setDragOverSidebar] = useState(false);
-
-  const daysInMonth = new Date(current.year, current.month + 1, 0).getDate();
-  const firstDayOfWeek = new Date(current.year, current.month, 1).getDay();
-  const startOffset = firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1;
-  const monthName = new Date(current.year, current.month).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
-
-  const issuesByDay = useMemo(() => {
-    const map: Record<number, JiraIssue[]> = {};
-    issues.forEach(i => {
-      if (!i.duedate) return;
-      const d = new Date(i.duedate);
-      if (d.getFullYear() === current.year && d.getMonth() === current.month) {
-        const day = d.getDate();
-        if (!map[day]) map[day] = [];
-        map[day].push(i);
-      }
-    });
-    return map;
-  }, [issues, current]);
-
-  const unscheduled = useMemo(() => issues.filter(i => !i.duedate && i.status !== 'Concluído'), [issues]);
-
-  function prev() { setCurrent(c => c.month === 0 ? { year: c.year - 1, month: 11 } : { year: c.year, month: c.month - 1 }); }
-  function next() { setCurrent(c => c.month === 11 ? { year: c.year + 1, month: 0 } : { year: c.year, month: c.month + 1 }); }
-  function goToday() { const d = new Date(); setCurrent({ year: d.getFullYear(), month: d.getMonth() }); }
-
-  const today = new Date();
-  const isCurrentMonth = today.getFullYear() === current.year && today.getMonth() === current.month;
-  const todayDay = today.getDate();
-
-  const cells: (number | null)[] = [];
-  for (let i = 0; i < startOffset; i++) cells.push(null);
-  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
-  while (cells.length % 7 !== 0) cells.push(null);
-
-  function handleDropOnDay(day: number, e: React.DragEvent) {
-    e.preventDefault();
-    setDragOverDay(null);
-    const issueKey = e.dataTransfer.getData('text/plain');
-    if (!issueKey) return;
-    const pad = (n: number) => String(n).padStart(2, '0');
-    const newDate = `${current.year}-${pad(current.month + 1)}-${pad(day)}`;
-    onDuedateChange(issueKey, newDate);
-  }
-
-  function handleDropOnSidebar(e: React.DragEvent) {
-    e.preventDefault();
-    setDragOverSidebar(false);
-    const issueKey = e.dataTransfer.getData('text/plain');
-    if (!issueKey) return;
-    onDuedateChange(issueKey, null);
-  }
-
-  return (
-    <div className="p-4 flex gap-4">
-      <div className="flex-1">
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100">
-            <button onClick={goToday} className="text-xs font-medium text-slate-500 hover:bg-slate-100 px-3 py-1.5 rounded-lg transition-colors">Hoje</button>
-            <div className="flex items-center gap-3">
-              <button onClick={prev} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors">&lt;</button>
-              <span className="text-sm font-semibold text-slate-700 capitalize min-w-[140px] text-center">{monthName}</span>
-              <button onClick={next} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors">&gt;</button>
-            </div>
-            <span className="text-xs text-slate-400">Arraste para mover</span>
-          </div>
-
-          <div className="grid grid-cols-7 border-b border-slate-100">
-            {['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'].map(d => (
-              <div key={d} className="text-center text-[10px] font-semibold text-slate-400 uppercase tracking-wider py-2">{d}</div>
-            ))}
-          </div>
-
-          <div className="grid grid-cols-7">
-            {cells.map((day, idx) => {
-              const dayIssues = day ? (issuesByDay[day] || []) : [];
-              const isToday = isCurrentMonth && day === todayDay;
-              const isDragTarget = day === dragOverDay;
-              return (
-                <div key={idx}
-                  className={`min-h-[100px] border-b border-r border-slate-100 p-1.5 transition-colors duration-150
-                    ${day ? 'bg-white' : 'bg-slate-50/50'}
-                    ${isToday ? 'bg-blue-50/50' : ''}
-                    ${isDragTarget ? 'bg-blue-100 ring-2 ring-inset ring-blue-400' : ''}`}
-                  onDragOver={e => { if (day) { e.preventDefault(); setDragOverDay(day); } }}
-                  onDragLeave={() => setDragOverDay(null)}
-                  onDrop={e => { if (day) handleDropOnDay(day, e); }}
-                >
-                  {day && (
-                    <>
-                      <span className={`text-xs font-medium inline-flex items-center justify-center ${isToday ? 'bg-blue-600 text-white w-6 h-6 rounded-full' : 'text-slate-500'}`}>
-                        {day}
-                      </span>
-                      <div className="mt-1 space-y-0.5">
-                        {dayIssues.slice(0, 3).map(i => (
-                          <div key={i.key}
-                            draggable
-                            onDragStart={e => {
-                              e.dataTransfer.setData('text/plain', i.key);
-                              e.dataTransfer.effectAllowed = 'move';
-                              (e.currentTarget as HTMLElement).style.opacity = '0.4';
-                            }}
-                            onDragEnd={e => { (e.currentTarget as HTMLElement).style.opacity = '1'; }}
-                            onClick={ev => { ev.stopPropagation(); onOpenPanel(i); }}
-                            className={`w-full text-left text-[10px] px-1.5 py-0.5 rounded truncate font-medium transition-colors cursor-grab active:cursor-grabbing ${statusCls(i.status)} hover:opacity-80`}>
-                            {i.summary}
-                          </div>
-                        ))}
-                        {dayIssues.length > 3 && (
-                          <span className="text-[9px] text-slate-400 px-1.5">+{dayIssues.length - 3} mais</span>
-                        )}
-                      </div>
-                    </>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      {/* Sidebar: unscheduled — also a drop zone to remove duedate */}
-      <div className="w-72 flex-shrink-0">
-        <div className={`bg-white rounded-xl border shadow-sm p-4 transition-all duration-150
-          ${dragOverSidebar ? 'border-amber-400 ring-2 ring-amber-200 bg-amber-50/30' : 'border-slate-200'}`}
-          onDragOver={e => { e.preventDefault(); setDragOverSidebar(true); }}
-          onDragLeave={() => setDragOverSidebar(false)}
-          onDrop={handleDropOnSidebar}
-        >
-          <h3 className="text-sm font-semibold text-slate-700 mb-1">Trabalho não agendado</h3>
-          <p className="text-[10px] text-slate-400 mb-3">{dragOverSidebar ? 'Solte para remover data' : 'Arraste para o calendário'}</p>
-          <div className="space-y-2 max-h-[calc(100vh-280px)] overflow-y-auto">
-            {unscheduled.map(i => (
-              <div key={i.key}
-                draggable
-                onDragStart={e => {
-                  e.dataTransfer.setData('text/plain', i.key);
-                  e.dataTransfer.effectAllowed = 'move';
-                  (e.currentTarget as HTMLElement).style.opacity = '0.4';
-                }}
-                onDragEnd={e => { (e.currentTarget as HTMLElement).style.opacity = '1'; }}
-                onClick={() => onOpenPanel(i)}
-                className="w-full text-left p-2.5 rounded-lg border border-slate-100 hover:border-blue-200 hover:bg-blue-50/30 transition-all group cursor-grab active:cursor-grabbing">
-                <p className="text-xs font-medium text-slate-700 leading-snug line-clamp-2 group-hover:text-blue-700">{i.summary}</p>
-                <div className="flex items-center gap-2 mt-1.5">
-                  <span className="font-mono text-[10px] text-blue-600 font-bold">{i.key}</span>
-                  <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full ${statusCls(i.status)}`}>{i.status}</span>
-                  <span className={`text-[10px] font-bold ${PRIORITY_CLS[i.priority] ?? 'text-slate-400'}`}>{PRIORITY_ICON[i.priority]}</span>
-                  {i.assigneeAvatar && <img src={i.assigneeAvatar} alt="" className="w-4 h-4 rounded-full ml-auto" />}
-                </div>
-              </div>
-            ))}
-            {unscheduled.length === 0 && (
-              <p className="text-xs text-slate-400 text-center py-4">Todos os issues têm data ✓</p>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Cronograma (Timeline / Gantt) ──────────────────────────────────────────────
-function CronogramaView({ issues, onOpenPanel }: {
-  issues: JiraIssue[];
-  onOpenPanel: (i: JiraIssue) => void;
-}) {
-  const [escala, setEscala] = useState<'semanas' | 'meses' | 'trimestres'>('meses');
-
-  // Build hierarchy for timeline
-  const parentIssues = issues.filter(i => !i.parentKey);
-  const childMap = useMemo(() => {
-    const map: Record<string, JiraIssue[]> = {};
-    issues.forEach(i => {
-      if (i.parentKey) {
-        if (!map[i.parentKey]) map[i.parentKey] = [];
-        map[i.parentKey].push(i);
-      }
-    });
-    return map;
-  }, [issues]);
-
-  const parentKeys = new Set(parentIssues.map(p => p.key));
-  const orphans = issues.filter(i => i.parentKey && !parentKeys.has(i.parentKey));
-
-  // Determine timeline range
-  const allDates = issues.flatMap(i => [i.created, i.duedate, i.updated].filter(Boolean) as string[]).map(d => new Date(d).getTime());
-  const minTime = allDates.length > 0 ? Math.min(...allDates) : Date.now();
-  const maxTime = allDates.length > 0 ? Math.max(...allDates, Date.now() + 90 * 86400000) : Date.now() + 180 * 86400000;
-
-  const timelineStart = new Date(minTime);
-  timelineStart.setDate(1); // start of month
-  const timelineEnd = new Date(maxTime);
-  timelineEnd.setMonth(timelineEnd.getMonth() + 1, 0); // end of month
-
-  const totalDays = Math.max(1, Math.ceil((timelineEnd.getTime() - timelineStart.getTime()) / 86400000));
-
-  // Generate month headers
-  const months = useMemo(() => {
-    const result: { label: string; startPx: number; widthPx: number }[] = [];
-    const d = new Date(timelineStart);
-    while (d <= timelineEnd) {
-      const monthStart = new Date(d);
-      const nextMonth = new Date(d.getFullYear(), d.getMonth() + 1, 1);
-      const monthEnd = new Date(Math.min(nextMonth.getTime() - 1, timelineEnd.getTime()));
-      const startDay = Math.max(0, Math.ceil((monthStart.getTime() - timelineStart.getTime()) / 86400000));
-      const endDay = Math.ceil((monthEnd.getTime() - timelineStart.getTime()) / 86400000);
-      const px = (startDay / totalDays) * 100;
-      const w = ((endDay - startDay + 1) / totalDays) * 100;
-      result.push({
-        label: monthStart.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }),
-        startPx: px,
-        widthPx: w,
-      });
-      d.setMonth(d.getMonth() + 1);
-      d.setDate(1);
-    }
-    return result;
-  }, [timelineStart, timelineEnd, totalDays]);
-
-  // Today line
-  const todayPx = ((Date.now() - timelineStart.getTime()) / 86400000 / totalDays) * 100;
-
-  function getBar(issue: JiraIssue) {
-    const start = issue.created ? new Date(issue.created) : new Date();
-    const end = issue.duedate ? new Date(issue.duedate) : (issue.updated ? new Date(issue.updated) : new Date(start.getTime() + 7 * 86400000));
-    const startDay = Math.max(0, (start.getTime() - timelineStart.getTime()) / 86400000);
-    const endDay = Math.max(startDay + 1, (end.getTime() - timelineStart.getTime()) / 86400000);
-    const left = (startDay / totalDays) * 100;
-    const width = Math.max(0.5, ((endDay - startDay) / totalDays) * 100);
-    return { left, width };
-  }
-
-  const BAR_COLORS: Record<string, string> = {
-    'Concluído': 'bg-green-400',
-    'Em andamento': 'bg-blue-500',
-    'A fazer': 'bg-yellow-400',
-    'Em análise': 'bg-amber-400',
-    'Ideia': 'bg-slate-300',
-  };
-
-  function TimelineRow({ issue, depth }: { issue: JiraIssue; depth: number }) {
-    const children = childMap[issue.key] || [];
-    const [open, setOpen] = useState(true);
-    const bar = getBar(issue);
-    const barColor = BAR_COLORS[issue.status] || 'bg-purple-400';
-    const isConcluido = issue.status === 'Concluído';
-
-    return (
-      <>
-        <div className="flex border-b border-slate-100 hover:bg-blue-50/30 transition-colors group" style={{ minHeight: 40 }}>
-          {/* Left label */}
-          <div className="w-[340px] flex-shrink-0 flex items-center gap-1 px-3 py-2 border-r border-slate-200 bg-white"
-            style={{ paddingLeft: 12 + depth * 20 }}>
-            {children.length > 0 ? (
-              <button onClick={() => setOpen(o => !o)} className="p-0.5 rounded hover:bg-slate-200 text-slate-400 flex-shrink-0">
-                {open ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-              </button>
-            ) : <span className="w-5 flex-shrink-0" />}
-            <button onClick={() => onOpenPanel(issue)} className="flex items-center gap-1.5 min-w-0 group/link">
-              <span className={`font-mono text-[10px] font-bold flex-shrink-0 ${depth === 0 ? 'text-violet-600' : 'text-blue-600'}`}>{issue.key}</span>
-              <span className={`text-xs truncate max-w-[180px] ${isConcluido ? 'line-through text-slate-400' : 'text-slate-700 group-hover/link:text-blue-600'}`}>
-                {issue.summary}
-              </span>
-            </button>
-            {isConcluido && <span className="text-[9px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full font-bold ml-auto flex-shrink-0">✓</span>}
-          </div>
-
-          {/* Right timeline */}
-          <div className="flex-1 relative">
-            <div
-              onClick={() => onOpenPanel(issue)}
-              className={`absolute top-2 h-5 rounded-full ${barColor} cursor-pointer hover:opacity-80 transition-opacity shadow-sm`}
-              style={{ left: `${bar.left}%`, width: `${bar.width}%`, minWidth: 6 }}
-              title={`${issue.key}: ${issue.summary}`}
-            />
-          </div>
-        </div>
-        {open && children.map(child => (
-          <TimelineRow key={child.key} issue={child} depth={depth + 1} />
-        ))}
-      </>
-    );
-  }
-
-  return (
-    <div className="p-4">
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        {/* Controls */}
-        <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-100">
-          <div className="flex items-center gap-2">
-            {(['semanas', 'meses', 'trimestres'] as const).map(e => (
-              <button key={e} onClick={() => setEscala(e)}
-                className={`text-xs font-medium px-3 py-1.5 rounded-lg transition-colors capitalize ${escala === e ? 'bg-blue-100 text-blue-700' : 'text-slate-400 hover:bg-slate-100'}`}>
-                {e}
-              </button>
-            ))}
-          </div>
-          <span className="text-[10px] text-slate-400">Hoje: {new Date().toLocaleDateString('pt-BR')}</span>
-        </div>
-
-        <div className="overflow-x-auto">
-          <div style={{ minWidth: Math.max(900, totalDays * (escala === 'semanas' ? 8 : escala === 'meses' ? 3 : 1.5)) }}>
-            {/* Month header row */}
-            <div className="flex border-b border-slate-200">
-              <div className="w-[340px] flex-shrink-0 border-r border-slate-200 bg-slate-50 px-3 py-2">
-                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Ticket</span>
-              </div>
-              <div className="flex-1 relative bg-slate-50">
-                <div className="flex h-full">
-                  {months.map((m, i) => (
-                    <div key={i} className="border-r border-slate-200 text-center py-2" style={{ width: `${m.widthPx}%` }}>
-                      <span className="text-[10px] font-semibold text-slate-500 uppercase">{m.label}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Rows */}
-            <div className="relative">
-              {/* Today line */}
-              {todayPx >= 0 && todayPx <= 100 && (
-                <div className="absolute top-0 bottom-0 w-px bg-blue-500 z-10 pointer-events-none"
-                  style={{ left: `calc(340px + (100% - 340px) * ${todayPx / 100})` }}>
-                  <div className="absolute -top-0.5 -left-1 w-2.5 h-2.5 bg-blue-500 rounded-full" />
-                </div>
-              )}
-
-              {parentIssues.map(p => <TimelineRow key={p.key} issue={p} depth={0} />)}
-              {orphans.map(o => <TimelineRow key={o.key} issue={o} depth={0} />)}
-
-              {issues.length === 0 && (
-                <div className="px-4 py-16 text-center text-slate-400 text-sm">Nenhum issue encontrado</div>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Main Component ─────────────────────────────────────────────────────────────
 export function Bira() {
   const [issues, setIssues] = useState<JiraIssue[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1042,16 +28,15 @@ export function Bira() {
   const [filtroTipo, setFiltroTipo] = useState('');
   const [filtroResponsavel, setFiltroResponsavel] = useState('');
   const [aba, setAba] = useState<'quadro' | 'lista' | 'calendario' | 'cronograma'>('quadro');
-  const [sortField, setSortField] = useState<keyof JiraIssue>('created');
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [sortField] = useState<keyof JiraIssue>('created');
+  const [sortDir] = useState<'asc' | 'desc'>('desc');
 
   const [lastSync, setLastSync] = useState<Date | null>(null);
   const [syncing, setSyncing] = useState(false);
 
   useEffect(() => {
     load();
-    // Auto-polling: busca Jira a cada 45s
-    const interval = setInterval(() => { silentLoad(); }, 45_000);
+    const interval = setInterval(() => silentLoad(), 45_000);
     return () => clearInterval(interval);
   }, []);
 
@@ -1059,19 +44,25 @@ export function Bira() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/jira');
-      if (!res.ok) { const d = await res.json().catch(() => ({})); setError(d.error || `Erro ${res.status}`); setLoading(false); return; }
+      const res = await fetchAutenticado('/api/jira');
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        setError(d.error || `Erro ${res.status}`);
+        setLoading(false);
+        return;
+      }
       setIssues(await res.json());
       setLastSync(new Date());
-    } catch { setError('Erro de conexão'); }
+    } catch {
+      setError('Erro de conexão');
+    }
     setLoading(false);
   }
 
-  // Silent background refresh (no loading spinner)
   async function silentLoad() {
     setSyncing(true);
     try {
-      const res = await fetch('/api/jira');
+      const res = await fetchAutenticado('/api/jira');
       if (res.ok) {
         setIssues(await res.json());
         setLastSync(new Date());
@@ -1085,13 +76,16 @@ export function Bira() {
     setPanelDetail(null);
     setLoadingDetail(true);
     try {
-      const res = await fetch(`/api/jira-issue?key=${issue.key}`);
+      const res = await fetchAutenticado(`/api/jira-issue?key=${issue.key}`);
       if (res.ok) setPanelDetail(await res.json());
     } catch {}
     setLoadingDetail(false);
   }
 
-  function closePanel() { setPanelIssue(null); setPanelDetail(null); }
+  function closePanel() {
+    setPanelIssue(null);
+    setPanelDetail(null);
+  }
 
   function handleStatusChange(key: string, t: typeof TRANSITIONS[0]) {
     setIssues(prev => prev.map(i => i.key === key ? { ...i, status: t.name } : i));
@@ -1117,23 +111,30 @@ export function Bira() {
   async function handleCreated(newKey: string) {
     setShowCreate(false);
     await load();
-    // Open the new issue
     const found = issues.find(i => i.key === newKey);
     if (found) openPanel(found);
   }
 
   const allStatuses = useMemo(() => {
-    const s = new Set<string>(); issues.forEach(i => { if (i.status) s.add(i.status); }); return Array.from(s).sort();
+    const s = new Set<string>();
+    issues.forEach(i => { if (i.status) s.add(i.status); });
+    return Array.from(s).sort();
   }, [issues]);
+
   const allTipos = useMemo(() => {
-    const s = new Set<string>(); issues.forEach(i => { if (i.issuetype) s.add(i.issuetype); }); return Array.from(s).sort();
+    const s = new Set<string>();
+    issues.forEach(i => { if (i.issuetype) s.add(i.issuetype); });
+    return Array.from(s).sort();
   }, [issues]);
+
   const responsaveis = useMemo(() => {
-    const s = new Set<string>(); issues.forEach(i => { if (i.assigneeName) s.add(i.assigneeName); }); return Array.from(s).sort();
+    const s = new Set<string>();
+    issues.forEach(i => { if (i.assigneeName) s.add(i.assigneeName); });
+    return Array.from(s).sort();
   }, [issues]);
 
   const filtrados = useMemo(() => {
-    let arr = issues.filter(i => {
+    const arr = issues.filter(i => {
       if (filtroStatus && i.status !== filtroStatus) return false;
       if (filtroTipo && i.issuetype !== filtroTipo) return false;
       if (filtroResponsavel && i.assigneeName !== filtroResponsavel) return false;
@@ -1150,12 +151,6 @@ export function Bira() {
     });
   }, [issues, busca, filtroStatus, filtroTipo, filtroResponsavel, sortField, sortDir]);
 
-  function toggleSort(field: keyof JiraIssue) {
-    if (sortField === field) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
-    else { setSortField(field); setSortDir('asc'); }
-  }
-  void toggleSort; // used in sort headers
-
   const stats = useMemo(() => ({
     total: issues.length,
     ideia: issues.filter(i => i.status === 'Ideia').length,
@@ -1165,245 +160,51 @@ export function Bira() {
     concluido: issues.filter(i => i.status === 'Concluído').length,
   }), [issues]);
 
-  if (loading) return (
-    <div className="flex items-center justify-center min-h-[60vh]">
-      <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600" />
-    </div>
-  );
+  if (loading) return <LoadingSpinner />;
 
   if (error) return (
-    <div className="flex flex-col items-center justify-center min-h-[60vh]">
-      <div className="bg-red-50 border border-red-200 rounded-xl p-6 max-w-md text-center">
-        <p className="text-red-700 font-medium mb-2">Erro ao carregar Jira</p>
-        <p className="text-red-500 text-sm mb-4">{error}</p>
-        <button onClick={load} className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg">Tentar novamente</button>
-      </div>
+    <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+      <ErrorAlert mensagem={error} />
+      <button onClick={load} className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg">
+        <RefreshCw size={13} className="inline mr-1" /> Tentar novamente
+      </button>
     </div>
   );
 
   return (
     <div className="flex flex-col min-h-screen bg-slate-50">
+      <BiraFiltros
+        issues={issues}
+        filtrados={filtrados}
+        busca={busca}
+        setBusca={setBusca}
+        filtroStatus={filtroStatus}
+        setFiltroStatus={setFiltroStatus}
+        filtroTipo={filtroTipo}
+        setFiltroTipo={setFiltroTipo}
+        filtroResponsavel={filtroResponsavel}
+        setFiltroResponsavel={setFiltroResponsavel}
+        aba={aba}
+        setAba={setAba}
+        allStatuses={allStatuses}
+        allTipos={allTipos}
+        responsaveis={responsaveis}
+        stats={stats}
+        lastSync={lastSync}
+        syncing={syncing}
+        onRefresh={load}
+        onShowCreate={() => setShowCreate(true)}
+      />
 
-      {/* ── Header ── */}
-      <div className="bg-white border-b border-slate-200 px-6 py-4 flex-shrink-0">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl font-bold text-slate-800">Time comercial — Tarefas</h1>
-                <span className="text-xs font-bold bg-blue-100 text-blue-700 px-2 py-0.5 rounded font-mono">ORC</span>
-              </div>
-              <p className="text-xs text-slate-400 mt-0.5">biasiengenharia-comercial.atlassian.net</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            {lastSync && (
-              <span className="text-[10px] text-slate-400 flex items-center gap-1">
-                {syncing && <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />}
-                Sync {lastSync.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-              </span>
-            )}
-            <button onClick={load} className={`flex items-center gap-1.5 px-3 py-2 text-xs text-slate-500 hover:bg-slate-100 rounded-lg transition-colors ${syncing ? 'animate-pulse' : ''}`}>
-              <RefreshCw size={13} className={syncing ? 'animate-spin' : ''} /> Atualizar
-            </button>
-            <button
-              onClick={() => setShowCreate(true)}
-              className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
-            >
-              <Plus size={14} /> Criar
-            </button>
-          </div>
-        </div>
+      <BiraTabela
+        filtrados={filtrados}
+        aba={aba}
+        onOpenPanel={openPanel}
+        onStatusChange={handleStatusChange}
+        onDuedateChange={handleDuedateChange}
+        onShowCreate={() => setShowCreate(true)}
+      />
 
-        {/* Stats */}
-        <div className="flex gap-2 flex-wrap mb-4">
-          {[
-            { label: 'Total', value: stats.total, cls: 'bg-slate-50 border-slate-200 text-slate-700' },
-            { label: 'Ideia', value: stats.ideia, cls: 'bg-slate-50 border-slate-200 text-slate-600' },
-            { label: 'A Fazer', value: stats.afazer, cls: 'bg-yellow-50 border-yellow-200 text-yellow-700' },
-            { label: 'Em Andamento', value: stats.andamento, cls: 'bg-blue-50 border-blue-200 text-blue-700' },
-            { label: 'Em Análise', value: stats.analise, cls: 'bg-amber-50 border-amber-200 text-amber-700' },
-            { label: 'Concluído', value: stats.concluido, cls: 'bg-green-50 border-green-200 text-green-700' },
-          ].map(s => (
-            <div key={s.label} className={`border rounded-xl px-3 py-2 ${s.cls}`}>
-              <p className="text-[10px] opacity-70">{s.label}</p>
-              <p className="text-lg font-bold leading-none">{s.value}</p>
-            </div>
-          ))}
-        </div>
-
-        {/* Tabs */}
-        <div className="flex items-center gap-4 border-b border-slate-200 -mb-[17px]">
-          {([['quadro', 'Quadro', LayoutGrid], ['lista', 'Lista', List], ['calendario', 'Calendário', Calendar], ['cronograma', 'Cronograma', GanttChart]] as const).map(([id, label, Icon]) => (
-            <button key={id} onClick={() => setAba(id)}
-              className={`flex items-center gap-1.5 pb-3 text-sm font-medium border-b-2 transition-colors ${aba === id ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>
-              <Icon size={14} />{label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* ── Filter bar ── */}
-      <div className="bg-white border-b border-slate-200 px-6 py-2.5 flex items-center gap-3 flex-wrap flex-shrink-0">
-        <div className="flex items-center gap-1.5 bg-slate-100 rounded-lg px-3 py-1.5 flex-1 min-w-[180px] max-w-sm">
-          <Search size={13} className="text-slate-400 flex-shrink-0" />
-          <input type="text" value={busca} onChange={e => setBusca(e.target.value)}
-            placeholder="Buscar ticket, resumo..." className="bg-transparent text-sm flex-1 outline-none placeholder:text-slate-400" />
-        </div>
-        <select value={filtroStatus} onChange={e => setFiltroStatus(e.target.value)}
-          className="text-sm border border-slate-200 rounded-lg px-3 py-1.5 text-slate-600 bg-white">
-          <option value="">Todos os status</option>
-          {allStatuses.map(s => <option key={s} value={s}>{s}</option>)}
-        </select>
-        <select value={filtroTipo} onChange={e => setFiltroTipo(e.target.value)}
-          className="text-sm border border-slate-200 rounded-lg px-3 py-1.5 text-slate-600 bg-white">
-          <option value="">Todos os tipos</option>
-          {allTipos.map(t => <option key={t} value={t}>{t}</option>)}
-        </select>
-        <select value={filtroResponsavel} onChange={e => setFiltroResponsavel(e.target.value)}
-          className="text-sm border border-slate-200 rounded-lg px-3 py-1.5 text-slate-600 bg-white">
-          <option value="">Todos responsáveis</option>
-          {responsaveis.map(r => <option key={r} value={r}>{r}</option>)}
-        </select>
-        {(busca || filtroStatus || filtroTipo || filtroResponsavel) && (
-          <button onClick={() => { setBusca(''); setFiltroStatus(''); setFiltroTipo(''); setFiltroResponsavel(''); }}
-            className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-600">
-            <XCircle size={13} /> Limpar
-          </button>
-        )}
-        <span className="ml-auto text-xs text-slate-400 flex-shrink-0">{filtrados.length} issues</span>
-      </div>
-
-      {/* ── Content ── */}
-      <div className="flex-1 overflow-auto">
-
-        {/* ── LISTA (hierárquica: pai → filho → subtask) ── */}
-        {aba === 'lista' && (
-          <ListaHierarquica issues={filtrados} onOpenPanel={openPanel} onStatusChange={handleStatusChange} />
-        )}
-
-        {/* ── CALENDÁRIO ── */}
-        {aba === 'calendario' && (
-          <CalendarioView issues={filtrados} onOpenPanel={openPanel} onDuedateChange={handleDuedateChange} />
-        )
-
-        }
-
-        {/* ── CRONOGRAMA (Timeline / Gantt) ── */}
-        {aba === 'cronograma' && (
-          <CronogramaView issues={filtrados} onOpenPanel={openPanel} />
-        )}
-
-        {/* ── QUADRO (drag & drop entre colunas) ── */}
-        {aba === 'quadro' && (
-          <div className="p-4 overflow-x-auto">
-            <div className="flex gap-3 min-w-max pb-4">
-              {COLUNAS_QUADRO.map(col => {
-                const items = filtrados.filter(i => i.status === col.status);
-                const transition = TRANSITIONS.find(t => t.name === col.status);
-                return (
-                  <div key={col.status}
-                    className={`w-64 flex flex-col rounded-xl border-2 transition-all duration-200 ${col.cor}`}
-                    onDragOver={e => { e.preventDefault(); e.currentTarget.classList.add('ring-2', 'ring-blue-400', 'scale-[1.02]'); }}
-                    onDragLeave={e => { e.currentTarget.classList.remove('ring-2', 'ring-blue-400', 'scale-[1.02]'); }}
-                    onDrop={e => {
-                      e.preventDefault();
-                      e.currentTarget.classList.remove('ring-2', 'ring-blue-400', 'scale-[1.02]');
-                      const issueKey = e.dataTransfer.getData('text/plain');
-                      if (issueKey && transition) {
-                        const issue = filtrados.find(i => i.key === issueKey);
-                        if (issue && issue.status !== col.status) {
-                          handleStatusChange(issueKey, transition);
-                          // Fire Jira API transition
-                          fetch('/api/jira-transition', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ key: issueKey, transitionId: transition.id }),
-                          });
-                        }
-                      }
-                    }}
-                  >
-                    <div className="flex items-center gap-2 px-3 py-2.5">
-                      <span className={`w-2 h-2 rounded-full flex-shrink-0 ${statusDot(col.status)}`} />
-                      <h3 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex-1">{col.titulo}</h3>
-                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${col.badge}`}>{items.length}</span>
-                      <button onClick={() => { setShowCreate(true); }}
-                        className="p-0.5 rounded text-slate-300 hover:text-slate-500 transition-colors" title="Criar issue">
-                        <Plus size={13} />
-                      </button>
-                    </div>
-                    <div className="overflow-y-auto px-2 pb-2 space-y-2 max-h-[calc(100vh-280px)]">
-                      {items.map(issue => {
-                        const TypeIcon = ISSUE_TYPE_ICON[issue.issuetype] || CheckSquare;
-                        const isConcluido = issue.status === 'Concluído';
-                        return (
-                          <div key={issue.key}
-                            draggable
-                            onDragStart={e => {
-                              e.dataTransfer.setData('text/plain', issue.key);
-                              e.dataTransfer.effectAllowed = 'move';
-                              (e.currentTarget as HTMLElement).style.opacity = '0.5';
-                              (e.currentTarget as HTMLElement).style.transform = 'rotate(2deg) scale(1.05)';
-                            }}
-                            onDragEnd={e => {
-                              (e.currentTarget as HTMLElement).style.opacity = '1';
-                              (e.currentTarget as HTMLElement).style.transform = '';
-                            }}
-                            onClick={() => openPanel(issue)}
-                            className="bg-white rounded-xl border border-slate-200 p-3 hover:shadow-md hover:border-blue-200 transition-all cursor-grab active:cursor-grabbing group">
-                            <div className="flex items-center justify-between mb-1.5">
-                              <div className="flex items-center gap-1.5">
-                                <TypeIcon size={11} className="text-slate-400 flex-shrink-0" />
-                                <span className="font-mono text-[10px] font-bold text-blue-600">{issue.key}</span>
-                              </div>
-                              <a href={issue.webUrl} target="_blank" rel="noopener noreferrer"
-                                onClick={e => e.stopPropagation()}
-                                className="text-slate-200 hover:text-blue-500 opacity-0 group-hover:opacity-100 transition-all">
-                                <ExternalLink size={11} />
-                              </a>
-                            </div>
-                            <p className={`text-xs font-semibold mb-2 leading-snug line-clamp-2 ${isConcluido ? 'line-through text-slate-400' : 'text-slate-700'}`}>
-                              {issue.summary}
-                            </p>
-                            {issue.parentSummary && (
-                              <p className="text-[10px] text-slate-400 truncate mb-2">{issue.parentSummary}</p>
-                            )}
-                            <div className="flex items-center justify-between">
-                              <span className={`text-[10px] font-bold ${PRIORITY_CLS[issue.priority] ?? 'text-slate-300'}`}>
-                                {PRIORITY_ICON[issue.priority] ?? '–'}
-                              </span>
-                              <div className="flex items-center gap-1.5">
-                                {issue.labels.length > 0 && (
-                                  <span className="text-[9px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-medium">{issue.labels[0]}</span>
-                                )}
-                                {issue.assigneeName && (
-                                  issue.assigneeAvatar
-                                    ? <img src={issue.assigneeAvatar} alt="" className="w-5 h-5 rounded-full" title={issue.assigneeName} />
-                                    : <div className="w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0" title={issue.assigneeName}>
-                                        <span className="text-[9px] text-white font-bold">{issue.assigneeName.charAt(0)}</span>
-                                      </div>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                      {items.length === 0 && (
-                        <div className="text-xs text-slate-400 text-center py-4 border-2 border-dashed border-slate-200 rounded-xl">
-                          Nenhum issue
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* ── Issue Detail Panel ── */}
       {panelIssue && (
         <IssuePanel
           issue={panelIssue}
@@ -1415,9 +216,11 @@ export function Bira() {
         />
       )}
 
-      {/* ── Create Issue Modal ── */}
       {showCreate && (
-        <CreateIssueModal onClose={() => setShowCreate(false)} onCreate={handleCreated} />
+        <CreateIssueModal
+          onClose={() => setShowCreate(false)}
+          onCreate={handleCreated}
+        />
       )}
     </div>
   );

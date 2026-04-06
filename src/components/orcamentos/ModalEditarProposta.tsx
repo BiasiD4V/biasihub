@@ -119,7 +119,23 @@ export function ModalEditarProposta({
         observacao_comercial: form.observacao_comercial || null,
         ultima_interacao: new Date().toISOString().split('T')[0],
       };
+      // Detecta mudança de etapa_funil
+      const etapaAnterior = proposta?.etapa_funil;
+      const etapaNova = form.etapa_funil;
+      const mudouEtapa = etapaAnterior && etapaNova && etapaAnterior !== etapaNova;
       const atualizado = await propostasRepository.atualizar(proposta!.id, dados);
+      // Se mudou etapa, grava no histórico
+      if (mudouEtapa) {
+        await propostasRepository.inserirMudancaEtapa({
+          proposta_id: proposta!.id,
+          etapa_anterior: etapaAnterior,
+          etapa_nova: etapaNova,
+          responsavel: form.responsavel || 'Usuário',
+          observacao: 'Alteração manual via edição geral.',
+          arquivo: null,
+          status: 'aprovado',
+        });
+      }
       setToast(true);
       setTimeout(() => setToast(false), 3000);
       onSalvo(atualizado);

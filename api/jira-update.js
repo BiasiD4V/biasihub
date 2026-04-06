@@ -1,10 +1,13 @@
 // PUT /api/jira-update — atualiza campos de um issue (duedate, summary, etc.)
+import { verificarAuth, setCorsHeaders } from './_auth.js';
+
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'PUT, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  setCorsHeaders(res, 'PUT, OPTIONS');
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'PUT') return res.status(405).json({ error: 'Method not allowed' });
+
+  const user = await verificarAuth(req, res);
+  if (!user) return;
 
   const domain = process.env.JIRA_DOMAIN;
   const email = process.env.JIRA_EMAIL;

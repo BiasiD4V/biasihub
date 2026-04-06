@@ -1,4 +1,4 @@
-import { supabase } from './client'
+import { supabase, sanitizeFilterValue } from './client'
 
 export interface FornecedorSupabase {
   id: string
@@ -34,7 +34,7 @@ export const fornecedoresRepository = {
     const { data, error } = await supabase
       .from('fornecedores')
       .select('*')
-      .or(`nome.ilike.%${termo}%,cnpj.ilike.%${termo}%`)
+      .or(`nome.ilike.%${sanitizeFilterValue(termo)}%,cnpj.ilike.%${sanitizeFilterValue(termo)}%`)
       .eq('ativo', true)
       .order('nome')
       .limit(100)

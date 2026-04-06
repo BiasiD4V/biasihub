@@ -4,6 +4,8 @@ import {
   Cloud, Sun, CloudRain, Loader2, AlertCircle, Camera, Users,
   Wrench, MessageSquare, Clock, Search, ArrowLeft,
 } from 'lucide-react';
+import { LoadingSpinner } from '../components/ui/LoadingSpinner';
+import { fetchAutenticado } from '../utils/fetchAutenticado';
 
 // Types
 interface ObraRDO {
@@ -75,7 +77,7 @@ async function rdoFetch<T>(path: string, params?: Record<string, string>): Promi
   const url = `${API_BASE}/api/rdo?${qs}`;
   let res: Response;
   try {
-    res = await fetch(url);
+    res = await fetchAutenticado(url);
   } catch (e: unknown) {
     throw new Error(`Falha de conexão: ${(e as Error).message}`);
   }
@@ -173,11 +175,7 @@ export function DiarioDeObra() {
 
   // ─── Loading / Error ───
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <Loader2 size={32} className="animate-spin text-blue-500" />
-      </div>
-    );
+    return <LoadingSpinner />;
   }
 
   if (erro) {

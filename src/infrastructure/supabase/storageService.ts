@@ -4,6 +4,7 @@
  * Faz upload para Supabase Storage via API serverless do Vercel.
  * Arquivos ficam na nuvem, acessíveis de qualquer dispositivo.
  */
+import { fetchAutenticado } from '../../utils/fetchAutenticado';
 
 /**
  * Faz upload de um arquivo para o Supabase Storage via API proxy.
@@ -24,7 +25,7 @@ export async function uploadArquivo(
       reader.readAsDataURL(file);
     });
 
-    const response = await fetch('/api/upload', {
+    const response = await fetchAutenticado('/api/upload', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

@@ -12,6 +12,7 @@ import {
 } from '../infrastructure/supabase/propostasRepository';
 import { ETAPA_LABELS, ETAPA_CORES } from '../domain/value-objects/EtapaFunil';
 import type { EtapaFunil } from '../domain/value-objects/EtapaFunil';
+import { formatarMoeda, formatarData } from '../utils/calculos';
 
 const PROPOSTAS_STATUS_CORES: Record<string, string> = {
   FECHADO: 'bg-green-100 text-green-800',
@@ -26,19 +27,6 @@ const PROPOSTAS_STATUS_CORES: Record<string, string> = {
   'ORÇAMENTO': 'bg-orange-100 text-orange-800',
 };
 
-function formatarMoeda(v: number | null): string {
-  if (!v) return '—';
-  return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
-}
-
-function formatarData(d: string | null): string {
-  if (!d) return '—';
-  try {
-    return new Date(d + 'T00:00:00').toLocaleDateString('pt-BR');
-  } catch {
-    return '—';
-  }
-}
 
 const ANOS_PROPOSTAS = [2021, 2022, 2023, 2024, 2025, 2026];
 
@@ -265,7 +253,7 @@ export function OrcamentosNovos() {
                 <div className="bg-yellow-50 p-2 rounded-lg"><DollarSign size={20} className="text-yellow-600" /></div>
                 <div>
                   <p className="text-xs text-slate-500">Valor Total Orçado</p>
-                  <p className="text-lg font-bold text-slate-800">{formatarMoeda(kpis.valorTotal)}</p>
+                  <p className="text-lg font-bold text-slate-800">{formatarMoeda(kpis.valorTotal, true)}</p>
                 </div>
               </div>
               <div className="bg-white rounded-xl border border-slate-200 p-4 flex items-center gap-3">
@@ -428,7 +416,7 @@ export function OrcamentosNovos() {
                             {p.disciplina || '—'}
                           </td>
                           <td className="px-4 py-3 text-right font-medium text-slate-700 whitespace-nowrap">
-                            {formatarMoeda(p.valor_orcado)}
+                            {formatarMoeda(p.valor_orcado, true)}
                           </td>
                           <td className="px-4 py-3 text-center">
                             {p.status ? (

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Phone, Mail, MessageCircle, Users, StickyNote, PlusCircle, FileText, Edit2, X, Save, Trash2, Upload, ExternalLink, Loader2 } from 'lucide-react';
 import { uploadArquivo, abrirArquivo, nomeArquivo } from '../../infrastructure/supabase/storageService';
 import type { FollowUp, TipoFollowUp } from '../../domain/entities/FollowUp';
+import { formatarData } from '../../utils/datas';
 
 interface TimelineFollowUpProps {
   followUps: FollowUp[];
@@ -33,16 +34,6 @@ const ROTULO_POR_TIPO: Record<TipoFollowUp, string> = {
   reuniao: 'Reunião',
   observacao: 'Observação interna',
 };
-
-function formatarData(iso: string): string {
-  return new Date(iso).toLocaleDateString('pt-BR', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
 
 export function TimelineFollowUp({ followUps, onRegistrar, onUpdateFollowUp, onDeleteFollowUp }: TimelineFollowUpProps) {
   const [filePreviewOpen, setFilePreviewOpen] = useState<string | null>(null);
@@ -153,9 +144,7 @@ export function TimelineFollowUp({ followUps, onRegistrar, onUpdateFollowUp, onD
                             {fup.dataProximaAcao && (
                               <span className="ml-2 text-amber-500">
                                 — até{' '}
-                                {new Date(fup.dataProximaAcao + 'T12:00:00').toLocaleDateString(
-                                  'pt-BR'
-                                )}
+                                {formatarData(fup.dataProximaAcao)}
                               </span>
                             )}
                           </span>

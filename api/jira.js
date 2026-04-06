@@ -1,17 +1,12 @@
 // GET /api/jira — proxy seguro para Jira REST API (projeto ORC)
-// Env vars necessárias:
-//   JIRA_DOMAIN     = biasiengenharia-comercial.atlassian.net
-//   JIRA_EMAIL      = guilherme@biasiengenharia.com.br
-//   JIRA_API_TOKEN  = <gerado em id.atlassian.com/manage-profile/security/api-tokens>
+import { verificarAuth, setCorsHeaders } from './_auth.js';
 
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  setCorsHeaders(res, 'GET, OPTIONS');
+  if (req.method === 'OPTIONS') return res.status(200).end();
 
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
+  const user = await verificarAuth(req, res);
+  if (!user) return;
 
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });

@@ -1,5 +1,6 @@
 import { CheckCircle, AlertCircle, Plus } from 'lucide-react';
 import type { Pendencia, StatusPendencia } from '../../domain/entities/Pendencia';
+import { formatarData } from '../../utils/datas';
 
 interface BlocoPendenciasProps {
   pendencias: Pendencia[];
@@ -20,7 +21,12 @@ const ROTULO_STATUS: Record<StatusPendencia, string> = {
 };
 
 function isPrazoVencido(prazo: string, status: StatusPendencia): boolean {
-  return status === 'aberta' && new Date(prazo + 'T23:59:59') < new Date();
+  if (status !== 'aberta' || !prazo) return false;
+  const dataLimite = /^\d{4}-\d{2}-\d{2}$/.test(prazo)
+    ? new Date(`${prazo}T23:59:59`)
+    : new Date(prazo);
+  if (Number.isNaN(dataLimite.getTime())) return false;
+  return dataLimite < new Date();
 }
 
 export function BlocoPendencias({ pendencias, onResolver, onAdicionarNova }: BlocoPendenciasProps) {
@@ -92,7 +98,7 @@ export function BlocoPendencias({ pendencias, onResolver, onAdicionarNova }: Blo
                         className={`text-xs ${vencida ? 'text-red-500 font-medium' : 'text-slate-400'}`}
                       >
                         {vencida ? '⚠ ' : ''}
-                        {new Date(p.prazo + 'T12:00:00').toLocaleDateString('pt-BR')}
+                        {formatarData(p.prazo)}
                       </span>
                     </div>
                     {p.status === 'aberta' && (

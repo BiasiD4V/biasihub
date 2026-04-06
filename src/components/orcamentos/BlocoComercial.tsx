@@ -8,6 +8,8 @@ import { ModalFechamentoComercial, type DadosFechamento } from './ModalFechament
 import { ModalConfirmarMudancaEtapa } from './ModalConfirmarMudancaEtapa';
 import type { MudancaEtapa } from '../../domain/entities/MudancaEtapa';
 import type { PapelUsuario } from '../../domain/value-objects/PapelUsuario';
+import { formatarMoeda } from '../../utils/calculos';
+import { formatarData } from '../../utils/datas';
 
 interface BlocoComercialProps {
   orc: OrcamentoCard;
@@ -16,16 +18,6 @@ interface BlocoComercialProps {
   onFechamento: (dados: DadosFechamento) => void;
   mudancasEtapa?: MudancaEtapa[];
   papelUsuario?: PapelUsuario;
-}
-
-function formatarData(dateStr?: string): string {
-  if (!dateStr) return '—';
-  return new Date(dateStr + 'T12:00:00').toLocaleDateString('pt-BR');
-}
-
-function formatarValor(valor?: number): string {
-  if (!valor) return '—';
-  return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
 export function BlocoComercial({ orc, onMudarEtapa, onAtualizarValor, onFechamento, mudancasEtapa = [], papelUsuario }: BlocoComercialProps) {
@@ -153,7 +145,7 @@ export function BlocoComercial({ orc, onMudarEtapa, onAtualizarValor, onFechamen
               <p className="text-xs text-slate-400 mb-1">Valor da proposta</p>
               {fechado ? (
                 <p className="text-sm font-semibold text-slate-800">
-                  {formatarValor(orc.valorProposta)}
+                  {formatarMoeda(orc.valorProposta)}
                 </p>
               ) : (
                 <>
@@ -166,7 +158,7 @@ export function BlocoComercial({ orc, onMudarEtapa, onAtualizarValor, onFechamen
                   />
                   {orc.valorProposta && (
                     <p className="text-xs text-slate-600 font-medium mt-1">
-                      {formatarValor(orc.valorProposta)}
+                      {formatarMoeda(orc.valorProposta)}
                     </p>
                   )}
                 </>

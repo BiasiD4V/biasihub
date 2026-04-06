@@ -14,3 +14,10 @@ export const supabase = createClient(
   supabaseUrl || 'https://placeholder.supabase.co',
   supabaseAnonKey || 'placeholder'
 )
+
+/** Sanitize a value for use inside PostgREST `.or()` filter strings.
+ *  Commas and parentheses are PostgREST delimiters and must be stripped
+ *  to prevent filter injection when interpolating user input. */
+export function sanitizeFilterValue(value: string): string {
+  return value.replace(/[,()]/g, '')
+}

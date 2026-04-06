@@ -1,4 +1,4 @@
-import { supabase } from './client'
+import { supabase, sanitizeFilterValue } from './client'
 
 export interface Insumo {
   id: string
@@ -94,8 +94,9 @@ export const insumosRepository = {
       .range(pagina * POR_PAGINA, (pagina + 1) * POR_PAGINA - 1)
 
     if (filtros.busca) {
+      const b = sanitizeFilterValue(filtros.busca)
       query = query.or(
-        `descricao.ilike.%${filtros.busca}%,fornecedor.ilike.%${filtros.busca}%,codigo.ilike.%${filtros.busca}%,grupo.ilike.%${filtros.busca}%`
+        `descricao.ilike.%${b}%,fornecedor.ilike.%${b}%,codigo.ilike.%${b}%,grupo.ilike.%${b}%`
       )
     }
     if (filtros.fornecedor) {

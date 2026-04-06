@@ -13,6 +13,7 @@ import {
   NIVEL_AMAB_CORES,
 } from '../../domain/value-objects/QualificacaoOportunidade';
 import { calcularScoreABC, PRIORIDADE_ABC_CONFIG } from '../../utils/prioridade';
+import { formatarData } from '../../utils/calculos';
 
 interface Props {
   orc: OrcamentoCard;
@@ -64,11 +65,6 @@ function BadgeSimNao({ valor }: { valor?: SimNao }) {
       {valor === 'sim' ? 'Sim' : 'Não'}
     </span>
   );
-}
-
-function formatarData(dateStr?: string): string {
-  if (!dateStr) return '—';
-  return new Date(dateStr + 'T12:00:00').toLocaleDateString('pt-BR');
 }
 
 function BadgeABC({ orc }: { orc: OrcamentoCard }) {

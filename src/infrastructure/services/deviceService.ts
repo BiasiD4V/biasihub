@@ -57,7 +57,6 @@ async function fetchIPFromService(): Promise<string> {
         return data.ip || data.query;
       }
     } catch (error) {
-      console.warn(`Erro ao conectar em ${service}:`, error);
       continue;
     }
   }

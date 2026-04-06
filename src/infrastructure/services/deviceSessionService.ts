@@ -77,7 +77,6 @@ export async function createDeviceSession(
     localStorage.setItem(`${STORAGE_KEY}_expires`, expiresAt);
     localStorage.setItem(`${STORAGE_KEY}_ip`, ip);
 
-    console.log('✅ Remember Me salvo com sucesso (localStorage + banco)');
     return data;
   } catch (error) {
     console.error('Erro ao criar sessão de dispositivo:', error);
@@ -105,13 +104,11 @@ export async function validateRememberedSession(): Promise<{
 
     // Verificar se temos todos os dados necessários
     if (!storedToken || !storedEmail || !storedRefreshToken || !storedUserId) {
-      console.log('Remember Me: dados incompletos no localStorage');
       return { valid: false };
     }
 
     // Verificar se a sessão expirou
     if (storedExpires && new Date(storedExpires) < new Date()) {
-      console.warn('Remember Me: sessão expirada');
       clearRememberedSession();
       return { valid: false };
     }
@@ -120,25 +117,20 @@ export async function validateRememberedSession(): Promise<{
     try {
       const currentIP = await getDeviceIP();
       if (storedIp && storedIp !== currentIP) {
-        console.warn('Remember Me: IP mudou, invalidando sessão por segurança');
         clearRememberedSession();
         return { valid: false };
       }
     } catch (ipError) {
       // Se não conseguir pegar o IP, continua mesmo assim (pode ser offline temp)
-      console.warn('Remember Me: não conseguiu verificar IP, continuando...');
     }
 
     // RESTAURAR SESSÃO SUPABASE usando refresh_token salvo no localStorage
-    console.log('Remember Me: tentando restaurar sessão Supabase...');
-
-    const { data: refreshData, error: refreshError } = 
+    const { data: refreshData, error: refreshError } =
       await supabase.auth.refreshSession({
         refresh_token: storedRefreshToken,
       });
 
     if (refreshError || !refreshData.session) {
-      console.warn('Remember Me: falha ao restaurar sessão:', refreshError?.message);
       clearRememberedSession();
       return { valid: false };
     }
@@ -154,7 +146,6 @@ export async function validateRememberedSession(): Promise<{
       .eq('session_token', storedToken)
       .then(() => {}, () => {});
 
-    console.log('✅ Remember Me: sessão restaurada com sucesso!');
     return {
       valid: true,
       userId: storedUserId,

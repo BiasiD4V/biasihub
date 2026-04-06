@@ -24,13 +24,6 @@ const DICAS: Record<string, DicaPagina> = {
       { pergunta: 'Como filtro os dados?', resposta: 'Use os filtros de ano, status, disciplina e responsavel para refinar os indicadores.' },
     ],
   },
-  '/dashboard-antigo': {
-    titulo: 'Dashboard Antigo',
-    descricao: 'Visao antiga de acompanhamento comercial.',
-    dicas: [
-      { pergunta: 'Qual a diferenca para o Dashboard BI?', resposta: 'O Dashboard BI e a visao principal atual. Esta tela existe para comparacao e historico.' },
-    ],
-  },
   '/orcamentos': {
     titulo: 'Orcamentos',
     descricao: 'Lista principal de propostas e funil comercial.',
