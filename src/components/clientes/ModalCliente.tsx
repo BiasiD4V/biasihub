@@ -23,6 +23,7 @@ interface FormCliente {
   tipo: 'PF' | 'PJ';
   razaoSocial: string;
   nomeFantasia: string;
+  nomeInterno: string;
   cnpjCpf: string;
   segmento: string;
   ativo: boolean;
@@ -42,6 +43,7 @@ function formVazio(): FormCliente {
     tipo: 'PJ',
     razaoSocial: '',
     nomeFantasia: '',
+    nomeInterno: '',
     cnpjCpf: '',
     segmento: '',
     ativo: true,
@@ -62,6 +64,7 @@ function clienteParaForm(c: Cliente): FormCliente {
     tipo: c.tipo,
     razaoSocial: c.razaoSocial,
     nomeFantasia: c.nomeFantasia ?? '',
+    nomeInterno: c.nomeInterno ?? '',
     cnpjCpf: c.cnpjCpf,
     segmento: c.segmento,
     ativo: c.ativo,
@@ -176,6 +179,7 @@ export function ModalCliente({
       tipo: form.tipo,
       razaoSocial: form.razaoSocial.trim(),
       nomeFantasia: form.nomeFantasia.trim() || undefined,
+      nomeInterno: form.nomeInterno.trim() || undefined,
       cnpjCpf: form.cnpjCpf.trim(),
       segmento: form.segmento,
       ativo: form.ativo,
@@ -334,6 +338,19 @@ export function ModalCliente({
                 onChange={(e) => set('nomeFantasia', e.target.value)}
                 disabled={disabled}
                 placeholder={form.tipo === 'PF' ? 'Apelido ou nome do negócio' : 'Nome fantasia'}
+                className={inputCls}
+              />
+            </div>
+
+            {/* Nome Interno */}
+            <div>
+              <label className={labelCls}>Nome interno (Biasi)</label>
+              <input
+                type="text"
+                value={form.nomeInterno}
+                onChange={(e) => set('nomeInterno', e.target.value)}
+                disabled={disabled}
+                placeholder="Como a Biasi chama esse cliente"
                 className={inputCls}
               />
             </div>

@@ -42,6 +42,7 @@ export function Clientes() {
       !q ||
       c.razaoSocial.toLowerCase().includes(q) ||
       (c.nomeFantasia ?? '').toLowerCase().includes(q) ||
+      (c.nomeInterno ?? '').toLowerCase().includes(q) ||
       c.cnpjCpf.toLowerCase().includes(q);
     const matchTipo = filtroTipo === 'todos' || c.tipo === filtroTipo;
     const matchStatus =
@@ -174,6 +175,9 @@ export function Clientes() {
                   <div className="flex items-start justify-between mb-2">
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold text-slate-800 text-sm">{cliente.razaoSocial}</p>
+                      {cliente.nomeInterno && (
+                        <p className="text-xs text-blue-600 font-medium">{cliente.nomeInterno}</p>
+                      )}
                       {cliente.nomeFantasia && (
                         <p className="text-xs text-slate-500">{cliente.nomeFantasia}</p>
                       )}
@@ -262,6 +266,11 @@ export function Clientes() {
                           <p className="font-medium text-slate-800 truncate">
                             {cliente.razaoSocial}
                           </p>
+                          {cliente.nomeInterno && (
+                            <span className="text-xs text-blue-600 font-medium truncate block">
+                              {cliente.nomeInterno}
+                            </span>
+                          )}
                           <span className="text-xs text-slate-400">
                             {cliente.tipo}
                           </span>

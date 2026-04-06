@@ -5,6 +5,7 @@ export interface Cliente {
   tipo: TipoCliente;
   razaoSocial: string;       // Nome legal (PJ) ou nome completo (PF)
   nomeFantasia?: string;     // Nome comercial (PJ) ou apelido (PF)
+  nomeInterno?: string;      // Apelido interno da Biasi para o cliente
   cnpjCpf: string;           // Formatado: 00.000.000/0001-00 ou 000.000.000-00
   segmento: string;          // Ex: 'Construção Civil', 'Indústria', etc.
   contatoPrincipal?: string; // Nome da pessoa de contato

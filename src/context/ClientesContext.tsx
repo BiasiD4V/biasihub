@@ -39,6 +39,7 @@ function mapearClienteSupabase(cli: ClienteSupabase): Cliente {
     tipo,
     razaoSocial: cli.nome,
     nomeFantasia: cli.nome_fantasia || undefined,
+    nomeInterno: cli.nome_interno || undefined,
     cnpjCpf: cli.cnpj_cpf || '',
     segmento: segmentoMap[cli.tipo || ''] || 'Outro',
     contatoPrincipal: cli.contato_nome || undefined,
@@ -93,6 +94,7 @@ export function ClientesProvider({ children }: { children: ReactNode }) {
       const novoCliente = await clientesRepository.criar({
         nome: input.razaoSocial,
         nome_fantasia: input.nomeFantasia || null,
+        nome_interno: input.nomeInterno || null,
         cnpj_cpf: input.cnpjCpf || null,
         tipo_pessoa: input.tipo === 'PF' ? 'Física' : 'Jurídica',
         tipo: segmentoMap[input.segmento] || input.segmento || null,
@@ -130,6 +132,7 @@ export function ClientesProvider({ children }: { children: ReactNode }) {
       const clienteAtualizado = await clientesRepository.atualizar(id, {
         nome: input.razaoSocial,
         nome_fantasia: input.nomeFantasia || null,
+        nome_interno: input.nomeInterno || null,
         cnpj_cpf: input.cnpjCpf || null,
         tipo_pessoa: input.tipo === 'PF' ? 'Física' : input.tipo === 'PJ' ? 'Jurídica' : null,
         tipo: input.segmento ? (segmentoMap[input.segmento] || input.segmento) : null,

@@ -1,4 +1,4 @@
-import { supabase } from './client'
+import { supabase, sanitizeFilterValue } from './client'
 
 export interface ClienteSupabase {
   id: string
@@ -6,6 +6,7 @@ export interface ClienteSupabase {
   tipo: string | null
   cnpj_cpf: string | null
   nome_fantasia: string | null
+  nome_interno: string | null
   tipo_pessoa: string | null
   cidade: string | null
   estado: string | null
@@ -68,10 +69,11 @@ export const clientesRepository = {
   },
 
   async buscar(termo: string): Promise<ClienteSupabase[]> {
+    const safe = sanitizeFilterValue(termo)
     const { data, error } = await supabase
       .from('clientes')
       .select('*')
-      .ilike('nome', `%${termo}%`)
+      .or(`nome.ilike.%${safe}%,cnpj_cpf.ilike.%${safe}%,nome_fantasia.ilike.%${safe}%,nome_interno.ilike.%${safe}%`)
       .eq('ativo', true)
       .order('nome')
 
