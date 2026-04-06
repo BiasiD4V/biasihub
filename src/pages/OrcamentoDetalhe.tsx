@@ -197,7 +197,7 @@ function propostaParaOrc(p: PropostaSupabase): OrcamentoCard {
     clienteEstrategico: (p.cliente_estrategico as any) ?? undefined,
     prazoResposta: p.prazo_resposta ?? undefined,
     linkArquivo: p.link_arquivo ?? undefined,
-    responsavelComercial: (p as any).responsavel_comercial ?? undefined,
+    responsavelComercial: (p as any).responsavel_comercial ?? undefined as string | undefined,
   };
 }
 
@@ -577,11 +577,11 @@ export function OrcamentoDetalhe() {
           )}
 
           {/* Responsável Comercial */}
-          {(orc as any).responsavelComercial && (
+          {orc.responsavelComercial && (
             <div className="flex items-center gap-2">
               <User size={14} className="text-blue-400 flex-shrink-0" />
               <span className="text-slate-500 text-xs">Comercial:</span>
-              <span className="text-blue-600 text-xs font-medium">{(orc as any).responsavelComercial}</span>
+              <span className="text-blue-600 text-xs font-medium">{orc.responsavelComercial}</span>
             </div>
           )}
 
@@ -785,12 +785,12 @@ export function OrcamentoDetalhe() {
                   </div>
                 </div>
 
-                {(orc as any).responsavelComercial && (
+                {orc.responsavelComercial && (
                   <div className="flex items-center gap-3">
                     <User size={14} className="text-blue-400 flex-shrink-0" />
                     <div>
                       <p className="text-xs text-slate-400">Responsável Comercial</p>
-                      <p className="text-sm font-medium text-blue-700">{(orc as any).responsavelComercial}</p>
+                      <p className="text-sm font-medium text-blue-700">{orc.responsavelComercial}</p>
                     </div>
                   </div>
                 )}

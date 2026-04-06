@@ -53,8 +53,7 @@ export function ModalNovoOrcamento({ aberto, onFechar, onCriado }: ModalNovoOrca
       .eq('papel', 'comercial')
       .eq('ativo', true)
       .order('nome')
-      .then(({ data }) => setMembrosComercial(data ?? []))
-      .catch(() => {});
+      .then(({ data }) => { setMembrosComercial(data ?? []); });
   }, []);
 
   // ── Clientes do Supabase ──

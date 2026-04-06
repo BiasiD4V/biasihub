@@ -65,6 +65,7 @@ export interface OrcamentoCard {
   observacaoComercial?: string;
   // Campos Fase 1
   linkArquivo?: string;
+  responsavelComercial?: string;
 }
 
 export interface CriarOrcamentoInput {
