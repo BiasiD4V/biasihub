@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { X, Sparkles, Send, Bot } from 'lucide-react';
+import { X, Sparkles, Send, Bot, ThumbsUp, ThumbsDown, Brain } from 'lucide-react';
 import { supabase } from '../../infrastructure/supabase/client';
 
 interface DicaPagina {
@@ -13,6 +13,7 @@ interface MensagemPaulo {
   id: string;
   role: 'assistant' | 'user';
   texto: string;
+  perguntaOrigem?: string; // a pergunta do usuário que gerou essa resposta
 }
 
 const DICAS: Record<string, DicaPagina> = {
@@ -315,6 +316,9 @@ export function PauloAjuda({ forceOpen, onClose }: PauloAjudaProps = {}) {
   const [entrada, setEntrada] = useState('');
   const [carregandoResposta, setCarregandoResposta] = useState(false);
   const [sugestoes, setSugestoes] = useState<string[]>([]);
+  const [feedbackEnviado, setFeedbackEnviado] = useState<Record<string, 'positivo' | 'negativo'>>({});
+  const [aprendizados, setAprendizados] = useState(0);
+  const [toastAprendeu, setToastAprendeu] = useState(false);
 
   const location = useLocation();
   const panelRef = useRef<HTMLDivElement>(null);
@@ -345,6 +349,37 @@ export function PauloAjuda({ forceOpen, onClose }: PauloAjudaProps = {}) {
     if (!aberto) return;
     mensagensFimRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [mensagens, carregandoResposta, aberto]);
+
+  async function enviarFeedback(tipo: 'positivo' | 'negativo', msgId: string, perguntaOrigem: string, respostaPaulo: string) {
+    if (feedbackEnviado[msgId]) return;
+    setFeedbackEnviado((prev) => ({ ...prev, [msgId]: tipo }));
+
+    try {
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
+      await fetch('/api/paulo-chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          feedback: tipo,
+          pergunta: perguntaOrigem,
+          resposta_paulo: respostaPaulo,
+          pathname: location.pathname,
+        }),
+      });
+
+      if (tipo === 'positivo') {
+        setAprendizados((n) => n + 1);
+        setToastAprendeu(true);
+        setTimeout(() => setToastAprendeu(false), 2500);
+      }
+    } catch {
+      // silently fail
+    }
+  }
 
   async function enviarPergunta(textoPergunta: string) {
     const pergunta = textoPergunta.trim();
@@ -396,6 +431,7 @@ export function PauloAjuda({ forceOpen, onClose }: PauloAjudaProps = {}) {
           id: `assistant-${Date.now()}`,
           role: 'assistant',
           texto: textoResposta,
+          perguntaOrigem: pergunta,
         },
       ]);
 
@@ -409,7 +445,8 @@ export function PauloAjuda({ forceOpen, onClose }: PauloAjudaProps = {}) {
         {
           id: `assistant-fallback-${Date.now()}`,
           role: 'assistant',
-          texto: `${fallback}`,
+          texto: fallback,
+          perguntaOrigem: pergunta,
         },
       ]);
     } finally {
@@ -431,9 +468,21 @@ export function PauloAjuda({ forceOpen, onClose }: PauloAjudaProps = {}) {
           <h3 className="text-white font-bold text-sm flex items-center gap-1.5">
             Paulo
             <span className="text-[9px] font-medium bg-white/20 px-1.5 py-0.5 rounded-full">IA</span>
+            {aprendizados > 0 && (
+              <span className="flex items-center gap-0.5 text-[9px] font-medium bg-emerald-400/30 text-emerald-100 px-1.5 py-0.5 rounded-full">
+                <Brain size={8} />
+                +{aprendizados} aprendizado{aprendizados > 1 ? 's' : ''}
+              </span>
+            )}
           </h3>
           <p className="text-blue-100/80 text-[11px] truncate">{dicas.titulo}</p>
         </div>
+        {/* Toast "Paulo aprendeu" */}
+        {toastAprendeu && (
+          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 bg-emerald-500 text-white text-xs font-medium rounded-full shadow-lg whitespace-nowrap animate-bounce z-10">
+            ✨ Paulo aprendeu!
+          </div>
+        )}
         <button
           onClick={fechar}
           className="text-white/60 hover:text-white hover:bg-white/10 transition-all p-1.5 rounded-lg relative"
@@ -469,21 +518,58 @@ export function PauloAjuda({ forceOpen, onClose }: PauloAjudaProps = {}) {
       {/* ═══════ Messages ═══════ */}
       <div ref={panelRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
         {mensagens.map((msg) => (
-          <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            {msg.role === 'assistant' && (
-              <div className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full w-6 h-6 flex items-center justify-center flex-shrink-0 mr-2 mt-0.5 shadow-sm">
-                <Bot size={12} className="text-white" />
+          <div key={msg.id} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+            <div className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} w-full`}>
+              {msg.role === 'assistant' && (
+                <div className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full w-6 h-6 flex items-center justify-center flex-shrink-0 mr-2 mt-0.5 shadow-sm">
+                  <Bot size={12} className="text-white" />
+                </div>
+              )}
+              <div
+                className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-[13px] leading-relaxed ${
+                  msg.role === 'user'
+                    ? 'bg-gradient-to-br from-blue-600 to-blue-700 text-white shadow-sm'
+                    : 'bg-white text-slate-700 border border-slate-100 shadow-sm'
+                }`}
+              >
+                <span className="whitespace-pre-wrap">{msg.texto}</span>
+              </div>
+            </div>
+            {/* 👍/👎 apenas em mensagens do assistente (não a de boas-vindas) */}
+            {msg.role === 'assistant' && msg.perguntaOrigem && (
+              <div className="flex items-center gap-1.5 ml-8 mt-1">
+                {feedbackEnviado[msg.id] === 'positivo' ? (
+                  <span className="text-[10px] text-emerald-600 font-medium flex items-center gap-1">
+                    <ThumbsUp size={10} className="fill-emerald-500 text-emerald-500" />
+                    Paulo aprendeu!
+                  </span>
+                ) : feedbackEnviado[msg.id] === 'negativo' ? (
+                  <span className="text-[10px] text-slate-400 flex items-center gap-1">
+                    <ThumbsDown size={10} />
+                    Registrado
+                  </span>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => enviarFeedback('positivo', msg.id, msg.perguntaOrigem!, msg.texto)}
+                      className="flex items-center gap-0.5 text-[10px] text-slate-400 hover:text-emerald-600 transition-colors px-1.5 py-0.5 rounded-md hover:bg-emerald-50"
+                      title="Resposta boa — Paulo aprende!"
+                    >
+                      <ThumbsUp size={10} />
+                      <span>Útil</span>
+                    </button>
+                    <button
+                      onClick={() => enviarFeedback('negativo', msg.id, msg.perguntaOrigem!, msg.texto)}
+                      className="flex items-center gap-0.5 text-[10px] text-slate-400 hover:text-red-500 transition-colors px-1.5 py-0.5 rounded-md hover:bg-red-50"
+                      title="Resposta ruim — Paulo registra"
+                    >
+                      <ThumbsDown size={10} />
+                      <span>Melhorar</span>
+                    </button>
+                  </>
+                )}
               </div>
             )}
-            <div
-              className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-[13px] leading-relaxed ${
-                msg.role === 'user'
-                  ? 'bg-gradient-to-br from-blue-600 to-blue-700 text-white shadow-sm'
-                  : 'bg-white text-slate-700 border border-slate-100 shadow-sm'
-              }`}
-            >
-              <span className="whitespace-pre-wrap">{msg.texto}</span>
-            </div>
           </div>
         ))}
         {carregandoResposta && (

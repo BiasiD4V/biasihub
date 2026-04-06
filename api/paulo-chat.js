@@ -1516,7 +1516,8 @@ async function buscarConhecimentoAprendido(serviceKey, pathname) {
     // Buscar últimos 30 aprendizados relevantes (mesma rota + globais)
     const rotas = [pathname, 'global'].filter(Boolean);
     const filtro = rotas.map(r => `rota.eq.${r}`).join(',');
-    const url = `${SUPABASE_URL}/rest/v1/${PAULO_CONHECIMENTO_TABLE}?select=pergunta,resposta,rota,categoria&or=(${filtro})&ativo=eq.true&order=criado_em.desc&limit=30`;
+    // Prioritize util=true (user-approved) and most recent; include auto entries for broader context
+    const url = `${SUPABASE_URL}/rest/v1/${PAULO_CONHECIMENTO_TABLE}?select=pergunta,resposta,rota,categoria,util&or=(${filtro})&ativo=eq.true&order=util.desc,criado_em.desc&limit=40`;
     const res = await fetch(url, {
       headers: {
         Authorization: `Bearer ${serviceKey}`,
@@ -1531,7 +1532,7 @@ async function buscarConhecimentoAprendido(serviceKey, pathname) {
   }
 }
 
-async function salvarAprendizado(serviceKey, { pergunta, resposta, rota, categoria = 'conversa' }) {
+async function salvarAprendizado(serviceKey, { pergunta, resposta, rota, categoria = 'conversa', util = false }) {
   if (!serviceKey || !pergunta || !resposta) return;
   try {
     await fetch(`${SUPABASE_URL}/rest/v1/${PAULO_CONHECIMENTO_TABLE}`, {
@@ -1548,6 +1549,7 @@ async function salvarAprendizado(serviceKey, { pergunta, resposta, rota, categor
         rota: rota || 'global',
         categoria,
         ativo: true,
+        util,
       }),
     });
   } catch {
@@ -1557,12 +1559,30 @@ async function salvarAprendizado(serviceKey, { pergunta, resposta, rota, categor
 
 function montarContextoAprendido(conhecimentos) {
   if (!conhecimentos.length) return '';
-  const linhas = conhecimentos.map((c, i) =>
-    `[${i + 1}] Rota: ${c.rota || 'global'} | Cat: ${c.categoria || 'geral'}\nP: ${c.pergunta}\nR: ${c.resposta}`
+  // Separate user-approved (high trust) from auto-learned (lower trust)
+  const aprovados = conhecimentos.filter(c => c.util || c.categoria === 'usuario_aprovado');
+  const automaticos = conhecimentos.filter(c => !c.util && c.categoria !== 'usuario_aprovado').slice(0, 15);
+
+  const linhasAprovadas = aprovados.map((c, i) =>
+    `[APROVADO-${i + 1}] Rota: ${c.rota || 'global'}\nP: ${c.pergunta}\nR: ${c.resposta}`
   );
+  const linhasAuto = automaticos.map((c, i) =>
+    `[AUTO-${i + 1}] Rota: ${c.rota || 'global'}\nP: ${c.pergunta}\nR: ${c.resposta}`
+  );
+
+  const secoes = [];
+  if (linhasAprovadas.length) {
+    secoes.push('### CONHECIMENTO APROVADO PELO USUARIO (maxima prioridade):');
+    secoes.push(...linhasAprovadas);
+  }
+  if (linhasAuto.length) {
+    secoes.push('### HISTORICO DE CONVERSAS (contexto adicional):');
+    secoes.push(...linhasAuto);
+  }
+
   return [
-    '\n--- BASE DE CONHECIMENTO APRENDIDA (use como referencia prioritaria) ---',
-    ...linhas,
+    '\n--- BASE DE CONHECIMENTO APRENDIDA ---',
+    ...secoes,
     '--- FIM DA BASE DE CONHECIMENTO ---\n',
   ].join('\n');
 }
@@ -1617,8 +1637,33 @@ export default async function handler(req, res) {
     const pergunta = String(req.body?.pergunta || '').trim().slice(0, 2000);
     const pathname = String(req.body?.pathname || '').trim().slice(0, 200);
     const historico = resumirHistorico(req.body?.historico);
+    const feedback = req.body?.feedback; // 'positivo' | 'negativo'
+    const respostaPaulo = String(req.body?.resposta_paulo || '').trim().slice(0, 4000);
     const eventosNaoMapeados = [];
     const reportUnknown = (ev) => eventosNaoMapeados.push(ev);
+
+    // ── Feedback explícito do usuário ──
+    if (feedback === 'positivo' && pergunta && respostaPaulo) {
+      await salvarAprendizado(serviceKey, {
+        pergunta,
+        resposta: respostaPaulo,
+        rota: pathname || 'global',
+        categoria: 'usuario_aprovado',
+        util: true,
+      });
+      return res.status(200).json({ ok: true, mensagem: 'Paulo aprendeu! Valeu pelo feedback.' });
+    }
+
+    if (feedback === 'negativo' && pergunta) {
+      // Registrar como não mapeado para revisão futura
+      await registrarNaoMapeados({
+        serviceKey,
+        userId: validacao.user?.id,
+        pathname,
+        eventos: [{ tipo: 'feedback_negativo', termo: pergunta.slice(0, 300), pergunta }],
+      });
+      return res.status(200).json({ ok: true, mensagem: 'Registrado. Paulo vai melhorar.' });
+    }
 
     if (!pergunta) {
       return res.status(400).json({ error: 'pergunta is required' });
@@ -1661,12 +1706,14 @@ export default async function handler(req, res) {
       '- Se nao souber algo, diga com transparencia e proponha verificacao pratica.',
       '- Sempre considere o contexto da rota atual para orientar exatamente o que fazer naquela tela.',
       '- Quando o usuario pedir explicacao completa, entregue: visao geral, blocos da tela, campos principais, termos-chave, leitura de cores e fluxo de uso.',
-      '- Quando identificar algo novo ou util que o usuario te ensinou, inclua no final da resposta: [APRENDIZADO: resumo curto do que aprendeu]',
+      '- Quando o usuario te corrigir ou ensinar algo novo sobre o sistema (ex: "na verdade...", "o correto e...", "isso nao existe mais..."), extraia e coloque no final: [APRENDIZADO: descricao objetiva do que aprendeu]',
+      '- Use [APRENDIZADO:] apenas para correcoes factuais confirmadas pelo usuario, nao para toda resposta.',
       '',
       '## Aprendizado continuo',
-      '- Voce tem acesso a uma base de conhecimento construida a partir de conversas anteriores.',
-      '- Use essa base como referencia prioritaria para perguntas semelhantes.',
-      '- Quando o usuario corrigir voce ou ensinar algo novo sobre o sistema, voce deve aprender.',
+      '- Voce tem uma base de conhecimento que cresce a cada conversa.',
+      '- Entradas marcadas como APROVADO PELO USUARIO tem prioridade maxima — trate como fato confirmado.',
+      '- Entradas AUTO sao historico de conversas — use como contexto mas confirme antes de afirmar como verdade absoluta.',
+      '- Quando o usuario confirmar uma resposta sua (thumbs up), ela entra na base de alta prioridade.',
       '',
       '## Contexto da rota atual',
       playbookDaRota(pathname),
@@ -1723,20 +1770,27 @@ export default async function handler(req, res) {
     const aiPayload = await aiRes.json();
     let resposta = extrairTextoOpenAI(aiPayload) || fallbackInteligente(pergunta, pathname, historico, { reportUnknown });
 
-    // Extrair e salvar aprendizados automaticos
+    // Extrair e salvar aprendizados marcados com tag [APRENDIZADO:]
     const matchAprendizado = resposta.match(/\[APRENDIZADO:\s*(.+?)\]/i);
     if (matchAprendizado) {
       const aprendizado = matchAprendizado[1].trim();
-      // Salvar na base de conhecimento (async, nao bloqueia resposta)
       salvarAprendizado(serviceKey, {
         pergunta: pergunta.slice(0, 500),
         resposta: aprendizado,
         rota: pathname || 'global',
-        categoria: 'auto-aprendizado',
+        categoria: 'auto-tag',
       }).catch(() => {});
-      // Remover a tag da resposta que vai pro usuario
       resposta = resposta.replace(/\s*\[APRENDIZADO:\s*.+?\]/gi, '').trim();
     }
+
+    // Sempre salvar o par pergunta-resposta para aprendizado contínuo
+    salvarAprendizado(serviceKey, {
+      pergunta: pergunta.slice(0, 500),
+      resposta: resposta.slice(0, 2000),
+      rota: pathname || 'global',
+      categoria: 'auto',
+      util: false,
+    }).catch(() => {});
 
     await registrarNaoMapeados({
       serviceKey,
