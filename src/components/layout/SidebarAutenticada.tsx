@@ -19,6 +19,7 @@ import {
   KanbanSquare,
   HardHat,
   Download,
+  Gift,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useState, useEffect } from 'react';
@@ -57,6 +58,7 @@ const MENU: SecaoMenu[] = [
       { rotulo: 'Orçamentos', para: '/orcamentos', icone: ClipboardList },
       { rotulo: 'Planilhas Orç.', para: '/planilha-orcamentaria', icone: FileSpreadsheet },
       { rotulo: 'Aprovações', para: '/aprovacoes', icone: CheckSquare },
+      { rotulo: 'Indicações', para: '/indicacoes', icone: Gift },
     ],
   },
   {

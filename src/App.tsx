@@ -37,6 +37,7 @@ import { MeusDispositivos } from './pages/MeusDispositivos';
 import { Membros } from './pages/Membros';
 import { PlanilhaOrcamentaria } from './pages/PlanilhaOrcamentaria';
 import { CriarPlanilha } from './pages/CriarPlanilha';
+import { Indicacoes } from './pages/Indicacoes';
 
 const DashboardBI = lazy(() => import('./pages/DashboardBI').then((m) => ({ default: m.DashboardBI })));
 
@@ -89,6 +90,7 @@ export function App() {
                   <Route path="/planilha-orcamentaria" element={<PlanilhaOrcamentaria />} />
                   <Route path="/planilha-orcamentaria/nova" element={<CriarPlanilha />} />
                   <Route path="/planilha-orcamentaria/:id" element={<CriarPlanilha />} />
+                  <Route path="/indicacoes" element={<Indicacoes />} />
                 </Route>
 
                 {/* Fallback */}
