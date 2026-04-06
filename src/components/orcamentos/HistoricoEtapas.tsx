@@ -13,6 +13,7 @@ interface HistoricoEtapasProps {
   onUpdateMudanca?: (mudanca: MudancaEtapa) => void;
   onDeleteMudanca?: (mudancaId: string) => void;
   onAprovarMudanca?: (mudancaId: string) => void;
+  onRevogarMudanca?: (mudancaId: string) => void;
   papelUsuario?: PapelUsuario;
 }
 
@@ -35,7 +36,7 @@ function serializeArquivos(urls: string[]): string | undefined {
   return JSON.stringify(urls);
 }
 
-export function HistoricoEtapas({ mudancas, onUpdateMudanca, onDeleteMudanca, onAprovarMudanca, papelUsuario }: HistoricoEtapasProps) {
+export function HistoricoEtapas({ mudancas, onUpdateMudanca, onDeleteMudanca, onAprovarMudanca, onRevogarMudanca, papelUsuario }: HistoricoEtapasProps) {
   const [filePreviewOpen, setFilePreviewOpen] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<MudancaEtapa | null>(null);
@@ -137,6 +138,15 @@ export function HistoricoEtapas({ mudancas, onUpdateMudanca, onDeleteMudanca, on
                       >
                         <CheckCircle size={10} />
                         Aprovar
+                      </button>
+                    )}
+                    {m.status === 'aprovado' && podeAprovar && onRevogarMudanca && (
+                      <button
+                        onClick={() => onRevogarMudanca(m.id)}
+                        className="inline-flex items-center gap-1 text-amber-700 bg-amber-100 hover:bg-amber-200 px-2 py-0.5 rounded-full font-medium transition-colors"
+                      >
+                        <Clock size={10} />
+                        Revogar
                       </button>
                     )}
                   </div>

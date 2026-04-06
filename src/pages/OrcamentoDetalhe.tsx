@@ -650,6 +650,16 @@ export function OrcamentoDetalhe() {
                   propostasRepository.atualizarMudancaEtapa(mudancaId, { status: 'aprovado' }).catch(() => {});
                 }
               }}
+              onRevogarMudanca={(mudancaId) => {
+                if (isSupa && id) {
+                  setLocalMudancas(prev => {
+                    const next = prev.map(m => m.id === mudancaId ? { ...m, status: 'pendente' as const } : m);
+                    lsSaveMudancas(id, next);
+                    return next;
+                  });
+                  propostasRepository.atualizarMudancaEtapa(mudancaId, { status: 'pendente' }).catch(() => {});
+                }
+              }}
             />
           </div>
 
