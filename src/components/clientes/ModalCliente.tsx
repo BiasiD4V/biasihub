@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
+import { Search, Loader2, ArrowRight } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { useClientes } from '../../context/ClientesContext';
 import type { Cliente } from '../../domain/entities/Cliente';
 import { SEGMENTOS_CLIENTE } from '../../domain/value-objects/SegmentoCliente';
+import { buscarDadosCNPJ } from '../../infrastructure/supabase/clientesRepository';
 
 const UFS = [
   'AC','AL','AP','AM','BA','CE','DF','ES','GO',
@@ -29,6 +31,9 @@ interface FormCliente {
   email: string;
   cidade: string;
   uf: string;
+  endereco: string;
+  bairro: string;
+  cep: string;
   observacoes: string;
 }
 
@@ -45,6 +50,9 @@ function formVazio(): FormCliente {
     email: '',
     cidade: '',
     uf: '',
+    endereco: '',
+    bairro: '',
+    cep: '',
     observacoes: '',
   };
 }
@@ -62,6 +70,9 @@ function clienteParaForm(c: Cliente): FormCliente {
     email: c.email ?? '',
     cidade: c.cidade ?? '',
     uf: c.uf ?? '',
+    endereco: '',
+    bairro: '',
+    cep: '',
     observacoes: c.observacoes ?? '',
   };
 }
@@ -77,15 +88,26 @@ export function ModalCliente({
   modoVisualizacao = false,
 }: ModalClienteProps) {
   const { criarCliente, editarCliente } = useClientes();
+  const [passo, setPasso] = useState<'cnpj' | 'form'>('cnpj');
+  const [cnpjBusca, setCnpjBusca] = useState('');
+  const [buscandoCNPJ, setBuscandoCNPJ] = useState(false);
+  const [erroBusca, setErroBusca] = useState('');
   const [form, setForm] = useState<FormCliente>(formVazio);
   const [erro, setErro] = useState('');
   const [salvando, setSalvando] = useState(false);
 
-  // Preenche o form quando abre em modo edição/visualização
   useEffect(() => {
     if (aberto) {
-      setForm(clienteEditando ? clienteParaForm(clienteEditando) : formVazio());
       setErro('');
+      setErroBusca('');
+      setCnpjBusca('');
+      if (clienteEditando) {
+        setForm(clienteParaForm(clienteEditando));
+        setPasso('form');
+      } else {
+        setForm(formVazio());
+        setPasso('cnpj');
+      }
     }
   }, [aberto, clienteEditando]);
 
@@ -97,6 +119,40 @@ export function ModalCliente({
   function fechar() {
     setErro('');
     onFechar();
+  }
+
+  async function handleBuscarCNPJ() {
+    const limpo = cnpjBusca.replace(/\D/g, '');
+    if (limpo.length !== 14) {
+      setErroBusca('Digite um CNPJ válido com 14 dígitos.');
+      return;
+    }
+    setBuscandoCNPJ(true);
+    setErroBusca('');
+    const dados = await buscarDadosCNPJ(cnpjBusca);
+    setBuscandoCNPJ(false);
+    if (!dados) {
+      setErroBusca('CNPJ não encontrado. Verifique o número ou preencha manualmente.');
+      return;
+    }
+    setForm((prev) => ({
+      ...prev,
+      cnpjCpf: cnpjBusca,
+      razaoSocial: dados.razaoSocial,
+      nomeFantasia: dados.nomeFantasia,
+      cidade: dados.cidade,
+      uf: dados.uf,
+      endereco: dados.endereco,
+      bairro: dados.bairro,
+      cep: dados.cep,
+      telefone: dados.telefone,
+    }));
+    setPasso('form');
+  }
+
+  function preencherManualmente() {
+    setForm((prev) => ({ ...prev, cnpjCpf: cnpjBusca }));
+    setPasso('form');
   }
 
   async function confirmar() {
@@ -149,6 +205,69 @@ export function ModalCliente({
 
   const disabled = modoVisualizacao || salvando;
 
+  // ── Passo 1: tela de busca por CNPJ (só para novo cliente)
+  if (passo === 'cnpj' && !clienteEditando && !modoVisualizacao) {
+    return (
+      <Modal titulo={titulo} aberto={aberto} onFechar={fechar} largura="sm">
+        <div className="px-6 py-8 flex flex-col items-center gap-6">
+          <div className="text-center">
+            <div className="w-14 h-14 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-3">
+              <Search size={24} className="text-blue-600" />
+            </div>
+            <p className="text-sm text-slate-600">
+              Informe o CNPJ para buscar os dados da empresa automaticamente.
+            </p>
+          </div>
+
+          <div className="w-full space-y-3">
+            <div>
+              <label className={labelCls}>CNPJ da empresa</label>
+              <input
+                type="text"
+                value={cnpjBusca}
+                onChange={(e) => { setCnpjBusca(e.target.value); setErroBusca(''); }}
+                onKeyDown={(e) => e.key === 'Enter' && handleBuscarCNPJ()}
+                placeholder="00.000.000/0001-00"
+                autoFocus
+                className={`${inputCls} font-mono text-center tracking-widest`}
+              />
+              {erroBusca && (
+                <p className="text-xs text-red-600 mt-1">{erroBusca}</p>
+              )}
+            </div>
+
+            <button
+              onClick={handleBuscarCNPJ}
+              disabled={buscandoCNPJ}
+              className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-70"
+            >
+              {buscandoCNPJ ? (
+                <>
+                  <Loader2 size={16} className="animate-spin" />
+                  Buscando...
+                </>
+              ) : (
+                <>
+                  <Search size={16} />
+                  Buscar dados do CNPJ
+                </>
+              )}
+            </button>
+
+            <button
+              onClick={preencherManualmente}
+              className="w-full py-2 text-sm text-slate-500 hover:text-slate-700 flex items-center justify-center gap-1.5 transition-colors"
+            >
+              Preencher manualmente
+              <ArrowRight size={14} />
+            </button>
+          </div>
+        </div>
+      </Modal>
+    );
+  }
+
+  // ── Passo 2 (ou edição/visualização): form completo
   return (
     <Modal titulo={titulo} aberto={aberto} onFechar={fechar} largura="xl">
       <div className="px-6 py-5">
@@ -199,9 +318,7 @@ export function ModalCliente({
                 value={form.razaoSocial}
                 onChange={(e) => set('razaoSocial', e.target.value)}
                 disabled={disabled}
-                placeholder={
-                  form.tipo === 'PF' ? 'Nome completo' : 'Razão social da empresa'
-                }
+                placeholder={form.tipo === 'PF' ? 'Nome completo' : 'Razão social da empresa'}
                 className={inputCls}
               />
             </div>
@@ -216,9 +333,7 @@ export function ModalCliente({
                 value={form.nomeFantasia}
                 onChange={(e) => set('nomeFantasia', e.target.value)}
                 disabled={disabled}
-                placeholder={
-                  form.tipo === 'PF' ? 'Apelido ou nome do negócio' : 'Nome fantasia'
-                }
+                placeholder={form.tipo === 'PF' ? 'Apelido ou nome do negócio' : 'Nome fantasia'}
                 className={inputCls}
               />
             </div>
@@ -234,9 +349,7 @@ export function ModalCliente({
                 value={form.cnpjCpf}
                 onChange={(e) => set('cnpjCpf', e.target.value)}
                 disabled={disabled}
-                placeholder={
-                  form.tipo === 'PF' ? '000.000.000-00' : '00.000.000/0001-00'
-                }
+                placeholder={form.tipo === 'PF' ? '000.000.000-00' : '00.000.000/0001-00'}
                 className={`${inputCls} font-mono`}
               />
             </div>
@@ -284,7 +397,7 @@ export function ModalCliente({
             </div>
           </div>
 
-          {/* ── Painel direito: Contato ── */}
+          {/* ── Painel direito: Contato e Localização ── */}
           <div className="space-y-4">
             <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide pb-1 border-b border-slate-100">
               Contato e Localização
@@ -329,7 +442,7 @@ export function ModalCliente({
               />
             </div>
 
-            {/* Cidade + UF lado a lado */}
+            {/* Cidade + UF */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="col-span-2">
                 <label className={labelCls}>Cidade</label>
@@ -360,6 +473,45 @@ export function ModalCliente({
               </div>
             </div>
 
+            {/* Endereço */}
+            <div>
+              <label className={labelCls}>Endereço</label>
+              <input
+                type="text"
+                value={form.endereco}
+                onChange={(e) => set('endereco', e.target.value)}
+                disabled={disabled}
+                placeholder="Rua, número"
+                className={inputCls}
+              />
+            </div>
+
+            {/* Bairro + CEP */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className={labelCls}>Bairro</label>
+                <input
+                  type="text"
+                  value={form.bairro}
+                  onChange={(e) => set('bairro', e.target.value)}
+                  disabled={disabled}
+                  placeholder="Bairro"
+                  className={inputCls}
+                />
+              </div>
+              <div>
+                <label className={labelCls}>CEP</label>
+                <input
+                  type="text"
+                  value={form.cep}
+                  onChange={(e) => set('cep', e.target.value)}
+                  disabled={disabled}
+                  placeholder="00000-000"
+                  className={`${inputCls} font-mono`}
+                />
+              </div>
+            </div>
+
             {/* Observações */}
             <div>
               <label className={labelCls}>Observações</label>
@@ -367,8 +519,8 @@ export function ModalCliente({
                 value={form.observacoes}
                 onChange={(e) => set('observacoes', e.target.value)}
                 disabled={disabled}
-                rows={3}
-                placeholder="Informações adicionais sobre o cliente..."
+                rows={2}
+                placeholder="Informações adicionais..."
                 className={`${inputCls} resize-none`}
               />
             </div>
@@ -378,30 +530,40 @@ export function ModalCliente({
 
       {/* Rodapé */}
       {!modoVisualizacao && (
-        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100">
-          <button
-            onClick={fechar}
-            disabled={salvando}
-            className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50"
-          >
-            Cancelar
-          </button>
-          <button
-            onClick={confirmar}
-            disabled={salvando}
-            className="px-5 py-2 text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors shadow-sm disabled:opacity-70 flex items-center gap-2"
-          >
-            {salvando ? (
-              <>
-                <span className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                Salvando...
-              </>
-            ) : clienteEditando ? (
-              'Salvar alterações'
-            ) : (
-              'Cadastrar cliente'
-            )}
-          </button>
+        <div className="flex items-center justify-between gap-3 px-6 py-4 border-t border-slate-100">
+          {!clienteEditando && (
+            <button
+              onClick={() => setPasso('cnpj')}
+              className="text-xs text-slate-400 hover:text-slate-600 transition-colors"
+            >
+              ← Buscar outro CNPJ
+            </button>
+          )}
+          <div className="flex items-center gap-3 ml-auto">
+            <button
+              onClick={fechar}
+              disabled={salvando}
+              className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={confirmar}
+              disabled={salvando}
+              className="px-5 py-2 text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors shadow-sm disabled:opacity-70 flex items-center gap-2"
+            >
+              {salvando ? (
+                <>
+                  <span className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                  Salvando...
+                </>
+              ) : clienteEditando ? (
+                'Salvar alterações'
+              ) : (
+                'Cadastrar cliente'
+              )}
+            </button>
+          </div>
         </div>
       )}
 

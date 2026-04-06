@@ -79,3 +79,38 @@ export const clientesRepository = {
     return data || []
   }
 }
+
+export interface DadosCNPJ {
+  razaoSocial: string
+  nomeFantasia: string
+  cidade: string
+  uf: string
+  endereco: string
+  bairro: string
+  cep: string
+  telefone: string
+}
+
+export async function buscarDadosCNPJ(cnpj: string): Promise<DadosCNPJ | null> {
+  const limpo = cnpj.replace(/\D/g, '')
+  if (limpo.length !== 14) return null
+  try {
+    const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${limpo}`)
+    if (!res.ok) return null
+    const d = await res.json()
+    return {
+      razaoSocial: d.razao_social ?? '',
+      nomeFantasia: d.nome_fantasia ?? '',
+      cidade: d.municipio ?? '',
+      uf: d.uf ?? '',
+      endereco: [d.logradouro, d.numero].filter(Boolean).join(', '),
+      bairro: d.bairro ?? '',
+      cep: (d.cep ?? '').replace(/\D/g, '').replace(/^(\d{5})(\d{3})$/, '$1-$2'),
+      telefone: d.ddd_telefone_1
+        ? `(${d.ddd_telefone_1.trim().slice(0, 2)}) ${d.ddd_telefone_1.trim().slice(2)}`
+        : '',
+    }
+  } catch {
+    return null
+  }
+}
