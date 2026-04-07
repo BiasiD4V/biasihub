@@ -190,6 +190,127 @@ function fallbackClassificacao({ texto, categoria, subcategoria, urgente }) {
   };
 }
 
+// ── Handler da API de Membros ──────────────────────────────────────────────────
+async function handleMembros(request) {
+  try {
+    const authHeader = request.headers['authorization'] || request.headers.get?.('authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const userToken = authHeader.split(' ')[1];
+
+    // Verifica se o usuário tem permissão (admin, dono, gestor)
+    const perfilRes = await net.fetch(
+      `${SUPABASE_URL}/auth/v1/user`,
+      {
+        headers: {
+          'Authorization': `Bearer ${userToken}`,
+          'apikey': SUPABASE_SERVICE_KEY,
+        },
+      }
+    );
+
+    if (!perfilRes.ok) {
+      return new Response(JSON.stringify({ error: 'Invalid token' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const userData = await perfilRes.json();
+    const userId = userData.id;
+
+    // Busca o papel do usuário
+    const userPapelRes = await net.fetch(
+      `${SUPABASE_URL}/rest/v1/usuarios?id=eq.${userId}&select=papel`,
+      {
+        headers: {
+          'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+          'apikey': SUPABASE_SERVICE_KEY,
+        },
+      }
+    );
+
+    if (!userPapelRes.ok) {
+      return new Response(JSON.stringify({ error: 'Permission denied' }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const userPapelData = await userPapelRes.json();
+    const userPapel = userPapelData[0]?.papel;
+
+    if (!userPapel || !['admin', 'dono', 'gestor'].includes(userPapel)) {
+      return new Response(JSON.stringify({ error: 'Acesso restrito a admin, dono ou gestor' }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Busca todos os membros
+    const membrosRes = await net.fetch(
+      `${SUPABASE_URL}/rest/v1/usuarios?select=id,nome,email,papel,ativo,criado_em,departamento&order=criado_em.asc`,
+      {
+        headers: {
+          'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+          'apikey': SUPABASE_SERVICE_KEY,
+        },
+      }
+    );
+
+    if (!membrosRes.ok) {
+      return new Response(JSON.stringify({ error: 'Failed to fetch members' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const membros = await membrosRes.json();
+
+    // Busca o último login de cada usuário
+    const sessionsRes = await net.fetch(
+      `${SUPABASE_URL}/rest/v1/device_sessions?select=user_id,last_login_at&order=last_login_at.desc`,
+      {
+        headers: {
+          'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+          'apikey': SUPABASE_SERVICE_KEY,
+        },
+      }
+    );
+
+    let ultimoLoginMap = {};
+    if (sessionsRes.ok) {
+      const sessions = await sessionsRes.json();
+      for (const s of sessions) {
+        if (s.user_id && s.last_login_at && !ultimoLoginMap[s.user_id]) {
+          ultimoLoginMap[s.user_id] = s.last_login_at;
+        }
+      }
+    }
+
+    const membrosComLogin = membros.map(m => ({
+      ...m,
+      ultimo_login: ultimoLoginMap[m.id] || null,
+    }));
+
+    return new Response(JSON.stringify(membrosComLogin), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  } catch (error) {
+    console.error('[membros] erro:', error);
+    return new Response(JSON.stringify({ error: 'Internal error' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+}
+
 // ── Protocol handler: serve arquivos dos apps ────────────────────────────────
 function setupProtocol() {
   protocol.handle('app', async (request) => {
@@ -200,6 +321,11 @@ function setupProtocol() {
     // Rota da API de solicitações (POST)
     if (appName === 'almoxarifado' && pathname === '/api/solicitar') {
       return handleSolicitar(request);
+    }
+
+    // Rota da API de membros (GET)
+    if (pathname === '/api/membros') {
+      return handleMembros(request);
     }
 
     // Serve arquivos estáticos
