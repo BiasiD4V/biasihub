@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 80" fill="none">
+  <!-- "biasi" text in white for dark backgrounds -->
+  <text x="10" y="58" font-family="Arial, Helvetica, sans-serif" font-weight="bold" font-size="56" fill="#ffffff" letter-spacing="-1">biasi</text>
+  <!-- Yellow accent dots on i's -->
+  <rect x="37" y="10" width="8" height="6" rx="1" fill="#f0b429" transform="rotate(-15 41 13)"/>
+  <rect x="165" y="10" width="8" height="6" rx="1" fill="#f0b429" transform="rotate(-15 169 13)"/>
+  <!-- Subtitle -->
+  <text x="10" y="75" font-family="Arial, Helvetica, sans-serif" font-weight="600" font-size="12" fill="#94a3b8" letter-spacing="0.5">Engenharia &amp; Instalações</text>
+</svg>

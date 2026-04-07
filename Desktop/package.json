@@ -1,0 +1,19 @@
+{
+  "name": "biasihub-desktop",
+  "version": "1.0.0",
+  "description": "BiasíHub ERP - Plataforma Corporativa Biasi Engenharia",
+  "main": "electron/main.js",
+  "author": "Biasi Engenharia",
+  "scripts": {
+    "start": "electron .",
+    "package": "electron-builder --win",
+    "package:dir": "electron-builder --win --dir"
+  },
+  "dependencies": {
+    "electron-store": "^10.0.0"
+  },
+  "devDependencies": {
+    "electron": "^34.3.0",
+    "electron-builder": "^25.1.8"
+  }
+}

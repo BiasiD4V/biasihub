@@ -1,0 +1,19 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "orcamentos-dev",
+      "runtimeExecutable": "C:\\Users\\guilherme.moreira\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\site-packages\\playwright\\driver\\node.exe",
+      "runtimeArgs": ["node_modules/vite/bin/vite.js", "--port", "5173"],
+      "cwd": "orcamentos",
+      "port": 5173
+    },
+    {
+      "name": "orcamentos-preview",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "preview"],
+      "cwd": "orcamentos",
+      "port": 4173
+    }
+  ]
+}
