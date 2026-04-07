@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { LayoutGrid, Users, LogOut, Menu, X, Laptop } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
@@ -13,6 +13,14 @@ export function Sidebar() {
   const { usuario, logout } = useAuth();
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [appVersion, setAppVersion] = useState<string | null>(null);
+
+  useEffect(() => {
+    const bridge = (window as any).electronBridge;
+    if (bridge?.getAppVersion) {
+      bridge.getAppVersion().then((v: string) => setAppVersion(v)).catch(() => {});
+    }
+  }, []);
 
   async function handleLogout() {
     await logout();
@@ -30,7 +38,9 @@ export function Sidebar() {
         <img src="/logo-biasi.png" alt="Biasi" className="h-8 w-auto" />
         <div>
           <p className="text-white text-sm font-bold leading-none">BiasíHub</p>
-          <p className="text-slate-400 text-[10px] mt-0.5">Portal Central</p>
+          <p className="text-slate-400 text-[10px] mt-0.5">
+            Portal Central{appVersion ? ` · v${appVersion}` : ''}
+          </p>
         </div>
       </div>
 
