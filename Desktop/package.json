@@ -10,7 +10,8 @@
     "package:dir": "electron-builder --win --dir"
   },
   "dependencies": {
-    "electron-store": "^10.0.0"
+    "electron-store": "^10.0.0",
+    "electron-updater": "^6.1.8"
   },
   "devDependencies": {
     "electron": "^34.3.0",

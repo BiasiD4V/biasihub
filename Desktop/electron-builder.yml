@@ -32,4 +32,8 @@ nsis:
   createStartMenuShortcut: true
   shortcutName: BiasíHub
 
-publish: null
+publish:
+  provider: github
+  owner: BiasiD4V
+  repo: biasihub
+  releaseType: release

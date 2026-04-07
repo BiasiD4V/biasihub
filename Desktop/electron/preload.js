@@ -8,4 +8,8 @@ contextBridge.exposeInMainWorld('electronBridge', {
 
   // Info da versão do app
   getAppVersion: () => ipcRenderer.invoke('app:getVersion'),
+
+  // Auto-updater
+  checkForUpdates: () => ipcRenderer.invoke('updater:checkForUpdates'),
+  downloadAndInstall: () => ipcRenderer.invoke('updater:downloadAndInstall'),
 });

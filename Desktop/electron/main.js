@@ -1,7 +1,8 @@
-const { app, BrowserWindow, ipcMain, protocol, net, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, protocol, net, shell, Notification } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
+const { autoUpdater } = require('electron-updater');
 
 // ── Registro do protocolo ANTES do app.whenReady() ──────────────────────────
 // Necessário para o protocolo ser tratado como "seguro" (suporta fetch, CORS, etc.)
@@ -408,12 +409,41 @@ function setupIPC() {
   ipcMain.handle('app:getVersion', () => {
     return app.getVersion();
   });
+
+  ipcMain.handle('updater:checkForUpdates', async () => {
+    try {
+      const result = await autoUpdater.checkForUpdates();
+      return result?.updateInfo ? { hasUpdate: true, version: result.updateInfo.version } : { hasUpdate: false };
+    } catch (error) {
+      console.error('[updater] erro ao verificar:', error);
+      return { hasUpdate: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('updater:downloadAndInstall', async () => {
+    try {
+      await autoUpdater.downloadUpdate();
+      autoUpdater.quitAndInstall();
+      return { success: true };
+    } catch (error) {
+      console.error('[updater] erro ao instalar:', error);
+      return { success: false, error: error.message };
+    }
+  });
+}
+
+// ── Setup Auto-updater ──────────────────────────────────────────────────────────
+function setupUpdater() {
+  autoUpdater.checkForUpdatesAndNotify();
+  // Verifica atualizações a cada 1 hora
+  setInterval(() => autoUpdater.checkForUpdatesAndNotify(), 60 * 60 * 1000);
 }
 
 // ── Inicialização ─────────────────────────────────────────────────────────────
 app.whenReady().then(() => {
   setupProtocol();
   setupIPC();
+  setupUpdater();
   createWindow();
 
   app.on('activate', () => {
