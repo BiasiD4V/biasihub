@@ -19,6 +19,13 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
+// Validar se usuário pode acessar módulo Almoxarifado
+function podeAcessarAlmoxarifado(papel?: string): boolean {
+  if (!papel) return false;
+  const p = papel.toLowerCase().trim();
+  return p === 'almoxarifado' || p === 'admin' || p === 'dono';
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [usuario, setUsuario] = useState<Usuario | null>(null);
   const [loading, setLoading] = useState(true);
@@ -119,14 +126,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       if (data) {
-        setUsuario({
+        const novoUsuario = {
           id: data.id,
           nome: data.nome,
           email: data.email,
           papel: data.papel as PapelUsuario,
           ativo: data.ativo,
           departamento: data.departamento || null,
-        });
+        };
+
+        // Validar acesso ao módulo Almoxarifado
+        if (!podeAcessarAlmoxarifado(novoUsuario.papel)) {
+          console.warn(`❌ Usuário ${novoUsuario.email} (papel: ${novoUsuario.papel}) não tem acesso ao módulo Almoxarifado`);
+          // Fazer logout automático
+          await supabase.auth.signOut();
+          alert(`❌ Acesso negado!\n\nVocê não tem permissão para acessar o módulo Almoxarifado.\n\nPapel requerido: almoxarifado\nSeu papel: ${novoUsuario.papel}`);
+          return false;
+        }
+
+        setUsuario(novoUsuario);
         return true;
       }
       return false;

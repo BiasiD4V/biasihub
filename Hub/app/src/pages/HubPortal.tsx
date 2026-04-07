@@ -13,7 +13,7 @@ interface ModuleDef {
   corBg: string;
   disponivel: boolean;
   badge?: string;
-  departamento?: string; // departamento que tem acesso
+  papel?: string; // papel do usuário que tem acesso (comercial, almoxarifado, etc)
 }
 
 // Detecta se está rodando dentro do Electron
@@ -35,7 +35,7 @@ const MODULES: ModuleDef[] = [
     corBg: 'bg-blue-100',
     disponivel: true,
     badge: 'Ativo',
-    departamento: 'comercial',
+    papel: 'comercial',
   },
   {
     titulo: 'Almoxarifado',
@@ -46,7 +46,7 @@ const MODULES: ModuleDef[] = [
     corBg: 'bg-blue-100',
     disponivel: true,
     badge: 'Ativo',
-    // Sem restrição de departamento: todos podem solicitar materiais
+    papel: 'almoxarifado',
   },
   {
     titulo: 'Obras',
@@ -57,7 +57,6 @@ const MODULES: ModuleDef[] = [
     corBg: 'bg-emerald-100',
     disponivel: true,
     badge: 'Novo',
-    departamento: 'obras',
   },
   {
     titulo: 'Financeiro',
@@ -91,20 +90,27 @@ const HUB_OPEN_GUARD_WINDOW_MS = 30000;
 export function HubPortal() {
   const { usuario } = useAuth();
 
-  // Normaliza papel e departamento
+  // Normaliza papel
   const papel = (usuario?.papel ?? '').toString().trim().toLowerCase();
-  const depto = (usuario?.departamento ?? '').toString().trim().toLowerCase();
   const isAdmin = papel === 'admin' || papel === 'dono';
 
   function temAcesso(mod: ModuleDef): boolean {
     if (!mod.disponivel) return false;
-    // Módulos sem departamento restrito são acessíveis a todos
-    if (!mod.departamento) return true;
+    // Admin/Dono tem acesso a tudo
     if (isAdmin) return true;
-    return depto === mod.departamento.toLowerCase();
+    // Módulos sem restrição são acessíveis a todos
+    if (!mod.papel) return true;
+    // Valida papel específico
+    return papel === mod.papel.toLowerCase();
   }
 
-  async function abrirModulo(href: string) {
+  async function abrirModulo(href: string, modulo?: ModuleDef) {
+    // Validar acesso ao módulo
+    if (modulo && !temAcesso(modulo)) {
+      alert(`❌ Acesso negado!\n\nVocê não tem permissão para acessar ${modulo.titulo}.\n\nPapel requerido: ${modulo.papel || 'Nenhum'}\nSeu papel: ${papel}`);
+      return;
+    }
+
     const { data: { session } } = await supabase.auth.getSession();
     if (session) {
       const hash = [
@@ -145,7 +151,7 @@ export function HubPortal() {
       // ignore storage errors
     }
 
-    abrirModulo(alvo.href!);
+    abrirModulo(alvo.href!, alvo);
   }, [usuario?.id]);
 
   const saudacao = () => {
@@ -185,7 +191,7 @@ export function HubPortal() {
                 disponivel={m.disponivel}
                 bloqueado={!acesso}
                 badge={m.badge}
-                onClick={acesso && m.href ? () => abrirModulo(m.href!) : undefined}
+                onClick={m.href ? () => abrirModulo(m.href!, m) : undefined}
               />
             );
           })}
