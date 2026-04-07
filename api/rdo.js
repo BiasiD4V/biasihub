@@ -42,10 +42,24 @@ export default async function handler(req, res) {
       },
     });
 
+    const contentType = response.headers.get('content-type') || '';
+    const isJson = contentType.includes('application/json');
+
+    if (!isJson) {
+      const htmlText = await response.text();
+      console.error(`RDO returned non-JSON (${response.status}):`, htmlText.substring(0, 200));
+      return res.status(502).json({
+        error: 'RDO API retornou HTML em vez de JSON',
+        status: response.status,
+        detail: response.status === 401 ? 'Token inválido ou expirado' : 'API indisponível',
+      });
+    }
+
     const data = await response.json();
     res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate=300');
     return res.status(response.status).json(data);
   } catch (err) {
+    console.error('[rdo] erro:', err);
     return res.status(502).json({ error: 'Failed to fetch from RDO API', detail: err.message });
   }
 }

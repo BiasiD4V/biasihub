@@ -25,12 +25,17 @@ export default async function handler(req, res) {
 
   try {
     let allIssues = [];
-    let nextPageToken = undefined;
+    let startAt = 0;
+    const maxResults = 100;
 
     while (true) {
-      const body = { jql: 'project = ORC ORDER BY created DESC', fields, maxResults: 100 };
-      if (nextPageToken) body.nextPageToken = nextPageToken;
-      const jiraRes = await fetch(`https://${domain}/rest/api/3/search/jql`, {
+      const body = {
+        jql: 'project = ORC ORDER BY created DESC',
+        fields,
+        startAt,
+        maxResults,
+      };
+      const jiraRes = await fetch(`https://${domain}/rest/api/3/search`, {
         method: 'POST',
         headers: { 'Authorization': `Basic ${credentials}`, 'Accept': 'application/json', 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -46,8 +51,11 @@ export default async function handler(req, res) {
       const issues = data.issues || [];
       allIssues = allIssues.concat(issues);
 
-      if (data.isLast || issues.length === 0) break;
-      nextPageToken = data.nextPageToken;
+      if (!data.isLast && issues.length > 0) {
+        startAt += maxResults;
+      } else {
+        break;
+      }
     }
 
     // Normalizar dados — não expor credenciais ao frontend

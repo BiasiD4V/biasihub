@@ -22,6 +22,8 @@ interface ChatMembrosProps {
 
 export type { Membro, Mensagem, ReacaoAgregada };
 
+const CALL_WINDOW_NAME = 'biasi-hub-call';
+
 export function ChatMembros({ aberto, onFechar }: ChatMembrosProps) {
   const { usuario } = useAuth();
   const [membros, setMembros] = useState<Membro[]>([]);
@@ -140,7 +142,7 @@ export function ChatMembros({ aberto, onFechar }: ChatMembrosProps) {
           ultimo_visto: string | null; conectado_desde: string | null;
         }>;
         setMembros(
-          data.filter(m => m.ativo && m.id !== usuario?.id)
+          data.filter(m => m.id !== usuario?.id)
             .map(m => ({ id: m.id, nome: m.nome, email: m.email, esta_online: m.esta_online, ultimo_visto: m.ultimo_visto, conectado_desde: m.conectado_desde }))
         );
       } catch { /* silently fail */ }
@@ -450,7 +452,8 @@ export function ChatMembros({ aberto, onFechar }: ChatMembrosProps) {
         ...(dmAtivo ? { destinatario_id: dmAtivo.id } : {}),
       }).select('id').single().then(({ data }) => { if (data?.id) monitorarChamada(data.id); });
     }
-    callWindowRef.current = window.open(hostUrl, '_blank');
+    callWindowRef.current = window.open(hostUrl, CALL_WINDOW_NAME);
+    callWindowRef.current?.focus();
   }
 
   function iniciarVideoCall() {
@@ -467,7 +470,8 @@ export function ChatMembros({ aberto, onFechar }: ChatMembrosProps) {
         ...(dmAtivo ? { destinatario_id: dmAtivo.id } : {}),
       }).select('id').single().then(({ data }) => { if (data?.id) monitorarChamada(data.id); });
     }
-    callWindowRef.current = window.open(hostUrl, '_blank');
+    callWindowRef.current = window.open(hostUrl, CALL_WINDOW_NAME);
+    callWindowRef.current?.focus();
   }
 
   function voltarParaLista() {
