@@ -3,6 +3,22 @@ const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
 const { autoUpdater } = require('electron-updater');
+const COMERCIAL_API_ORIGIN = 'https://biasihub-comercial.vercel.app';
+
+function isVersionNewer(nextVersion, currentVersion) {
+  const nextParts = String(nextVersion).split('.').map((value) => Number.parseInt(value, 10) || 0);
+  const currentParts = String(currentVersion).split('.').map((value) => Number.parseInt(value, 10) || 0);
+  const maxLength = Math.max(nextParts.length, currentParts.length);
+
+  for (let i = 0; i < maxLength; i += 1) {
+    const next = nextParts[i] ?? 0;
+    const current = currentParts[i] ?? 0;
+    if (next > current) return true;
+    if (next < current) return false;
+  }
+
+  return false;
+}
 
 // ── Registro do protocolo ANTES do app.whenReady() ──────────────────────────
 // Necessário para o protocolo ser tratado como "seguro" (suporta fetch, CORS, etc.)
@@ -191,6 +207,20 @@ function fallbackClassificacao({ texto, categoria, subcategoria, urgente }) {
   };
 }
 
+async function proxyExternalRequest(request, targetUrl) {
+  const method = (request.method || 'GET').toUpperCase();
+  const headers = new Headers(request.headers || {});
+  headers.delete('host');
+  headers.delete('origin');
+
+  const init = { method, headers };
+  if (method !== 'GET' && method !== 'HEAD') {
+    init.body = await request.arrayBuffer();
+  }
+
+  return net.fetch(targetUrl, init);
+}
+
 // ── Handler da API de Membros ──────────────────────────────────────────────────
 async function handleMembros(request) {
   try {
@@ -329,6 +359,12 @@ function setupProtocol() {
       return handleMembros(request);
     }
 
+    // Roteia as APIs do Comercial para o backend em producao (Jira/RDO)
+    if (appName === 'comercial' && pathname.startsWith('/api/')) {
+      const targetUrl = `${COMERCIAL_API_ORIGIN}${pathname}${url.search}`;
+      return proxyExternalRequest(request, targetUrl);
+    }
+
     // Serve arquivos estáticos
     const appsDir = getAppsDir();
     const appDir = path.join(appsDir, appName);
@@ -412,8 +448,28 @@ function setupIPC() {
 
   ipcMain.handle('updater:checkForUpdates', async () => {
     try {
-      const result = await autoUpdater.checkForUpdates();
-      return result?.updateInfo ? { hasUpdate: true, version: result.updateInfo.version } : { hasUpdate: false };
+      const currentVersion = app.getVersion();
+      let latestVersion = null;
+      let hasUpdate = false;
+
+      try {
+        const result = await autoUpdater.checkForUpdates();
+        latestVersion = result?.updateInfo?.version;
+
+        // Validar que latestVersion é diferente de currentVersion
+        if (latestVersion && latestVersion !== currentVersion && isVersionNewer(latestVersion, currentVersion)) {
+          hasUpdate = true;
+        }
+      } catch (checkError) {
+        console.error('[updater] erro ao verificar releases:', checkError);
+        // Continua sem erro crítico
+      }
+
+      return {
+        hasUpdate,
+        version: latestVersion || currentVersion,
+        currentVersion,
+      };
     } catch (error) {
       console.error('[updater] erro ao verificar:', error);
       return { hasUpdate: false, error: error.message };
@@ -422,6 +478,25 @@ function setupIPC() {
 
   ipcMain.handle('updater:downloadAndInstall', async () => {
     try {
+      const currentVersion = app.getVersion();
+      let latestVersion = null;
+      let hasUpdate = false;
+
+      try {
+        const checkResult = await autoUpdater.checkForUpdates();
+        latestVersion = checkResult?.updateInfo?.version;
+
+        if (latestVersion && latestVersion !== currentVersion && isVersionNewer(latestVersion, currentVersion)) {
+          hasUpdate = true;
+        }
+      } catch (checkError) {
+        console.error('[updater] erro ao verificar antes de instalar:', checkError);
+      }
+
+      if (!hasUpdate) {
+        return { success: false, error: 'Sua versão está atualizada (v' + currentVersion + ').' };
+      }
+
       await autoUpdater.downloadUpdate();
       autoUpdater.quitAndInstall();
       return { success: true };
@@ -434,9 +509,16 @@ function setupIPC() {
 
 // ── Setup Auto-updater ──────────────────────────────────────────────────────────
 function setupUpdater() {
-  autoUpdater.checkForUpdatesAndNotify();
-  // Verifica atualizações a cada 1 hora
-  setInterval(() => autoUpdater.checkForUpdatesAndNotify(), 60 * 60 * 1000);
+  autoUpdater.autoDownload = false;
+  autoUpdater.checkForUpdates().catch((error) => {
+    console.error('[updater] erro no check inicial:', error);
+  });
+  // Verifica atualizacoes a cada 1 hora
+  setInterval(() => {
+    autoUpdater.checkForUpdates().catch((error) => {
+      console.error('[updater] erro no check agendado:', error);
+    });
+  }, 60 * 60 * 1000);
 }
 
 // ── Inicialização ─────────────────────────────────────────────────────────────
