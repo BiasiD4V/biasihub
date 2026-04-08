@@ -43,3 +43,4 @@ yarn-error.log*
 .vercel/
 biasihub-config/
 .claude/
+Desktop/publish-token.bat
