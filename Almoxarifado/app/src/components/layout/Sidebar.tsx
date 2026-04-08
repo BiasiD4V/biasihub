@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Package, ArrowLeftRight, ClipboardList, Truck, Laptop, LogOut, Menu, X, ExternalLink, Sparkles } from 'lucide-react';
+import { LayoutDashboard, Package, ArrowLeftRight, ClipboardList, Truck, Laptop, LogOut, Menu, X, ExternalLink, Sparkles, FileSpreadsheet, HardHat, Building2, ShoppingCart } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 const NAV_SECTIONS = [
@@ -28,6 +28,25 @@ const NAV_SECTIONS = [
     label: 'Frota',
     items: [
       { to: '/frota', icon: Truck, label: 'Veículos' },
+    ],
+  },
+  {
+    label: 'Segurança',
+    items: [
+      { to: '/epi', icon: HardHat, label: 'EPI / NR-6' },
+    ],
+  },
+  {
+    label: 'Compras',
+    items: [
+      { to: '/fornecedores', icon: Building2, label: 'Fornecedores' },
+      { to: '/ordens-compra', icon: ShoppingCart, label: 'Ordens de Compra' },
+    ],
+  },
+  {
+    label: 'Análise',
+    items: [
+      { to: '/relatorios', icon: FileSpreadsheet, label: 'Relatórios' },
     ],
   },
   {

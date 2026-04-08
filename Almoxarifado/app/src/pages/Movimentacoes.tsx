@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Plus, Search, TrendingUp, TrendingDown, X, ArrowLeftRight } from 'lucide-react';
+import { Plus, Search, TrendingUp, TrendingDown, X, ArrowLeftRight, Camera } from 'lucide-react';
 import { supabase } from '../infrastructure/supabase/client';
 import type { Movimentacao } from '../domain/entities/Movimentacao';
 import type { ItemAlmoxarifado } from '../domain/entities/ItemAlmoxarifado';
 import { useAuth } from '../context/AuthContext';
+import { QRScanner } from '../components/QRScanner';
 
 export function Movimentacoes() {
   const { usuario } = useAuth();
@@ -14,6 +15,7 @@ export function Movimentacoes() {
   const [filtroTipo, setFiltroTipo] = useState<'todos' | 'entrada' | 'saida'>('todos');
 
   const [modalAberto, setModalAberto] = useState(false);
+  const [scannerAberto, setScannerAberto] = useState(false);
   const [form, setForm] = useState({ item_id: '', tipo: 'entrada' as 'entrada' | 'saida', quantidade: '', obra: '', observacao: '', data: new Date().toISOString().split('T')[0] });
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState('');
@@ -71,9 +73,14 @@ export function Movimentacoes() {
           <h1 className="text-2xl font-bold text-slate-800">Movimentações</h1>
           <p className="text-sm text-slate-500 mt-1">Entradas e saídas de materiais</p>
         </div>
-        <button onClick={() => { setModalAberto(true); setErro(''); }} className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-xl transition-colors">
-          <Plus size={16} />Registrar
-        </button>
+        <div className="flex gap-2">
+          <button onClick={() => setScannerAberto(true)} className="flex items-center gap-2 px-3 py-2.5 border border-slate-300 text-slate-600 text-sm font-medium rounded-xl hover:bg-slate-50 transition-colors" title="Escanear QR Code">
+            <Camera size={16} />
+          </button>
+          <button onClick={() => { setModalAberto(true); setErro(''); }} className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-xl transition-colors">
+            <Plus size={16} />Registrar
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3">
@@ -143,6 +150,23 @@ export function Movimentacoes() {
           </div>
         )}
       </div>
+
+      {scannerAberto && (
+        <QRScanner
+          onClose={() => setScannerAberto(false)}
+          onScan={(itemId) => {
+            const item = itens.find(i => i.id === itemId);
+            if (item) {
+              setForm(p => ({ ...p, item_id: itemId }));
+              setScannerAberto(false);
+              setModalAberto(true);
+            } else {
+              setScannerAberto(false);
+              alert('Item não encontrado no estoque.');
+            }
+          }}
+        />
+      )}
 
       {modalAberto && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setModalAberto(false)}>

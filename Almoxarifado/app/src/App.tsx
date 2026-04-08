@@ -8,6 +8,10 @@ import { Requisicoes } from './pages/Requisicoes';
 import { Solicitacoes } from './pages/Solicitacoes';
 import { Frota } from './pages/Frota';
 import { MeusDispositivos } from './pages/MeusDispositivos';
+import { Relatorios } from './pages/Relatorios';
+import { EPI } from './pages/EPI';
+import { Fornecedores } from './pages/Fornecedores';
+import { OrdensCompra } from './pages/OrdensCompra';
 import { Login } from './pages/Login';
 
 export default function App() {
@@ -24,6 +28,10 @@ export default function App() {
             <Route path="/requisicoes" element={<Requisicoes />} />
             <Route path="/solicitacoes" element={<Solicitacoes />} />
             <Route path="/frota" element={<Frota />} />
+            <Route path="/relatorios" element={<Relatorios />} />
+            <Route path="/epi" element={<EPI />} />
+            <Route path="/fornecedores" element={<Fornecedores />} />
+            <Route path="/ordens-compra" element={<OrdensCompra />} />
             <Route path="/meus-dispositivos" element={<MeusDispositivos />} />
           </Route>
           <Route path="*" element={<Navigate to="/login" replace />} />

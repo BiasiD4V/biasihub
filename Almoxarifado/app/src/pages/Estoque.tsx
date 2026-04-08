@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Plus, Search, Pencil, AlertTriangle, X, Package } from 'lucide-react';
+import { QRCodeItem } from '../components/QRCodeItem';
 import { supabase } from '../infrastructure/supabase/client';
 import type { ItemAlmoxarifado } from '../domain/entities/ItemAlmoxarifado';
 import { useAuth } from '../context/AuthContext';
@@ -134,6 +135,7 @@ export function Estoque() {
                   <th className="text-right px-5 py-3 text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Atual</th>
                   <th className="text-right px-5 py-3 text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Mínimo</th>
                   <th className="text-left px-5 py-3 text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Status</th>
+                  <th className="px-5 py-3 text-[10px] font-semibold text-slate-400 uppercase tracking-wide">QR</th>
                   {isGestor && <th className="px-5 py-3" />}
                 </tr>
               </thead>
@@ -163,6 +165,9 @@ export function Estoque() {
                         ) : (
                           <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-full bg-green-100 text-green-700">OK</span>
                         )}
+                      </td>
+                      <td className="px-5 py-3">
+                        <QRCodeItem itemId={item.id} codigo={item.codigo} descricao={item.descricao} localizacao={item.localizacao} />
                       </td>
                       {isGestor && (
                         <td className="px-5 py-3">

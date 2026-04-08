@@ -42,3 +42,4 @@ yarn-error.log*
 # Config
 .vercel/
 biasihub-config/
+.claude/
