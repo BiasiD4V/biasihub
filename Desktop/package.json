@@ -1,6 +1,6 @@
 {
   "name": "biasihub-desktop",
-  "version": "1.0.20",
+  "version": "1.0.19",
   "description": "BiasíHub ERP - Plataforma Corporativa Biasi Engenharia",
   "main": "electron/main.js",
   "author": "Biasi Engenharia",
