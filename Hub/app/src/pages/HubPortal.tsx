@@ -56,7 +56,7 @@ const MODULES: ModuleDef[] = [
     cor: 'text-emerald-600',
     corBg: 'bg-emerald-100',
     disponivel: true,
-    badge: 'Novo',
+    badge: 'Beta',
   },
   {
     titulo: 'Financeiro',
@@ -100,8 +100,8 @@ export function HubPortal() {
     if (isAdmin) return true;
     // Módulos sem restrição são acessíveis a todos
     if (!mod.papel) return true;
-    // Gestor tambem pode acessar Comercial
-    if (mod.papel.toLowerCase() === 'comercial' && papel === 'gestor') return true;
+    // Gestor tambem pode acessar Comercial e Almoxarifado
+    if (papel === 'gestor') return true;
     // Valida papel específico
     return papel === mod.papel.toLowerCase();
   }

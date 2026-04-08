@@ -51,6 +51,31 @@ export const acessoRepository = {
   },
 
   async aprovarSolicitacao(id: string, cargoId: string, adminId: string): Promise<{ sucesso: boolean; erro?: string }> {
+    // 1. Busca dados da solicitação e do cargo
+    const { data: sol } = await supabase
+      .from('solicitacoes_acesso')
+      .select('nome, email')
+      .eq('id', id)
+      .single();
+
+    const { data: cargo } = await supabase
+      .from('cargos')
+      .select('papel')
+      .eq('id', cargoId)
+      .single();
+
+    // 2. Cria usuário no Auth via Electron bridge (service role)
+    const bridge = (window as any).electronBridge;
+    if (sol && cargo && bridge?.criarUsuario) {
+      const res = await bridge.criarUsuario({
+        email: sol.email,
+        nome: sol.nome,
+        papel: cargo.papel,
+      });
+      if (!res.sucesso) return { sucesso: false, erro: res.erro };
+    }
+
+    // 3. Marca solicitação como aprovada
     const { error } = await supabase
       .from('solicitacoes_acesso')
       .update({

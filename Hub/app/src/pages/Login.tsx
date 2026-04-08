@@ -1,12 +1,12 @@
 import { useState, useEffect, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, X } from 'lucide-react';
+import { Eye, EyeOff, X, Mail } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { acessoRepository } from '../infrastructure/supabase/acessoRepository';
 
 export function Login() {
   const navigate = useNavigate();
-  const { login, isAuthenticated } = useAuth();
+  const { login, loginComOtp, enviarOtp, isAuthenticated } = useAuth();
 
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
@@ -15,6 +15,15 @@ export function Login() {
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState('');
 
+  // Fluxo primeiro acesso (OTP)
+  const [modoOtp, setModoOtp] = useState(false);
+  const [emailOtp, setEmailOtp] = useState('');
+  const [codigoOtp, setCodigoOtp] = useState('');
+  const [otpEnviado, setOtpEnviado] = useState(false);
+  const [enviandoOtp, setEnviandoOtp] = useState(false);
+  const [erroOtp, setErroOtp] = useState('');
+
+  // Modal solicitar acesso
   const [modalCriar, setModalCriar] = useState(false);
   const [nomeNovo, setNomeNovo] = useState('');
   const [emailNovo, setEmailNovo] = useState('');
@@ -33,6 +42,31 @@ export function Login() {
     } else {
       setErroSolicitacao(resultado.erro ?? 'Erro ao enviar solicitação. Tente novamente.');
     }
+  }
+
+  async function handleEnviarOtp(e: FormEvent) {
+    e.preventDefault();
+    setErroOtp('');
+    setEnviandoOtp(true);
+    const resultado = await enviarOtp(emailOtp);
+    setEnviandoOtp(false);
+    if (resultado.sucesso) {
+      setOtpEnviado(true);
+    } else {
+      setErroOtp(resultado.erro ?? 'Erro ao enviar código.');
+    }
+  }
+
+  async function handleVerificarOtp(e: FormEvent) {
+    e.preventDefault();
+    setErroOtp('');
+    setEnviandoOtp(true);
+    const resultado = await loginComOtp(emailOtp, codigoOtp);
+    setEnviandoOtp(false);
+    if (!resultado.sucesso) {
+      setErroOtp(resultado.erro ?? 'Código inválido.');
+    }
+    // Se sucesso, AuthContext atualiza e App redireciona
   }
 
   useEffect(() => {
@@ -218,16 +252,94 @@ export function Login() {
             </button>
           </form>
 
-          <p className="text-center text-sm text-slate-400 mt-8">
-            Não tem conta?{' '}
-            <button
-              onClick={() => { setModalCriar(true); setSolicitacaoEnviada(false); setNomeNovo(''); setEmailNovo(''); }}
-              className="font-semibold hover:underline"
-              style={{ color: '#233772' }}
-            >
-              Solicitar acesso
-            </button>
-          </p>
+          {/* Primeiro acesso */}
+          {!modoOtp ? (
+            <div className="mt-6 pt-6 border-t border-slate-100 text-center space-y-3">
+              <button
+                onClick={() => { setModoOtp(true); setErro(''); setOtpEnviado(false); setCodigoOtp(''); setErroOtp(''); }}
+                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold border-2 transition-colors"
+                style={{ borderColor: '#233772', color: '#233772' }}
+              >
+                <Mail size={15} />
+                Primeiro acesso (receber código por e-mail)
+              </button>
+              <p className="text-sm text-slate-400">
+                Não tem conta?{' '}
+                <button
+                  onClick={() => { setModalCriar(true); setSolicitacaoEnviada(false); setNomeNovo(''); setEmailNovo(''); }}
+                  className="font-semibold hover:underline"
+                  style={{ color: '#233772' }}
+                >
+                  Solicitar acesso
+                </button>
+              </p>
+            </div>
+          ) : (
+            /* Painel OTP */
+            <div className="mt-6 pt-6 border-t border-slate-100">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-bold" style={{ color: '#233772' }}>
+                  {otpEnviado ? 'Digite o código recebido' : 'Primeiro acesso'}
+                </h3>
+                <button onClick={() => { setModoOtp(false); setOtpEnviado(false); setErroOtp(''); }} className="text-xs text-slate-400 hover:text-slate-600">
+                  Voltar
+                </button>
+              </div>
+
+              {erroOtp && (
+                <div className="mb-3 bg-red-50 border border-red-200 text-red-700 text-xs px-3 py-2 rounded-lg">
+                  {erroOtp}
+                </div>
+              )}
+
+              {!otpEnviado ? (
+                <form onSubmit={handleEnviarOtp} className="space-y-3">
+                  <input
+                    type="email"
+                    value={emailOtp}
+                    onChange={e => setEmailOtp(e.target.value)}
+                    placeholder="Seu e-mail cadastrado"
+                    required
+                    className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 bg-slate-50 focus:bg-white transition-all"
+                    style={{ '--tw-ring-color': '#233772' } as any}
+                  />
+                  <button
+                    type="submit"
+                    disabled={enviandoOtp}
+                    className="w-full font-bold py-3 rounded-xl text-sm transition-all disabled:opacity-60 flex items-center justify-center gap-2"
+                    style={{ backgroundColor: '#233772', color: '#FFC82D' }}
+                  >
+                    {enviandoOtp ? <><span className="w-3.5 h-3.5 border-2 border-yellow-400/30 border-t-yellow-400 rounded-full animate-spin" />Enviando...</> : 'Enviar código'}
+                  </button>
+                </form>
+              ) : (
+                <form onSubmit={handleVerificarOtp} className="space-y-3">
+                  <p className="text-xs text-slate-500">Código enviado para <strong>{emailOtp}</strong></p>
+                  <input
+                    type="text"
+                    value={codigoOtp}
+                    onChange={e => setCodigoOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    placeholder="000000"
+                    maxLength={6}
+                    required
+                    className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm text-center tracking-[0.5em] font-mono focus:outline-none focus:ring-2 bg-slate-50 focus:bg-white transition-all"
+                    style={{ '--tw-ring-color': '#233772' } as any}
+                  />
+                  <button
+                    type="submit"
+                    disabled={enviandoOtp || codigoOtp.length < 6}
+                    className="w-full font-bold py-3 rounded-xl text-sm transition-all disabled:opacity-60 flex items-center justify-center gap-2"
+                    style={{ backgroundColor: '#233772', color: '#FFC82D' }}
+                  >
+                    {enviandoOtp ? <><span className="w-3.5 h-3.5 border-2 border-yellow-400/30 border-t-yellow-400 rounded-full animate-spin" />Verificando...</> : 'Entrar'}
+                  </button>
+                  <button type="button" onClick={() => setOtpEnviado(false)} className="w-full text-xs text-slate-400 hover:text-slate-600 py-1">
+                    Reenviar código
+                  </button>
+                </form>
+              )}
+            </div>
+          )}
         </div>
       </div>
 

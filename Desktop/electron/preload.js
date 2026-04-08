@@ -21,4 +21,7 @@ contextBridge.exposeInMainWorld('electronBridge', {
   onUpdateDownloaded: (cb) => {
     ipcRenderer.on('update:downloaded', () => cb());
   },
+
+  // Admin: criar usuário ao aprovar acesso
+  criarUsuario: (dados) => ipcRenderer.invoke('admin:criarUsuario', dados),
 });

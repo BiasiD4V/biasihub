@@ -1,0 +1,362 @@
+/* ═══════════════════════════════════════════════════════════════════ */
+/* ESPAÇAMENTO GLOBAL - ERP BIASI                                      */
+/* ═══════════════════════════════════════════════════════════════════ */
+
+/* SISTEMA DE ESPAÇAMENTO (baseado em 4px) */
+/* 
+  xs:  4px   (0.25rem)
+  sm:  8px   (0.5rem)
+  md:  12px  (0.75rem)
+  lg:  16px  (1rem)
+  xl:  20px  (1.25rem)
+  2xl: 24px  (1.5rem)
+  3xl: 32px  (2rem)
+  4xl: 40px  (2.5rem)
+  5xl: 48px  (3rem)
+*/
+
+/* ─────────────────────────────────────────────────────────────────── */
+/* PADDING - Espaçamento Interno                                       */
+/* ─────────────────────────────────────────────────────────────────── */
+
+.p-xs  { padding: 4px; }
+.p-sm  { padding: 8px; }
+.p-md  { padding: 12px; }
+.p-lg  { padding: 16px; }
+.p-xl  { padding: 20px; }
+.p-2xl { padding: 24px; }
+.p-3xl { padding: 32px; }
+
+/* Padding Horizontal */
+.px-xs  { padding-left: 4px; padding-right: 4px; }
+.px-sm  { padding-left: 8px; padding-right: 8px; }
+.px-md  { padding-left: 12px; padding-right: 12px; }
+.px-lg  { padding-left: 16px; padding-right: 16px; }
+.px-xl  { padding-left: 20px; padding-right: 20px; }
+.px-2xl { padding-left: 24px; padding-right: 24px; }
+.px-3xl { padding-left: 32px; padding-right: 32px; }
+
+/* Padding Vertical */
+.py-xs  { padding-top: 4px; padding-bottom: 4px; }
+.py-sm  { padding-top: 8px; padding-bottom: 8px; }
+.py-md  { padding-top: 12px; padding-bottom: 12px; }
+.py-lg  { padding-top: 16px; padding-bottom: 16px; }
+.py-xl  { padding-top: 20px; padding-bottom: 20px; }
+.py-2xl { padding-top: 24px; padding-bottom: 24px; }
+.py-3xl { padding-top: 32px; padding-bottom: 32px; }
+
+/* ─────────────────────────────────────────────────────────────────── */
+/* MARGIN - Espaçamento Externo                                        */
+/* ─────────────────────────────────────────────────────────────────── */
+
+.m-xs  { margin: 4px; }
+.m-sm  { margin: 8px; }
+.m-md  { margin: 12px; }
+.m-lg  { margin: 16px; }
+.m-xl  { margin: 20px; }
+.m-2xl { margin: 24px; }
+.m-3xl { margin: 32px; }
+
+/* Margin Horizontal */
+.mx-xs  { margin-left: 4px; margin-right: 4px; }
+.mx-sm  { margin-left: 8px; margin-right: 8px; }
+.mx-md  { margin-left: 12px; margin-right: 12px; }
+.mx-lg  { margin-left: 16px; margin-right: 16px; }
+.mx-xl  { margin-left: 20px; margin-right: 20px; }
+.mx-2xl { margin-left: 24px; margin-right: 24px; }
+.mx-3xl { margin-left: 32px; margin-right: 32px; }
+
+/* Margin Vertical */
+.my-xs  { margin-top: 4px; margin-bottom: 4px; }
+.my-sm  { margin-top: 8px; margin-bottom: 8px; }
+.my-md  { margin-top: 12px; margin-bottom: 12px; }
+.my-lg  { margin-top: 16px; margin-bottom: 16px; }
+.my-xl  { margin-top: 20px; margin-bottom: 20px; }
+.my-2xl { margin-top: 24px; margin-bottom: 24px; }
+.my-3xl { margin-top: 32px; margin-bottom: 32px; }
+
+/* Margin Top */
+.mt-xs  { margin-top: 4px; }
+.mt-sm  { margin-top: 8px; }
+.mt-md  { margin-top: 12px; }
+.mt-lg  { margin-top: 16px; }
+.mt-xl  { margin-top: 20px; }
+.mt-2xl { margin-top: 24px; }
+.mt-3xl { margin-top: 32px; }
+
+/* Margin Bottom */
+.mb-xs  { margin-bottom: 4px; }
+.mb-sm  { margin-bottom: 8px; }
+.mb-md  { margin-bottom: 12px; }
+.mb-lg  { margin-bottom: 16px; }
+.mb-xl  { margin-bottom: 20px; }
+.mb-2xl { margin-bottom: 24px; }
+.mb-3xl { margin-bottom: 32px; }
+
+/* Margin Left */
+.ml-xs  { margin-left: 4px; }
+.ml-sm  { margin-left: 8px; }
+.ml-md  { margin-left: 12px; }
+.ml-lg  { margin-left: 16px; }
+.ml-xl  { margin-left: 20px; }
+.ml-2xl { margin-left: 24px; }
+.ml-3xl { margin-left: 32px; }
+
+/* Margin Right */
+.mr-xs  { margin-right: 4px; }
+.mr-sm  { margin-right: 8px; }
+.mr-md  { margin-right: 12px; }
+.mr-lg  { margin-right: 16px; }
+.mr-xl  { margin-right: 20px; }
+.mr-2xl { margin-right: 24px; }
+.mr-3xl { margin-right: 32px; }
+
+/* ─────────────────────────────────────────────────────────────────── */
+/* GAP - Espaçamento entre elementos Flex/Grid                         */
+/* ─────────────────────────────────────────────────────────────────── */
+
+.gap-xs  { gap: 4px; }
+.gap-sm  { gap: 8px; }
+.gap-md  { gap: 12px; }
+.gap-lg  { gap: 16px; }
+.gap-xl  { gap: 20px; }
+.gap-2xl { gap: 24px; }
+.gap-3xl { gap: 32px; }
+
+/* ─────────────────────────────────────────────────────────────────── */
+/* SHADOW - Sombras com Profundidade                                   */
+/* ─────────────────────────────────────────────────────────────────── */
+
+/* Sombra Nenhuma */
+.shadow-none {
+  box-shadow: none;
+}
+
+/* Sombra Extra Pequena - Divider, hover state leve */
+.shadow-xs {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+/* Sombra Pequena - Botões, inputs em hover */
+.shadow-sm {
+  box-shadow: 0 1px 3px rgba(35, 55, 114, 0.05);
+}
+
+/* Sombra Média - Cards padrão, dropdowns */
+.shadow-md {
+  box-shadow: 0 4px 12px rgba(35, 55, 114, 0.1);
+}
+
+/* Sombra Grande - Cards importantes, modais */
+.shadow-lg {
+  box-shadow: 0 8px 24px rgba(35, 55, 114, 0.12);
+}
+
+/* Sombra Extra Grande - Overlay, notificações */
+.shadow-xl {
+  box-shadow: 0 12px 36px rgba(35, 55, 114, 0.15);
+}
+
+/* Sombra Interna (para ênfase interna) */
+.shadow-inset {
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+/* ─────────────────────────────────────────────────────────────────── */
+/* BORDER RADIUS - Arredondamento de Cantos                            */
+/* ─────────────────────────────────────────────────────────────────── */
+
+/* Nenhum arredondamento */
+.rounded-none {
+  border-radius: 0;
+}
+
+/* Arredondamento Extra Pequeno - Ícones, badges */
+.rounded-xs {
+  border-radius: 2px;
+}
+
+/* Arredondamento Pequeno - Inputs, pequenos elementos */
+.rounded-sm {
+  border-radius: 4px;
+}
+
+/* Arredondamento Médio - Botões, cards pequenos */
+.rounded-md {
+  border-radius: 6px;
+}
+
+/* Arredondamento Grande - Cards padrão (padrão do projeto) */
+.rounded-lg {
+  border-radius: 8px;
+}
+
+/* Arredondamento Extra Grande - Modais, painéis */
+.rounded-xl {
+  border-radius: 12px;
+}
+
+/* Arredondamento Máximo - Avatares, badges circulares */
+.rounded-full {
+  border-radius: 9999px;
+}
+
+/* ─────────────────────────────────────────────────────────────────── */
+/* COMPONENTES COMPOSTOS - Padrões Comuns                              */
+/* ─────────────────────────────────────────────────────────────────── */
+
+/* Card Padrão */
+.card {
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 1px 3px rgba(35, 55, 114, 0.05);
+  transition: all 0.2s ease;
+}
+
+.card:hover {
+  box-shadow: 0 8px 24px rgba(35, 55, 114, 0.12);
+  transform: translateY(-2px);
+}
+
+/* Card Compacto */
+.card-compact {
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 16px;
+  box-shadow: 0 1px 3px rgba(35, 55, 114, 0.05);
+}
+
+/* Container de Página */
+.page-container {
+  padding: 24px;
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+/* Container Compacto */
+.container-compact {
+  padding: 16px;
+}
+
+/* Seção */
+.section {
+  margin-bottom: 32px;
+}
+
+.section-title {
+  margin-bottom: 16px;
+}
+
+.section-content {
+  padding: 16px;
+}
+
+/* Grid de Cards */
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 16px;
+}
+
+/* Divider Horizontal */
+.divider-h {
+  height: 1px;
+  background-color: #e2e8f0;
+  margin: 16px 0;
+}
+
+/* Divider Vertical */
+.divider-v {
+  width: 1px;
+  background-color: #e2e8f0;
+  margin: 0 16px;
+}
+
+/* ─────────────────────────────────────────────────────────────────── */
+/* ESPAÇAMENTO RESPONSIVO                                              */
+/* ─────────────────────────────────────────────────────────────────── */
+
+@media (max-width: 768px) {
+  .page-container {
+    padding: 16px;
+  }
+
+  .card {
+    padding: 16px;
+  }
+
+  .section {
+    margin-bottom: 24px;
+  }
+
+  .card-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Reduz gaps em mobile */
+  .gap-lg {
+    gap: 12px;
+  }
+
+  .gap-xl {
+    gap: 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .page-container {
+    padding: 12px;
+  }
+
+  .card {
+    padding: 12px;
+  }
+
+  /* Stack vertical em muito pequeno */
+  .flex {
+    flex-direction: column;
+  }
+
+  .gap-md {
+    gap: 8px;
+  }
+
+  .gap-lg {
+    gap: 12px;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────── */
+/* ACESSIBILIDADE - Espaçamento Mínimo para Toque                      */
+/* ─────────────────────────────────────────────────────────────────── */
+
+/* Área de toque mínima: 44px x 44px */
+.touch-target {
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Padding mínimo ao redor de botões */
+.btn-base {
+  padding: 8px 16px;
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-sm {
+  padding: 6px 12px;
+  min-height: 32px;
+}
+
+.btn-lg {
+  padding: 12px 24px;
+  min-height: 48px;
+}

@@ -603,6 +603,71 @@ function setupIPC() {
     // isSilent=true: instala sem mostrar assistente; isForceRunAfter=true: reabre o app
     autoUpdater.quitAndInstall(true, true);
   });
+
+  // ── Criar usuário quando admin aprova acesso ──────────────────
+  ipcMain.handle('admin:criarUsuario', async (_event, { email, nome, papel }) => {
+    try {
+      // 1. Criar usuário no Supabase Auth (sem senha — primeiro acesso via OTP)
+      const createRes = await net.fetch(
+        `${SUPABASE_URL}/auth/v1/admin/users`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': SUPABASE_SERVICE_KEY,
+            'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+          },
+          body: JSON.stringify({
+            email: email.trim().toLowerCase(),
+            email_confirm: true,
+            user_metadata: { nome: nome.trim() },
+          }),
+        }
+      );
+
+      const createData = await createRes.json();
+      if (!createRes.ok) {
+        // Usuário já existe no auth? Tenta buscar
+        if (!createData.id) {
+          return { sucesso: false, erro: createData.msg || 'Erro ao criar usuário no Auth.' };
+        }
+      }
+
+      const userId = createData.id;
+
+      // 2. Criar/atualizar registro em usuarios
+      const upsertRes = await net.fetch(
+        `${SUPABASE_URL}/rest/v1/usuarios`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': SUPABASE_SERVICE_KEY,
+            'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+            'Prefer': 'resolution=merge-duplicates',
+          },
+          body: JSON.stringify({
+            id: userId,
+            nome: nome.trim(),
+            email: email.trim().toLowerCase(),
+            papel,
+            ativo: true,
+            senha_definida: false,
+          }),
+        }
+      );
+
+      if (!upsertRes.ok) {
+        const err = await upsertRes.json().catch(() => ({}));
+        return { sucesso: false, erro: err.message || 'Erro ao criar perfil.' };
+      }
+
+      return { sucesso: true, userId };
+    } catch (err) {
+      console.error('[admin:criarUsuario] erro:', err);
+      return { sucesso: false, erro: 'Erro interno ao criar usuário.' };
+    }
+  });
 }
 
 // ── Setup Auto-updater ──────────────────────────────────────────────────────────

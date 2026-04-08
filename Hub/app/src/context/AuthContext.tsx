@@ -13,7 +13,11 @@ interface AuthContextType {
   usuario: Usuario | null;
   loading: boolean;
   erroConexao: string | null;
+  precisaDefinirSenha: boolean;
   login: (email: string, senha: string, rememberMe?: boolean) => Promise<{ sucesso: boolean; erro?: string }>;
+  loginComOtp: (email: string, token: string) => Promise<{ sucesso: boolean; erro?: string }>;
+  enviarOtp: (email: string) => Promise<{ sucesso: boolean; erro?: string }>;
+  definirSenha: (novaSenha: string) => Promise<{ sucesso: boolean; erro?: string }>;
   logout: () => void;
 }
 
@@ -23,6 +27,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [usuario, setUsuario] = useState<Usuario | null>(null);
   const [loading, setLoading] = useState(true);
   const [erroConexao, setErroConexao] = useState<string | null>(null);
+  const [precisaDefinirSenha, setPrecisaDefinirSenha] = useState(false);
   const inicializado = useRef(false);
 
   useEffect(() => {
@@ -102,6 +107,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           ativo: data.ativo,
           departamento: data.departamento || null,
         });
+        setPrecisaDefinirSenha(data.senha_definida === false);
         return true;
       }
       return false;
@@ -153,10 +159,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  async function enviarOtp(email: string): Promise<{ sucesso: boolean; erro?: string }> {
+    const { error } = await supabase.auth.signInWithOtp({
+      email: email.trim().toLowerCase(),
+      options: { shouldCreateUser: false },
+    });
+    if (error) return { sucesso: false, erro: 'E-mail não encontrado ou erro ao enviar código.' };
+    return { sucesso: true };
+  }
+
+  async function loginComOtp(email: string, token: string): Promise<{ sucesso: boolean; erro?: string }> {
+    const { data, error } = await supabase.auth.verifyOtp({
+      email: email.trim().toLowerCase(),
+      token,
+      type: 'email',
+    });
+    if (error) return { sucesso: false, erro: 'Código inválido ou expirado.' };
+    if (data.user) {
+      const ok = await loadUserProfile(data.user.id);
+      if (!ok) return { sucesso: false, erro: 'Perfil não encontrado. Contate o administrador.' };
+    }
+    return { sucesso: true };
+  }
+
+  async function definirSenha(novaSenha: string): Promise<{ sucesso: boolean; erro?: string }> {
+    const { error } = await supabase.auth.updateUser({ password: novaSenha });
+    if (error) return { sucesso: false, erro: 'Erro ao definir senha. Tente novamente.' };
+
+    // Marca senha como definida no banco
+    if (usuario) {
+      await supabase.from('usuarios').update({ senha_definida: true }).eq('id', usuario.id);
+    }
+    setPrecisaDefinirSenha(false);
+    return { sucesso: true };
+  }
+
   async function logout() {
     try {
       await supabase.auth.signOut();
       setUsuario(null);
+      setPrecisaDefinirSenha(false);
       clearRememberedSession();
     } catch (error) {
       console.error('Erro no logout:', error);
@@ -169,7 +211,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       usuario,
       loading,
       erroConexao,
+      precisaDefinirSenha,
       login,
+      loginComOtp,
+      enviarOtp,
+      definirSenha,
       logout
     }}>
       {children}
