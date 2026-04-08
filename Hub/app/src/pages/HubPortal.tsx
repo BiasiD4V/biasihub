@@ -2,7 +2,7 @@ import { Briefcase, Package, HardHat, BarChart3, FileText, Truck } from 'lucide-
 import { ModuleCard } from '../components/ModuleCard';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../infrastructure/supabase/client';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 interface ModuleDef {
   titulo: string;
@@ -87,23 +87,66 @@ const MODULES: ModuleDef[] = [
 const HUB_OPEN_GUARD_KEY = 'hub-open-module-guard-v1';
 const HUB_OPEN_GUARD_WINDOW_MS = 30000;
 
+// Mapeamento modulo_key → índice em MODULES
+const KEY_MAP: Record<string, string> = {
+  comercial:    'Comercial',
+  almoxarifado: 'Almoxarifado',
+  obras:        'Obras',
+  financeiro:   'Financeiro',
+  contratos:    'Contratos',
+  logistica:    'Logística',
+};
+
+interface ModuloAcessoDB {
+  modulo_key: string;
+  papeis: string[];
+  disponivel: boolean;
+}
+
 export function HubPortal() {
   const { usuario } = useAuth();
+  const [modulosDB, setModulosDB] = useState<ModuloAcessoDB[]>([]);
 
-  // Normaliza papel
   const papel = (usuario?.papel ?? '').toString().trim().toLowerCase();
   const isAdmin = papel === 'admin' || papel === 'dono';
 
+  // Carrega configuração de acesso do banco
+  useEffect(() => {
+    supabase
+      .from('modulo_acesso')
+      .select('modulo_key, papeis, disponivel')
+      .then(({ data }) => {
+        if (data) setModulosDB(data as ModuloAcessoDB[]);
+      });
+  }, []);
+
   function temAcesso(mod: ModuleDef): boolean {
-    if (!mod.disponivel) return false;
-    // Admin/Dono tem acesso a tudo
+    // Admin/Dono tem acesso a tudo sempre
     if (isAdmin) return true;
-    // Módulos sem restrição são acessíveis a todos
-    if (!mod.papel) return true;
-    // Gestor tambem pode acessar Comercial e Almoxarifado
-    if (papel === 'gestor') return true;
-    // Valida papel específico
-    return papel === mod.papel.toLowerCase();
+
+    // Busca configuração do banco para este módulo
+    const key = Object.entries(KEY_MAP).find(([, label]) => label === mod.titulo)?.[0];
+    const config = modulosDB.find(m => m.modulo_key === key);
+
+    // Se não tem configuração no banco, usa lógica antiga como fallback
+    if (!config) {
+      if (!mod.disponivel) return false;
+      if (!mod.papel) return true;
+      if (papel === 'gestor') return true;
+      return papel === mod.papel.toLowerCase();
+    }
+
+    // Usa configuração do banco
+    if (!config.disponivel) return false;
+    const papeis = (config.papeis ?? []).map(p => p.toLowerCase());
+    return papeis.includes(papel);
+  }
+
+  function estaDisponivel(mod: ModuleDef): boolean {
+    const key = Object.entries(KEY_MAP).find(([, label]) => label === mod.titulo)?.[0];
+    const config = modulosDB.find(m => m.modulo_key === key);
+    if (!config) return mod.disponivel;
+    return config.disponivel;
   }
 
   async function abrirModulo(href: string, modulo?: ModuleDef) {
@@ -163,8 +206,8 @@ export function HubPortal() {
     return 'Boa noite';
   };
 
-  const ativos = MODULES.filter(m => m.disponivel && temAcesso(m));
-  const emBreve = MODULES.filter(m => !m.disponivel || (m.disponivel && !temAcesso(m)));
+  const ativos = MODULES.filter(m => estaDisponivel(m) && temAcesso(m));
+  const emBreve = MODULES.filter(m => !estaDisponivel(m) || (estaDisponivel(m) && !temAcesso(m)));
 
   return (
     <div className="min-h-full p-6 lg:p-8 max-w-5xl mx-auto">
