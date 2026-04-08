@@ -207,6 +207,113 @@ function fallbackClassificacao({ texto, categoria, subcategoria, urgente }) {
   };
 }
 
+// ── Handler do Paulo (IA com contexto real da empresa) ───────────────────────
+async function handlePaulo(request) {
+  try {
+    const body = await request.json();
+    const { mensagem, historico = [] } = body;
+
+    const cfg = await getStore();
+    const anthropicKey = cfg.get('anthropicKey') || '';
+
+    if (!anthropicKey) {
+      return new Response(JSON.stringify({
+        resposta: 'Preciso de uma chave de IA para funcionar. Peça ao administrador configurar em Meus Dispositivos.',
+      }), { headers: { 'Content-Type': 'application/json' } });
+    }
+
+    // Busca dados reais do Supabase para montar o contexto do Paulo
+    const headers = { apikey: SUPABASE_SERVICE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_KEY}` };
+    const [stockRes, reqRes, epiRes, frotaRes, movsRes] = await Promise.allSettled([
+      net.fetch(`${SUPABASE_URL}/rest/v1/itens_almoxarifado?ativo=eq.true&select=codigo,descricao,estoque_atual,estoque_minimo,unidade&order=descricao`, { headers }),
+      net.fetch(`${SUPABASE_URL}/rest/v1/requisicoes_almoxarifado?status=eq.pendente&select=titulo,solicitante,urgente,criado_em&order=criado_em.desc&limit=15`, { headers }),
+      net.fetch(`${SUPABASE_URL}/rest/v1/entregas_epi?status=eq.ativo&select=colaborador_nome,data_validade,epi:epis_catalogo(nome)&order=data_validade.asc&limit=30`, { headers }),
+      net.fetch(`${SUPABASE_URL}/rest/v1/veiculos?ativo=eq.true&select=modelo,placa,km_atual,proxima_manutencao_km,status&order=modelo`, { headers }),
+      net.fetch(`${SUPABASE_URL}/rest/v1/movimentacoes_almoxarifado?select=tipo,quantidade,obra,criado_em,item:itens_almoxarifado(descricao)&order=criado_em.desc&limit=10`, { headers }),
+    ]);
+
+    const safeJson = async (res) => {
+      if (res.status === 'fulfilled' && res.value.ok) return res.value.json();
+      return [];
+    };
+    const [itens, requisicoes, epis, veiculos, movs] = await Promise.all([
+      safeJson(stockRes), safeJson(reqRes), safeJson(epiRes), safeJson(frotaRes), safeJson(movsRes),
+    ]);
+
+    const hoje = new Date();
+    const em30dias = new Date(hoje.getTime() + 30 * 24 * 60 * 60 * 1000);
+    const itensBaixos = itens.filter(i => Number(i.estoque_atual) <= Number(i.estoque_minimo));
+    const itensZerados = itensBaixos.filter(i => Number(i.estoque_atual) === 0);
+    const episVencendo = epis.filter(e => new Date(e.data_validade) <= em30dias);
+    const frotaProblemas = veiculos.filter(v => v.status !== 'ativo' || (v.proxima_manutencao_km && v.km_atual >= v.proxima_manutencao_km));
+
+    const systemPrompt = `Você é Igor, o assistente inteligente do Almoxarifado da Biasi Engenharia.
+Você estuda os dados da empresa o tempo todo e os conhece de cor.
+Você é amigável, direto, fala em português do Brasil natural (não formal demais).
+Use os dados abaixo para responder perguntas com precisão. Seja proativo: se notar algo importante, mencione.
+Não invente dados — use apenas o que está aqui. Se não souber, diga honestamente.
+
+=== DADOS DE HOJE (${hoje.toLocaleDateString('pt-BR')}) ===
+
+📦 ESTOQUE: ${itens.length} itens ativos
+${itensZerados.length > 0 ? `🔴 ZERADOS (${itensZerados.length}): ${itensZerados.map(i => `${i.descricao} (${i.codigo})`).join(', ')}` : ''}
+${itensBaixos.length > itensZerados.length ? `🟡 ESTOQUE BAIXO (${itensBaixos.length - itensZerados.length}): ${itensBaixos.filter(i => Number(i.estoque_atual) > 0).map(i => `${i.descricao}: ${i.estoque_atual}${i.unidade} / mín ${i.estoque_minimo}${i.unidade}`).join(' | ')}` : ''}
+${itensBaixos.length === 0 ? '✅ Todos os itens com estoque adequado' : ''}
+
+📋 REQUISIÇÕES PENDENTES: ${requisicoes.length}
+${requisicoes.length > 0 ? requisicoes.map(r => `- "${r.titulo}" por ${r.solicitante}${r.urgente ? ' ⚠️ URGENTE' : ''}`).join('\n') : 'Nenhuma pendente'}
+
+🦺 EPI VENCENDO EM 30 DIAS: ${episVencendo.length}
+${episVencendo.length > 0 ? episVencendo.map(e => `- ${e.epi?.nome || 'EPI'} de ${e.colaborador_nome}: ${new Date(e.data_validade).toLocaleDateString('pt-BR')}`).join('\n') : 'Nenhum'}
+
+🚛 FROTA: ${veiculos.length} veículos
+${veiculos.map(v => `- ${v.modelo} ${v.placa}: ${v.km_atual ? v.km_atual.toLocaleString('pt-BR') + ' km' : 'km não informado'}${v.status !== 'ativo' ? ` (${v.status})` : ''}`).join('\n')}
+${frotaProblemas.length > 0 ? `⚠️ ${frotaProblemas.length} veículo(s) com atenção necessária` : ''}
+
+🔄 ÚLTIMAS MOVIMENTAÇÕES:
+${movs.map(m => `- ${m.tipo === 'entrada' ? '↑' : '↓'} ${m.item?.descricao}: ${m.quantidade} ${m.obra ? `(${m.obra})` : ''}`).join('\n')}`;
+
+    const messages = [
+      ...historico.slice(-12),
+      { role: 'user', content: mensagem },
+    ];
+
+    const resp = await net.fetch(ANTHROPIC_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': anthropicKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 1024,
+        system: systemPrompt,
+        messages,
+      }),
+    });
+
+    if (!resp.ok) {
+      return new Response(JSON.stringify({ resposta: 'Erro ao conectar com a IA. Tente novamente.' }), {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const data = await resp.json();
+    const resposta = data.content?.[0]?.text || 'Não consegui processar sua mensagem.';
+
+    return new Response(JSON.stringify({ resposta }), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  } catch (err) {
+    console.error('[igor] erro:', err);
+    return new Response(JSON.stringify({ resposta: 'Ocorreu um erro interno. Tente novamente.' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+}
+
 async function proxyExternalRequest(request, targetUrl) {
   const method = (request.method || 'GET').toUpperCase();
   const headers = new Headers(request.headers || {});
@@ -354,6 +461,11 @@ function setupProtocol() {
       return handleSolicitar(request);
     }
 
+    // Rota do Paulo (IA com contexto real)
+    if (appName === 'almoxarifado' && pathname === '/api/paulo') {
+      return handlePaulo(request);
+    }
+
     // Rota da API de membros (GET)
     if (pathname === '/api/membros') {
       return handleMembros(request);
@@ -478,42 +590,48 @@ function setupIPC() {
 
   ipcMain.handle('updater:downloadAndInstall', async () => {
     try {
-      const currentVersion = app.getVersion();
-      let latestVersion = null;
-      let hasUpdate = false;
-
-      try {
-        const checkResult = await autoUpdater.checkForUpdates();
-        latestVersion = checkResult?.updateInfo?.version;
-
-        if (latestVersion && latestVersion !== currentVersion && isVersionNewer(latestVersion, currentVersion)) {
-          hasUpdate = true;
-        }
-      } catch (checkError) {
-        console.error('[updater] erro ao verificar antes de instalar:', checkError);
-      }
-
-      if (!hasUpdate) {
-        return { success: false, error: 'Sua versão está atualizada (v' + currentVersion + ').' };
-      }
-
-      await autoUpdater.downloadUpdate();
-      autoUpdater.quitAndInstall();
+      // Apenas inicia o download — o quit acontece via evento 'update-downloaded'
+      autoUpdater.downloadUpdate();
       return { success: true };
     } catch (error) {
-      console.error('[updater] erro ao instalar:', error);
+      console.error('[updater] erro ao iniciar download:', error);
       return { success: false, error: error.message };
     }
+  });
+
+  ipcMain.handle('updater:quitAndInstall', () => {
+    // isSilent=true: instala sem mostrar assistente; isForceRunAfter=true: reabre o app
+    autoUpdater.quitAndInstall(true, true);
   });
 }
 
 // ── Setup Auto-updater ──────────────────────────────────────────────────────────
 function setupUpdater() {
   autoUpdater.autoDownload = false;
+
+  // Envia progresso de download para o renderer
+  autoUpdater.on('download-progress', (info) => {
+    BrowserWindow.getAllWindows().forEach(win => {
+      win.webContents.send('update:progress', {
+        percent: Math.round(info.percent),
+        transferred: info.transferred,
+        total: info.total,
+      });
+    });
+  });
+
+  // Quando o download terminar, avisa o renderer (ele mostrará botão "Reiniciar")
+  autoUpdater.on('update-downloaded', () => {
+    BrowserWindow.getAllWindows().forEach(win => {
+      win.webContents.send('update:downloaded');
+    });
+  });
+
   autoUpdater.checkForUpdates().catch((error) => {
     console.error('[updater] erro no check inicial:', error);
   });
-  // Verifica atualizacoes a cada 1 hora
+
+  // Verifica atualizações a cada 1 hora
   setInterval(() => {
     autoUpdater.checkForUpdates().catch((error) => {
       console.error('[updater] erro no check agendado:', error);

@@ -1,9 +1,24 @@
-import { useEffect, useState } from 'react';
-import { Plus, Truck, Wrench, MapPin, Calendar, DollarSign, X, ChevronDown, ChevronRight } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import {
+  Plus, Truck, Wrench, MapPin, Calendar, DollarSign, X,
+  ChevronDown, ChevronRight, Building2, HardHat, User,
+  AlertTriangle, Camera, ImageIcon, CheckCircle,
+} from 'lucide-react';
 import { supabase } from '../infrastructure/supabase/client';
 import type { Veiculo, StatusVeiculo } from '../domain/entities/Veiculo';
 import type { Manutencao } from '../domain/entities/Manutencao';
 import { useAuth } from '../context/AuthContext';
+
+interface Acidente {
+  id: string;
+  veiculo_id: string;
+  data: string;
+  local: string | null;
+  descricao: string | null;
+  custo_reparo: number;
+  fotos: string[];
+  criado_em: string;
+}
 
 const STATUS_CONFIG: Record<StatusVeiculo, { label: string; cor: string; corBg: string }> = {
   disponivel: { label: 'Disponível',  cor: 'text-green-700',  corBg: 'bg-green-100' },
@@ -13,23 +28,48 @@ const STATUS_CONFIG: Record<StatusVeiculo, { label: string; cor: string; corBg: 
 
 const TIPOS_MANUT = ['Preventiva', 'Corretiva', 'Revisão', 'Pneus', 'Óleo', 'Elétrica', 'Funilaria', 'Outro'];
 
+function fmtBRL(v: number) {
+  return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
 export function Frota() {
   const { usuario } = useAuth();
   const [veiculos, setVeiculos] = useState<Veiculo[]>([]);
   const [manutencoes, setManutencoes] = useState<Record<string, Manutencao[]>>({});
+  const [acidentes, setAcidentes] = useState<Record<string, Acidente[]>>({});
   const [expandidos, setExpandidos] = useState<Record<string, boolean>>({});
+  const [abaExpandida, setAbaExpandida] = useState<Record<string, 'manutencao' | 'acidente'>>({});
   const [loading, setLoading] = useState(true);
 
+  // Modais
   const [modalVeiculo, setModalVeiculo] = useState(false);
-  const [modalManutencao, setModalManutencao] = useState<string | null>(null); // veiculo_id
   const [editandoVeiculo, setEditandoVeiculo] = useState<Veiculo | null>(null);
+  const [modalManutencao, setModalManutencao] = useState<string | null>(null);
+  const [modalAcidente, setModalAcidente] = useState<string | null>(null);
+  const [fotoAmpliada, setFotoAmpliada] = useState<string | null>(null);
 
-  const [formVeiculo, setFormVeiculo] = useState({ placa: '', modelo: '', marca: '', ano: '', cor: '', obra_atual: '', status: 'disponivel' as StatusVeiculo });
-  const [formManut, setFormManut] = useState({ tipo: 'Preventiva', data: new Date().toISOString().split('T')[0], km: '', custo: '', oficina: '', descricao: '' });
+  // Forms
+  const [formVeiculo, setFormVeiculo] = useState({
+    placa: '', modelo: '', marca: '', ano: '', cor: '',
+    status: 'disponivel' as StatusVeiculo,
+    localizacao: 'biasi' as 'biasi' | 'obra',
+    obra_atual: '', responsavel_atual: '',
+  });
+  const [formManut, setFormManut] = useState({
+    tipo: 'Preventiva', data: new Date().toISOString().split('T')[0],
+    data_saida: '', km: '', custo: '', oficina: '', descricao: '',
+  });
+  const [formAcidente, setFormAcidente] = useState({
+    data: new Date().toISOString().split('T')[0],
+    local: '', descricao: '', custo_reparo: '',
+    fotos: [] as File[],
+  });
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState('');
+  const [uploadando, setUploadando] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
-  const isGestor = usuario?.papel === 'gestor' || usuario?.papel === 'admin' || usuario?.papel === 'dono';
+  const isGestor = ['gestor', 'admin', 'dono'].includes(usuario?.papel ?? '');
 
   async function carregar() {
     const { data } = await supabase.from('veiculos').select('*').eq('ativo', true).order('modelo');
@@ -37,91 +77,149 @@ export function Frota() {
     setLoading(false);
   }
 
-  async function carregarManutencoes(veiculoId: string) {
-    if (manutencoes[veiculoId]) return;
-    const { data } = await supabase.from('manutencoes_veiculo').select('*').eq('veiculo_id', veiculoId).order('data', { ascending: false });
-    setManutencoes(prev => ({ ...prev, [veiculoId]: data || [] }));
+  async function carregarDetalhes(veiculoId: string) {
+    const [{ data: m }, { data: a }] = await Promise.all([
+      supabase.from('manutencoes_veiculo').select('*').eq('veiculo_id', veiculoId).order('data', { ascending: false }),
+      supabase.from('acidentes_veiculo').select('*').eq('veiculo_id', veiculoId).order('data', { ascending: false }),
+    ]);
+    setManutencoes(prev => ({ ...prev, [veiculoId]: m || [] }));
+    setAcidentes(prev => ({ ...prev, [veiculoId]: a || [] }));
   }
 
   useEffect(() => { carregar(); }, []);
 
-  function toggleExpand(id: string) {
-    if (!expandidos[id]) carregarManutencoes(id);
-    setExpandidos(prev => ({ ...prev, [id]: !prev[id] }));
+  function toggleExpand(id: string, aba: 'manutencao' | 'acidente' = 'manutencao') {
+    const jaAberto = expandidos[id];
+    const mesmaAba = abaExpandida[id] === aba;
+    if (!manutencoes[id]) carregarDetalhes(id);
+    if (jaAberto && mesmaAba) {
+      setExpandidos(prev => ({ ...prev, [id]: false }));
+    } else {
+      setExpandidos(prev => ({ ...prev, [id]: true }));
+      setAbaExpandida(prev => ({ ...prev, [id]: aba }));
+    }
   }
 
+  // ── Salvar veículo ─────────────────────────────────────────────────────────
   async function salvarVeiculo() {
     if (!formVeiculo.placa.trim() || !formVeiculo.modelo.trim()) { setErro('Placa e modelo são obrigatórios'); return; }
     setSalvando(true); setErro('');
-
     const payload = {
       placa: formVeiculo.placa.trim().toUpperCase(),
       modelo: formVeiculo.modelo.trim(),
       marca: formVeiculo.marca.trim() || null,
       ano: formVeiculo.ano ? parseInt(formVeiculo.ano) : null,
       cor: formVeiculo.cor.trim() || null,
-      obra_atual: formVeiculo.obra_atual.trim() || null,
       status: formVeiculo.status,
+      localizacao: formVeiculo.localizacao,
+      obra_atual: formVeiculo.localizacao === 'obra' ? (formVeiculo.obra_atual.trim() || null) : null,
+      responsavel_atual: formVeiculo.localizacao === 'obra' ? (formVeiculo.responsavel_atual.trim() || null) : null,
+      data_saiu_manutencao: formVeiculo.status === 'disponivel' && editandoVeiculo?.status === 'manutencao'
+        ? new Date().toISOString() : undefined,
     };
-
-    let error;
-    if (editandoVeiculo) {
-      const res = await supabase.from('veiculos').update(payload).eq('id', editandoVeiculo.id);
-      error = res.error;
-    } else {
-      const res = await supabase.from('veiculos').insert(payload);
-      error = res.error;
-    }
-
+    const fn = editandoVeiculo
+      ? supabase.from('veiculos').update(payload).eq('id', editandoVeiculo.id)
+      : supabase.from('veiculos').insert(payload);
+    const { error } = await fn;
     if (error) { setErro(error.message); setSalvando(false); return; }
     await carregar();
     setModalVeiculo(false);
     setSalvando(false);
   }
 
+  // ── Salvar manutenção ──────────────────────────────────────────────────────
   async function salvarManutencao() {
     if (!formManut.tipo || !formManut.data) { setErro('Tipo e data são obrigatórios'); return; }
     setSalvando(true); setErro('');
-
     const { error } = await supabase.from('manutencoes_veiculo').insert({
       veiculo_id: modalManutencao,
       tipo: formManut.tipo,
       data: formManut.data,
+      data_saida: formManut.data_saida || null,
       km: formManut.km ? parseInt(formManut.km) : null,
       custo: parseFloat(formManut.custo) || 0,
       oficina: formManut.oficina.trim() || null,
       descricao: formManut.descricao.trim() || null,
       criado_por: usuario!.id,
     });
-
     if (error) { setErro(error.message); setSalvando(false); return; }
-
-    // Recarregar manutenções deste veículo
-    const { data } = await supabase.from('manutencoes_veiculo').select('*').eq('veiculo_id', modalManutencao).order('data', { ascending: false });
-    setManutencoes(prev => ({ ...prev, [modalManutencao!]: data || [] }));
+    await carregarDetalhes(modalManutencao!);
     setModalManutencao(null);
     setSalvando(false);
-    setFormManut({ tipo: 'Preventiva', data: new Date().toISOString().split('T')[0], km: '', custo: '', oficina: '', descricao: '' });
+    setFormManut({ tipo: 'Preventiva', data: new Date().toISOString().split('T')[0], data_saida: '', km: '', custo: '', oficina: '', descricao: '' });
   }
 
-  const totalCustoAno = Object.values(manutencoes).flat().filter(m => new Date(m.data).getFullYear() === new Date().getFullYear()).reduce((acc, m) => acc + Number(m.custo), 0);
+  // ── Salvar acidente com fotos ──────────────────────────────────────────────
+  async function salvarAcidente() {
+    if (!formAcidente.data) { setErro('Data é obrigatória'); return; }
+    setSalvando(true); setErro('');
+
+    // Upload das fotos
+    const fotosUrls: string[] = [];
+    if (formAcidente.fotos.length > 0) {
+      setUploadando(true);
+      for (const file of formAcidente.fotos) {
+        const ext = file.name.split('.').pop();
+        const path = `${modalAcidente}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+        const { error: upErr } = await supabase.storage.from('frota-fotos').upload(path, file);
+        if (!upErr) {
+          const { data: urlData } = supabase.storage.from('frota-fotos').getPublicUrl(path);
+          fotosUrls.push(urlData.publicUrl);
+        }
+      }
+      setUploadando(false);
+    }
+
+    const { error } = await supabase.from('acidentes_veiculo').insert({
+      veiculo_id: modalAcidente,
+      data: formAcidente.data,
+      local: formAcidente.local.trim() || null,
+      descricao: formAcidente.descricao.trim() || null,
+      custo_reparo: parseFloat(formAcidente.custo_reparo) || 0,
+      fotos: fotosUrls,
+      criado_por: usuario!.id,
+    });
+    if (error) { setErro(error.message); setSalvando(false); return; }
+    await carregarDetalhes(modalAcidente!);
+    setModalAcidente(null);
+    setSalvando(false);
+    setFormAcidente({ data: new Date().toISOString().split('T')[0], local: '', descricao: '', custo_reparo: '', fotos: [] });
+  }
+
+  function abrirEditar(v: Veiculo) {
+    setEditandoVeiculo(v);
+    setFormVeiculo({
+      placa: v.placa, modelo: v.modelo, marca: v.marca || '',
+      ano: v.ano?.toString() || '', cor: v.cor || '',
+      status: v.status, localizacao: (v as any).localizacao || 'biasi',
+      obra_atual: (v as any).obra_atual || '',
+      responsavel_atual: (v as any).responsavel_atual || '',
+    });
+    setErro('');
+    setModalVeiculo(true);
+  }
+
+  // KPIs
+  const custoTotalGeral = Object.values(manutencoes).flat().reduce((a, m) => a + Number(m.custo), 0)
+    + Object.values(acidentes).flat().reduce((a, ac) => a + Number(ac.custo_reparo), 0);
 
   const kpis = [
-    { label: 'Total', value: veiculos.length },
-    { label: 'Disponíveis', value: veiculos.filter(v => v.status === 'disponivel').length },
-    { label: 'Em Uso', value: veiculos.filter(v => v.status === 'em_uso').length },
-    { label: 'Em Manutenção', value: veiculos.filter(v => v.status === 'manutencao').length },
+    { label: 'Total', value: veiculos.length, cor: 'text-slate-800' },
+    { label: 'Disponíveis', value: veiculos.filter(v => v.status === 'disponivel').length, cor: 'text-green-600' },
+    { label: 'Em Uso', value: veiculos.filter(v => v.status === 'em_uso').length, cor: 'text-blue-600' },
+    { label: 'Manutenção', value: veiculos.filter(v => v.status === 'manutencao').length, cor: 'text-amber-600' },
   ];
 
   return (
     <div className="p-4 lg:p-6 space-y-6 max-w-5xl mx-auto">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Frota</h1>
-          <p className="text-sm text-slate-500 mt-1">Controle de veículos e manutenções</p>
+          <p className="text-sm text-slate-500 mt-1">Controle de veículos, manutenções e ocorrências</p>
         </div>
         {isGestor && (
-          <button onClick={() => { setEditandoVeiculo(null); setFormVeiculo({ placa: '', modelo: '', marca: '', ano: '', cor: '', obra_atual: '', status: 'disponivel' }); setErro(''); setModalVeiculo(true); }}
+          <button onClick={() => { setEditandoVeiculo(null); setFormVeiculo({ placa: '', modelo: '', marca: '', ano: '', cor: '', status: 'disponivel', localizacao: 'biasi', obra_atual: '', responsavel_atual: '' }); setErro(''); setModalVeiculo(true); }}
             className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-xl transition-colors">
             <Plus size={16} />Novo Veículo
           </button>
@@ -130,23 +228,24 @@ export function Frota() {
 
       {/* KPIs */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {kpis.map(({ label, value }) => (
+        {kpis.map(({ label, value, cor }) => (
           <div key={label} className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 text-center">
-            <p className="text-2xl font-bold text-slate-800">{value}</p>
+            <p className={`text-2xl font-bold ${cor}`}>{value}</p>
             <p className="text-xs text-slate-500 mt-0.5">{label}</p>
           </div>
         ))}
       </div>
 
-      {totalCustoAno > 0 && (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm px-5 py-3 flex items-center gap-3">
-          <DollarSign size={18} className="text-amber-600" />
-          <span className="text-sm text-slate-600">Custo total de manutenções em {new Date().getFullYear()}:</span>
-          <span className="font-bold text-slate-800">{totalCustoAno.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+      {/* Custo total geral */}
+      {custoTotalGeral > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-3 flex items-center gap-3">
+          <DollarSign size={18} className="text-amber-600 flex-shrink-0" />
+          <span className="text-sm text-amber-800">Custo total registrado (manutenções + acidentes):</span>
+          <span className="font-bold text-amber-900">{fmtBRL(custoTotalGeral)}</span>
         </div>
       )}
 
-      {/* Veículos */}
+      {/* Lista de veículos */}
       {loading ? (
         <div className="text-center text-slate-400 text-sm py-12">Carregando...</div>
       ) : veiculos.length === 0 ? (
@@ -159,71 +258,186 @@ export function Frota() {
           {veiculos.map(v => {
             const cfg = STATUS_CONFIG[v.status];
             const expanded = expandidos[v.id];
+            const aba = abaExpandida[v.id] || 'manutencao';
             const manutV = manutencoes[v.id] || [];
-            const custoV = manutV.reduce((acc, m) => acc + Number(m.custo), 0);
+            const acidentesV = acidentes[v.id] || [];
+            const custoManut = manutV.reduce((a, m) => a + Number(m.custo), 0);
+            const custoAcid = acidentesV.reduce((a, ac) => a + Number(ac.custo_reparo), 0);
+            const custoTotal = custoManut + custoAcid;
+            const loc = (v as any).localizacao || 'biasi';
+            const obraAtual = (v as any).obra_atual;
+            const responsavel = (v as any).responsavel_atual;
+
             return (
               <div key={v.id} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                <div className="flex items-center gap-4 px-5 py-4">
-                  <div className="bg-slate-100 rounded-xl p-2.5 flex-shrink-0">
-                    <Truck size={20} className="text-slate-600" />
+                {/* Linha principal do veículo */}
+                <div className="flex items-start gap-4 px-5 py-4">
+                  <div className={`rounded-xl p-2.5 flex-shrink-0 mt-0.5 ${v.status === 'manutencao' ? 'bg-amber-100' : v.status === 'em_uso' ? 'bg-blue-100' : 'bg-green-100'}`}>
+                    <Truck size={20} className={v.status === 'manutencao' ? 'text-amber-600' : v.status === 'em_uso' ? 'text-blue-600' : 'text-green-600'} />
                   </div>
                   <div className="flex-1 min-w-0">
+                    {/* Nome e placa */}
                     <div className="flex items-center gap-2 flex-wrap">
                       <p className="font-semibold text-slate-800">{v.modelo}</p>
                       <span className="font-mono text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded">{v.placa}</span>
                       {v.marca && <span className="text-xs text-slate-400">{v.marca}</span>}
                       {v.ano && <span className="text-xs text-slate-400">{v.ano}</span>}
                     </div>
-                    <div className="flex items-center gap-3 mt-1 flex-wrap">
-                      <span className={`inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full ${cfg.corBg} ${cfg.cor}`}>{cfg.label}</span>
-                      {v.obra_atual && (
-                        <span className="flex items-center gap-1 text-[11px] text-slate-500"><MapPin size={10} />{v.obra_atual}</span>
+
+                    {/* Status + localização */}
+                    <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                      <span className={`inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full ${cfg.corBg} ${cfg.cor}`}>
+                        {cfg.label}
+                      </span>
+                      {loc === 'obra' ? (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700">
+                          <HardHat size={10} />{obraAtual || 'Em obra'}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                          <Building2 size={10} />Na Biasi
+                        </span>
                       )}
-                      {manutV.length > 0 && (
-                        <span className="flex items-center gap-1 text-[11px] text-slate-400"><Wrench size={10} />{manutV.length} manutenções · {custoV.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                      {responsavel && loc === 'obra' && (
+                        <span className="inline-flex items-center gap-1 text-[11px] text-slate-500">
+                          <User size={10} />{responsavel}
+                        </span>
                       )}
                     </div>
-                  </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    {isGestor && (
-                      <button onClick={() => { setModalManutencao(v.id); setErro(''); setFormManut({ tipo: 'Preventiva', data: new Date().toISOString().split('T')[0], km: '', custo: '', oficina: '', descricao: '' }); }}
-                        className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg border border-blue-200 transition-colors">
-                        <Wrench size={12} />Manutenção
-                      </button>
+
+                    {/* Custos + ocorrências */}
+                    {(manutV.length > 0 || acidentesV.length > 0) && (
+                      <div className="flex items-center gap-3 mt-1 flex-wrap">
+                        {manutV.length > 0 && (
+                          <span className="flex items-center gap-1 text-[11px] text-slate-400">
+                            <Wrench size={10} />{manutV.length} manutenção(ões) · {fmtBRL(custoManut)}
+                          </span>
+                        )}
+                        {acidentesV.length > 0 && (
+                          <span className="flex items-center gap-1 text-[11px] text-red-400">
+                            <AlertTriangle size={10} />{acidentesV.length} acidente(s) · {fmtBRL(custoAcid)}
+                          </span>
+                        )}
+                        {custoTotal > 0 && (manutV.length > 0 || acidentesV.length > 0) && (
+                          <span className="flex items-center gap-1 text-[11px] font-semibold text-slate-600">
+                            <DollarSign size={10} />Total: {fmtBRL(custoTotal)}
+                          </span>
+                        )}
+                      </div>
                     )}
-                    <button onClick={() => toggleExpand(v.id)} className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors">
+                  </div>
+
+                  {/* Botões */}
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    {isGestor && (
+                      <>
+                        <button onClick={() => abrirEditar(v)}
+                          className="p-1.5 text-xs text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors" title="Editar veículo">
+                          ✏️
+                        </button>
+                        <button onClick={() => { setModalManutencao(v.id); setErro(''); }}
+                          className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg border border-blue-200 transition-colors">
+                          <Wrench size={11} />Manutenção
+                        </button>
+                        <button onClick={() => { setModalAcidente(v.id); setErro(''); }}
+                          className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-red-700 bg-red-50 hover:bg-red-100 rounded-lg border border-red-200 transition-colors">
+                          <AlertTriangle size={11} />Acidente
+                        </button>
+                      </>
+                    )}
+                    <button onClick={() => toggleExpand(v.id, aba)} className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors">
                       {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                     </button>
                   </div>
                 </div>
 
+                {/* Painel expandido */}
                 {expanded && (
                   <div className="border-t border-slate-100">
-                    {manutV.length === 0 ? (
-                      <p className="px-5 py-4 text-sm text-slate-400">Nenhuma manutenção registrada</p>
-                    ) : (
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="bg-slate-50">
-                            <th className="text-left px-5 py-2.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Data</th>
-                            <th className="text-left px-5 py-2.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Tipo</th>
-                            <th className="text-left px-5 py-2.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wide hidden md:table-cell">Oficina</th>
-                            <th className="text-left px-5 py-2.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wide hidden lg:table-cell">KM</th>
-                            <th className="text-right px-5 py-2.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Custo</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {manutV.map(m => (
-                            <tr key={m.id} className="hover:bg-slate-50/50 transition-colors">
-                              <td className="px-5 py-2.5 text-xs text-slate-500 flex items-center gap-1"><Calendar size={11} />{new Date(m.data).toLocaleDateString('pt-BR')}</td>
-                              <td className="px-5 py-2.5 text-xs font-medium text-slate-700">{m.tipo}</td>
-                              <td className="px-5 py-2.5 text-xs text-slate-500 hidden md:table-cell">{m.oficina || '—'}</td>
-                              <td className="px-5 py-2.5 text-xs text-slate-500 hidden lg:table-cell">{m.km ? m.km.toLocaleString('pt-BR') + ' km' : '—'}</td>
-                              <td className="px-5 py-2.5 text-xs font-semibold text-slate-700 text-right">{Number(m.custo).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
+                    {/* Abas */}
+                    <div className="flex border-b border-slate-100">
+                      {(['manutencao', 'acidente'] as const).map(a => (
+                        <button key={a} onClick={() => setAbaExpandida(prev => ({ ...prev, [v.id]: a }))}
+                          className={`px-5 py-2.5 text-xs font-medium transition-colors ${aba === a ? 'text-blue-600 border-b-2 border-blue-600' : 'text-slate-500 hover:text-slate-700'}`}>
+                          {a === 'manutencao' ? `🔧 Manutenções (${manutV.length})` : `⚠️ Acidentes (${acidentesV.length})`}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Tab manutenção */}
+                    {aba === 'manutencao' && (
+                      manutV.length === 0 ? (
+                        <p className="px-5 py-4 text-sm text-slate-400">Nenhuma manutenção registrada</p>
+                      ) : (
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="bg-slate-50">
+                              <th className="text-left px-4 py-2 text-[10px] font-semibold text-slate-400 uppercase">Entrada</th>
+                              <th className="text-left px-4 py-2 text-[10px] font-semibold text-slate-400 uppercase hidden sm:table-cell">Saída</th>
+                              <th className="text-left px-4 py-2 text-[10px] font-semibold text-slate-400 uppercase">Tipo</th>
+                              <th className="text-left px-4 py-2 text-[10px] font-semibold text-slate-400 uppercase hidden md:table-cell">Oficina</th>
+                              <th className="text-right px-4 py-2 text-[10px] font-semibold text-slate-400 uppercase">Custo</th>
                             </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {manutV.map(m => (
+                              <tr key={m.id} className="hover:bg-slate-50/50">
+                                <td className="px-4 py-2.5 text-xs text-slate-500">{new Date(m.data).toLocaleDateString('pt-BR')}</td>
+                                <td className="px-4 py-2.5 text-xs text-slate-500 hidden sm:table-cell">
+                                  {(m as any).data_saida
+                                    ? <span className="flex items-center gap-1 text-green-600"><CheckCircle size={10} />{new Date((m as any).data_saida).toLocaleDateString('pt-BR')}</span>
+                                    : <span className="text-amber-500">Em andamento</span>}
+                                </td>
+                                <td className="px-4 py-2.5 text-xs font-medium text-slate-700">{m.tipo}</td>
+                                <td className="px-4 py-2.5 text-xs text-slate-500 hidden md:table-cell">{m.oficina || '—'}</td>
+                                <td className="px-4 py-2.5 text-xs font-semibold text-slate-700 text-right">{fmtBRL(Number(m.custo))}</td>
+                              </tr>
+                            ))}
+                            <tr className="bg-slate-50 font-semibold">
+                              <td colSpan={3} className="px-4 py-2 text-xs text-slate-600">Total manutenções</td>
+                              <td className="hidden md:table-cell" />
+                              <td className="px-4 py-2 text-xs text-right text-slate-800">{fmtBRL(custoManut)}</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      )
+                    )}
+
+                    {/* Tab acidentes */}
+                    {aba === 'acidente' && (
+                      acidentesV.length === 0 ? (
+                        <p className="px-5 py-4 text-sm text-slate-400">Nenhum acidente registrado</p>
+                      ) : (
+                        <div className="divide-y divide-slate-100">
+                          {acidentesV.map(ac => (
+                            <div key={ac.id} className="px-5 py-3 space-y-2">
+                              <div className="flex items-start justify-between gap-4">
+                                <div>
+                                  <div className="flex items-center gap-2 text-xs">
+                                    <Calendar size={11} className="text-slate-400" />
+                                    <span className="text-slate-500">{new Date(ac.data).toLocaleDateString('pt-BR')}</span>
+                                    {ac.local && <><MapPin size={11} className="text-slate-400" /><span className="text-slate-500">{ac.local}</span></>}
+                                  </div>
+                                  {ac.descricao && <p className="text-sm text-slate-700 mt-1">{ac.descricao}</p>}
+                                </div>
+                                <span className="text-sm font-semibold text-red-600 whitespace-nowrap">{fmtBRL(Number(ac.custo_reparo))}</span>
+                              </div>
+                              {ac.fotos.length > 0 && (
+                                <div className="flex gap-2 flex-wrap">
+                                  {ac.fotos.map((url, i) => (
+                                    <button key={i} onClick={() => setFotoAmpliada(url)}>
+                                      <img src={url} alt={`Foto ${i + 1}`} className="w-16 h-16 object-cover rounded-lg border border-slate-200 hover:opacity-80 transition-opacity" />
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
                           ))}
-                        </tbody>
-                      </table>
+                          <div className="px-5 py-2 bg-slate-50 flex justify-between text-xs font-semibold text-slate-700">
+                            <span>Total acidentes</span><span>{fmtBRL(custoAcid)}</span>
+                          </div>
+                        </div>
+                      )
                     )}
                   </div>
                 )}
@@ -233,11 +447,11 @@ export function Frota() {
         </div>
       )}
 
-      {/* Modal Veículo */}
+      {/* ── Modal Veículo ── */}
       {modalVeiculo && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setModalVeiculo(false)}>
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-5 border-b border-slate-100">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-5 border-b border-slate-100 sticky top-0 bg-white z-10">
               <h3 className="font-semibold text-slate-800">{editandoVeiculo ? 'Editar Veículo' : 'Novo Veículo'}</h3>
               <button onClick={() => setModalVeiculo(false)} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400"><X size={18} /></button>
             </div>
@@ -266,7 +480,7 @@ export function Frota() {
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-700 mb-1.5">Marca</label>
-                  <input value={formVeiculo.marca} onChange={e => setFormVeiculo(f => ({ ...f, marca: e.target.value }))} placeholder="Toyota, Mercedes..."
+                  <input value={formVeiculo.marca} onChange={e => setFormVeiculo(f => ({ ...f, marca: e.target.value }))} placeholder="Toyota..."
                     className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>
               </div>
@@ -278,15 +492,41 @@ export function Frota() {
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-700 mb-1.5">Cor</label>
-                  <input value={formVeiculo.cor} onChange={e => setFormVeiculo(f => ({ ...f, cor: e.target.value }))} placeholder="Branco, Prata..."
+                  <input value={formVeiculo.cor} onChange={e => setFormVeiculo(f => ({ ...f, cor: e.target.value }))} placeholder="Branco..."
                     className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>
               </div>
+
+              {/* Localização */}
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1.5">Obra Atual</label>
-                <input value={formVeiculo.obra_atual} onChange={e => setFormVeiculo(f => ({ ...f, obra_atual: e.target.value }))} placeholder="Nome da obra onde está"
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                <label className="block text-xs font-medium text-slate-700 mb-1.5">Localização atual</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button onClick={() => setFormVeiculo(f => ({ ...f, localizacao: 'biasi' }))}
+                    className={`flex items-center justify-center gap-2 py-2.5 rounded-lg border text-sm font-medium transition-colors ${formVeiculo.localizacao === 'biasi' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
+                    <Building2 size={15} />Na Biasi
+                  </button>
+                  <button onClick={() => setFormVeiculo(f => ({ ...f, localizacao: 'obra' }))}
+                    className={`flex items-center justify-center gap-2 py-2.5 rounded-lg border text-sm font-medium transition-colors ${formVeiculo.localizacao === 'obra' ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
+                    <HardHat size={15} />Em Obra
+                  </button>
+                </div>
               </div>
+
+              {formVeiculo.localizacao === 'obra' && (
+                <>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 mb-1.5">Qual obra?</label>
+                    <input value={formVeiculo.obra_atual} onChange={e => setFormVeiculo(f => ({ ...f, obra_atual: e.target.value }))} placeholder="Nome da obra"
+                      className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 mb-1.5">Com quem está?</label>
+                    <input value={formVeiculo.responsavel_atual} onChange={e => setFormVeiculo(f => ({ ...f, responsavel_atual: e.target.value }))} placeholder="Nome do responsável"
+                      className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
+                </>
+              )}
+
               {erro && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{erro}</p>}
             </div>
             <div className="flex gap-3 p-5 border-t border-slate-100">
@@ -299,7 +539,7 @@ export function Frota() {
         </div>
       )}
 
-      {/* Modal Manutenção */}
+      {/* ── Modal Manutenção ── */}
       {modalManutencao && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setModalManutencao(null)}>
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md" onClick={e => e.stopPropagation()}>
@@ -317,10 +557,16 @@ export function Frota() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1.5">Data *</label>
+                  <label className="block text-xs font-medium text-slate-700 mb-1.5">Entrada na oficina *</label>
                   <input type="date" value={formManut.data} onChange={e => setFormManut(f => ({ ...f, data: e.target.value }))}
                     className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1.5">Saiu da oficina</label>
+                <input type="date" value={formManut.data_saida} onChange={e => setFormManut(f => ({ ...f, data_saida: e.target.value }))}
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                <p className="text-[11px] text-slate-400 mt-1">Deixe em branco se ainda está na oficina</p>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -353,6 +599,93 @@ export function Frota() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ── Modal Acidente ── */}
+      {modalAcidente && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setModalAcidente(null)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-5 border-b border-slate-100 sticky top-0 bg-white">
+              <h3 className="font-semibold text-slate-800 flex items-center gap-2">
+                <AlertTriangle size={16} className="text-red-500" />Registrar Acidente
+              </h3>
+              <button onClick={() => setModalAcidente(null)} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400"><X size={18} /></button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1.5">Data *</label>
+                  <input type="date" value={formAcidente.data} onChange={e => setFormAcidente(f => ({ ...f, data: e.target.value }))}
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1.5">Custo do reparo (R$)</label>
+                  <input type="number" min="0" step="0.01" value={formAcidente.custo_reparo} onChange={e => setFormAcidente(f => ({ ...f, custo_reparo: e.target.value }))} placeholder="0,00"
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1.5">Local</label>
+                <input value={formAcidente.local} onChange={e => setFormAcidente(f => ({ ...f, local: e.target.value }))} placeholder="Onde aconteceu?"
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1.5">Descrição</label>
+                <textarea value={formAcidente.descricao} onChange={e => setFormAcidente(f => ({ ...f, descricao: e.target.value }))} rows={3}
+                  placeholder="O que aconteceu?"
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 resize-none" />
+              </div>
+
+              {/* Upload de fotos */}
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1.5">Fotos do acidente</label>
+                <input ref={fileRef} type="file" accept="image/*" multiple className="hidden"
+                  onChange={e => {
+                    const files = Array.from(e.target.files || []);
+                    setFormAcidente(f => ({ ...f, fotos: [...f.fotos, ...files] }));
+                  }} />
+                <button onClick={() => fileRef.current?.click()}
+                  className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-slate-300 rounded-lg text-sm text-slate-500 hover:border-blue-400 hover:text-blue-500 transition-colors">
+                  <Camera size={16} />Adicionar fotos
+                </button>
+                {formAcidente.fotos.length > 0 && (
+                  <div className="flex gap-2 flex-wrap mt-2">
+                    {formAcidente.fotos.map((f, i) => (
+                      <div key={i} className="relative">
+                        <img src={URL.createObjectURL(f)} alt="" className="w-16 h-16 object-cover rounded-lg border border-slate-200" />
+                        <button onClick={() => setFormAcidente(prev => ({ ...prev, fotos: prev.fotos.filter((_, j) => j !== i) }))}
+                          className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white rounded-full flex items-center justify-center text-[10px]">
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {formAcidente.fotos.length === 0 && (
+                  <p className="text-[11px] text-slate-400 mt-1 flex items-center gap-1"><ImageIcon size={10} />Aceita JPG, PNG, WEBP</p>
+                )}
+              </div>
+
+              {uploadando && <p className="text-xs text-blue-600 bg-blue-50 px-3 py-2 rounded-lg">Enviando fotos...</p>}
+              {erro && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{erro}</p>}
+            </div>
+            <div className="flex gap-3 p-5 border-t border-slate-100">
+              <button onClick={() => setModalAcidente(null)} className="flex-1 px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-xl">Cancelar</button>
+              <button onClick={salvarAcidente} disabled={salvando || uploadando}
+                className="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 rounded-xl">
+                {salvando ? 'Salvando...' : 'Registrar acidente'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Foto ampliada ── */}
+      {fotoAmpliada && (
+        <div className="fixed inset-0 bg-black/90 z-[60] flex items-center justify-center p-4" onClick={() => setFotoAmpliada(null)}>
+          <button className="absolute top-4 right-4 text-white p-2 hover:bg-white/10 rounded-lg"><X size={24} /></button>
+          <img src={fotoAmpliada} alt="Foto do acidente" className="max-h-full max-w-full rounded-lg object-contain" />
         </div>
       )}
     </div>

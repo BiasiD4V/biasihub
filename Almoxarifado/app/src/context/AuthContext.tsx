@@ -23,7 +23,7 @@ const AuthContext = createContext<AuthContextType | null>(null);
 function podeAcessarAlmoxarifado(papel?: string): boolean {
   if (!papel) return false;
   const p = papel.toLowerCase().trim();
-  return p === 'almoxarifado' || p === 'admin' || p === 'dono';
+  return p === 'almoxarifado' || p === 'gestor' || p === 'admin' || p === 'dono';
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {

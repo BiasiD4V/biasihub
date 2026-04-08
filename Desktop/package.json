@@ -1,6 +1,6 @@
 {
   "name": "biasihub-desktop",
-  "version": "1.0.7",
+  "version": "1.0.20",
   "description": "BiasíHub ERP - Plataforma Corporativa Biasi Engenharia",
   "main": "electron/main.js",
   "author": "Biasi Engenharia",
@@ -8,7 +8,8 @@
     "start": "electron .",
     "package": "electron-builder --win && powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\cleanup-dist.ps1 -KeepCount 2",
     "package:dir": "electron-builder --win --dir",
-    "cleanup:dist": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\cleanup-dist.ps1 -KeepCount 2"
+    "cleanup:dist": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\cleanup-dist.ps1 -KeepCount 2",
+    "publish": "electron-builder --win --publish always"
   },
   "dependencies": {
     "electron-store": "^10.0.0",

@@ -12,4 +12,13 @@ contextBridge.exposeInMainWorld('electronBridge', {
   // Auto-updater
   checkForUpdates: () => ipcRenderer.invoke('updater:checkForUpdates'),
   downloadAndInstall: () => ipcRenderer.invoke('updater:downloadAndInstall'),
+  quitAndInstall: () => ipcRenderer.invoke('updater:quitAndInstall'),
+
+  // Eventos do updater (renderer escuta)
+  onDownloadProgress: (cb) => {
+    ipcRenderer.on('update:progress', (_e, info) => cb(info));
+  },
+  onUpdateDownloaded: (cb) => {
+    ipcRenderer.on('update:downloaded', () => cb());
+  },
 });

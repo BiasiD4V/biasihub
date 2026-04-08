@@ -67,6 +67,8 @@ export function LayoutAutenticado() {
     <div className="flex h-screen bg-slate-50 overflow-hidden">
       <Sidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Banner de atualização (Desktop: redireciona para Hub) */}
+        <UpdateChecker />
         {/* Topbar com notificações */}
         <div className="flex-shrink-0 flex justify-end items-center px-4 py-2 bg-slate-900 border-b border-slate-800 lg:hidden" />
         <div className="absolute top-3 right-4 z-20">
@@ -76,7 +78,6 @@ export function LayoutAutenticado() {
           <Outlet />
         </main>
       </div>
-      <UpdateChecker />
     </div>
   );
 }

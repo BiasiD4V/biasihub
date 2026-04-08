@@ -5,6 +5,7 @@ import { Login } from './pages/Login';
 import { HubPortal } from './pages/HubPortal';
 import { Membros } from './pages/Membros';
 import { MeusDispositivos } from './pages/MeusDispositivos';
+import { GerenciarAcessos } from './pages/GerenciarAcessos';
 import { UpdateChecker } from './components/UpdateChecker';
 
 export default function App() {
@@ -17,6 +18,7 @@ export default function App() {
             <Route path="/" element={<HubPortal />} />
             <Route path="/membros" element={<Membros />} />
             <Route path="/meus-dispositivos" element={<MeusDispositivos />} />
+            <Route path="/gerenciar-acessos" element={<GerenciarAcessos />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
