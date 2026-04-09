@@ -3,6 +3,7 @@ import { Users, Shield, ShieldCheck, ShieldAlert, HardHat, Briefcase, Wrench, Ci
 import { supabase } from '../infrastructure/supabase/client';
 import { useAuth } from '../context/AuthContext';
 import { Navigate } from 'react-router-dom';
+import { acessoRepository, type Cargo } from '../infrastructure/supabase/acessoRepository';
 
 interface Presenca {
   user_id: string;
@@ -79,10 +80,11 @@ export function Membros() {
   const [novaSenha, setNovaSenha] = useState('');
   const [mostrarSenha, setMostrarSenha] = useState(false);
   const [salvando, setSalvando] = useState(false);
-  const [mensagem, setMensagem] = useState<{ tipo: 'sucesso' | 'erro'; texto: string } | null>(null);
+  const [mensagem, setMensagem] = useState<{ tipo: 'sucesso' | 'erro' | 'aviso'; texto: string } | null>(null);
   const [senhaCopiada, setSenhaCopiada] = useState(false);
   const [confirmDesativar, setConfirmDesativar] = useState<Membro | null>(null);
   const [desativando, setDesativando] = useState(false);
+  const [cargos, setCargos] = useState<Cargo[]>([]);
 
   const meuPapel = usuario?.papel || '';
   const isSuper = meuPapel === 'admin' || meuPapel === 'dono';
@@ -206,10 +208,17 @@ export function Membros() {
           data.forEach(m => { const d = m.departamento || 'Sem departamento'; expanded[d] = true; });
           setDeptExpandido(expanded);
         }
-      } catch { /* ignore */ }
+      } catch (e) {
+        console.error('Erro de conexão ao carregar membros:', e);
+      }
       setLoading(false);
     }
+    async function carregarCargos() {
+      const data = await acessoRepository.listarCargos(); // Lista cargos ativos
+      setCargos(data);
+    }
     carregarMembros();
+    carregarCargos();
   }, []);
 
   useEffect(() => {
@@ -472,17 +481,22 @@ export function Membros() {
 
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2"><Shield size={14} className="inline mr-1.5" />Função / Papel</label>
-                <div className="grid grid-cols-3 gap-2">
-                  {PAPEIS_EDITAVEIS.filter(p => {
-                    if (!isSuper) return getPapelInfo(p).nivel >= 3;
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {cargos.filter(c => {
+                    if (!isSuper) return getPapelInfo(c.papel).nivel >= 3;
                     return true;
-                  }).map(p => {
-                    const info = getPapelInfo(p);
+                  }).map(c => {
+                    const info = getPapelInfo(c.papel);
                     const Ic = info.icon;
-                    const sel = papelSelecionado === p;
+                    // Se o papel do membro logar com o do cargo
+                    const sel = papelSelecionado === c.papel;
                     return (
-                      <button key={p} onClick={() => setPapelSelecionado(p)} className={`flex flex-col items-center gap-1 p-2.5 rounded-xl border-2 transition-all text-xs ${sel ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 hover:border-slate-300 text-slate-600'}`}>
-                        <Ic size={16} /><span className="font-medium text-[10px]">{info.label}</span>
+                      <button key={c.id} onClick={() => setPapelSelecionado(c.papel)} className={`flex flex-col items-center gap-1.5 p-2.5 rounded-xl border-2 transition-all text-xs ${sel ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 hover:border-slate-300 text-slate-600'}`}>
+                        <Ic size={16} />
+                        <span className="font-bold text-[10px] text-center leading-tight truncate w-full" title={c.nome}>
+                          {c.nome}
+                        </span>
+                        <span className="text-[8px] font-medium opacity-60 uppercase tracking-widest">{info.label}</span>
                       </button>
                     );
                   })}
@@ -510,8 +524,13 @@ export function Membros() {
               </div>
 
               {mensagem && (
-                <div className={`text-sm px-4 py-3 rounded-xl ${mensagem.tipo === 'sucesso' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+                <div className={`text-sm px-4 py-3 rounded-xl border ${mensagem.tipo === 'sucesso' ? 'bg-green-50 text-green-700 border-green-200' : mensagem.tipo === 'aviso' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
                   {mensagem.texto}
+                  {mensagem.texto === 'Erro de conexão' && (
+                    <div className="mt-2 text-xs opacity-80">
+                      <strong>Dica local:</strong> Para alterar funções em ambiente de desenvolvimento, rode <code>npx vercel dev</code> em vez de <code>npm run dev</code> para as funções de API funcionarem.
+                    </div>
+                  )}
                 </div>
               )}
             </div>

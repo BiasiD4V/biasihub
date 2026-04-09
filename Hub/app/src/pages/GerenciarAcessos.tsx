@@ -63,6 +63,8 @@ function TabSolicitacoes({ usuarioId }: { usuarioId: string }) {
   const [cargoSelecionado, setCargoSelecionado] = useState('');
   const [salvando, setSalvando] = useState(false);
   const [mensagem, setMensagem] = useState<{ tipo: 'sucesso' | 'erro'; texto: string } | null>(null);
+  // Senha temporária gerada para exibir ao admin após aprovação
+  const [senhaAprovacao, setSenhaAprovacao] = useState<{ nome: string; email: string; senha: string } | null>(null);
 
   const [modalNegar, setModalNegar] = useState<Solicitacao | null>(null);
   const [observacaoNegar, setObservacaoNegar] = useState('');
@@ -85,7 +87,16 @@ function TabSolicitacoes({ usuarioId }: { usuarioId: string }) {
     setSalvando(true);
     const resultado = await acessoRepository.aprovarSolicitacao(modalAprovar.id, cargoSelecionado, usuarioId);
     if (resultado.sucesso) {
-      setMensagem({ tipo: 'sucesso', texto: 'Solicitação aprovada com sucesso.' });
+      // Guarda senha temporária para exibir ao admin
+      if (resultado.senhaTemp) {
+        setSenhaAprovacao({
+          nome: modalAprovar.nome,
+          email: modalAprovar.email,
+          senha: resultado.senhaTemp,
+        });
+      } else {
+        setMensagem({ tipo: 'sucesso', texto: 'Acesso aprovado com sucesso.' });
+      }
       setModalAprovar(null);
       await carregar();
     } else {
@@ -211,24 +222,43 @@ function TabSolicitacoes({ usuarioId }: { usuarioId: string }) {
               </div>
 
               {/* Ações */}
-              {sol.status === 'pendente' && (
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <button
-                    onClick={() => { setModalAprovar(sol); setCargoSelecionado(''); setMensagem(null); }}
-                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-green-50 text-green-700 hover:bg-green-100 border border-green-200 transition-colors"
-                  >
-                    <Check size={14} />
-                    Aprovar
-                  </button>
-                  <button
-                    onClick={() => { setModalNegar(sol); setObservacaoNegar(''); setMensagem(null); }}
-                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 transition-colors"
-                  >
-                    <X size={14} />
-                    Negar
-                  </button>
-                </div>
-              )}
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {sol.status === 'pendente' && (
+                  <>
+                    <button
+                      onClick={() => { setModalAprovar(sol); setCargoSelecionado(''); setMensagem(null); }}
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-green-50 text-green-700 hover:bg-green-100 border border-green-200 transition-colors"
+                    >
+                      <Check size={14} />
+                      Aprovar
+                    </button>
+                    <button
+                      onClick={() => { setModalNegar(sol); setObservacaoNegar(''); setMensagem(null); }}
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 transition-colors"
+                    >
+                      <X size={14} />
+                      Negar
+                    </button>
+                  </>
+                )}
+                {/* Deletar — disponível para todos os status */}
+                <button
+                  onClick={async () => {
+                    if (!confirm(`Remover solicitação de "${sol.nome}"?`)) return;
+                    const res = await acessoRepository.deletarSolicitacao(sol.id);
+                    if (res.sucesso) {
+                      setMensagem({ tipo: 'sucesso', texto: 'Solicitação removida.' });
+                      await carregar();
+                    } else {
+                      setMensagem({ tipo: 'erro', texto: res.erro ?? 'Erro ao remover.' });
+                    }
+                  }}
+                  className="p-2 rounded-xl text-slate-300 hover:text-red-500 hover:bg-red-50 border border-transparent hover:border-red-200 transition-colors"
+                  title="Remover solicitação"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
             </div>
           ))}
         </div>
@@ -354,6 +384,60 @@ function TabSolicitacoes({ usuarioId }: { usuarioId: string }) {
                 {salvando ? 'Negando...' : 'Confirmar'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal: Senha Temporária ─────────────────────────────── */}
+      {senhaAprovacao && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center">
+                <Check size={20} className="text-green-600" />
+              </div>
+              <div>
+                <p className="font-bold text-slate-800">Acesso aprovado!</p>
+                <p className="text-xs text-slate-400">Compartilhe a senha com o usuário</p>
+              </div>
+            </div>
+
+            <div className="bg-slate-50 rounded-xl p-4 mb-4 space-y-2">
+              <div>
+                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Usuário</p>
+                <p className="text-sm font-medium text-slate-700">{senhaAprovacao.nome}</p>
+                <p className="text-xs text-slate-400">{senhaAprovacao.email}</p>
+              </div>
+              <div>
+                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">Senha temporária</p>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 bg-white border-2 border-blue-200 rounded-xl px-3 py-2 text-lg font-mono font-bold text-blue-700 tracking-widest text-center">
+                    {senhaAprovacao.senha}
+                  </code>
+                  <button
+                    onClick={() => navigator.clipboard?.writeText(senhaAprovacao.senha)}
+                    className="p-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-600"
+                    title="Copiar"
+                  >
+                    <ClipboardList size={16} />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 mb-4">
+              <p className="text-xs text-amber-700">
+                <strong>⚠️ Anote agora!</strong> Esta senha não será exibida novamente.
+                O usuário entra com ela e é obrigado a criar uma nova senha no primeiro acesso.
+              </p>
+            </div>
+
+            <button
+              onClick={() => setSenhaAprovacao(null)}
+              className="w-full py-2.5 rounded-xl bg-[#233772] text-[#FFC82D] font-bold text-sm hover:bg-[#1a2a5e] transition-colors"
+            >
+              Entendido — fechar
+            </button>
           </div>
         </div>
       )}
@@ -642,6 +726,7 @@ function TabCargos() {
 
 function TabModulos({ usuarioId }: { usuarioId: string }) {
   const [modulos, setModulos] = useState<Record<string, ModuloAcesso>>({});
+  const [cargos, setCargos] = useState<Cargo[]>([]);
   const [draft, setDraft] = useState<Record<string, { papeis: string[]; disponivel: boolean }>>({});
   const [loading, setLoading] = useState(true);
   const [salvando, setSalvando] = useState<string | null>(null);
@@ -649,10 +734,15 @@ function TabModulos({ usuarioId }: { usuarioId: string }) {
 
   async function carregar() {
     setLoading(true);
-    const data = await acessoRepository.listarModulos();
+    const [modulosData, cargosData] = await Promise.all([
+      acessoRepository.listarModulos(),
+      acessoRepository.listarTodosCargos(),
+    ]);
+    
     const map: Record<string, ModuloAcesso> = {};
-    data.forEach(m => { map[m.modulo_key] = m; });
+    modulosData.forEach(m => { map[m.modulo_key] = m; });
     setModulos(map);
+    setCargos(cargosData.filter(c => c.ativo));
 
     const draftInit: Record<string, { papeis: string[]; disponivel: boolean }> = {};
     MODULOS_LISTA.forEach(m => {
@@ -748,20 +838,26 @@ function TabModulos({ usuarioId }: { usuarioId: string }) {
                   <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
                     Papéis com acesso
                   </p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {PAPEIS_OPCOES.map(p => {
-                      const ativo = d.papeis.includes(p.value);
+                  <div className="flex flex-wrap gap-1.5 min-h-[50px]">
+                    {/* Papéis nativos + Cargos criados */}
+                    {Array.from(new Set([
+                      ...PAPEIS_OPCOES.map(p => p.value),
+                      ...cargos.map(c => c.papel)
+                    ])).map(papelValue => {
+                      const label = PAPEIS_OPCOES.find(p => p.value === papelValue)?.label ?? cargos.find(c => c.papel === papelValue)?.nome ?? papelValue;
+                      const ativo = d.papeis.some(p => p.toLowerCase() === papelValue.toLowerCase());
+                      
                       return (
                         <button
-                          key={p.value}
-                          onClick={() => togglePapel(m.key, p.value)}
-                          className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-all ${
+                          key={papelValue}
+                          onClick={() => togglePapel(m.key, papelValue)}
+                          className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold border transition-all ${
                             ativo
                               ? 'bg-[#233772] text-white border-[#233772]'
                               : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-slate-300'
                           }`}
                         >
-                          {p.label}
+                          {label}
                         </button>
                       );
                     })}

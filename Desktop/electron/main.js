@@ -328,6 +328,79 @@ async function proxyExternalRequest(request, targetUrl) {
   return net.fetch(targetUrl, init);
 }
 
+// ── Handler da API de Membros (Atualizar) ──────────────────────────────────────
+async function handleMembrosUpdate(request) {
+  try {
+    const authHeader = request.headers['authorization'] || request.headers.get?.('authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { 'Content-Type': 'application/json' } });
+    }
+
+    const userToken = authHeader.split(' ')[1];
+
+    const perfilRes = await net.fetch(`${SUPABASE_URL}/auth/v1/user`, {
+      headers: { 'Authorization': `Bearer ${userToken}`, 'apikey': SUPABASE_SERVICE_KEY }
+    });
+
+    if (!perfilRes.ok) return new Response(JSON.stringify({ error: 'Invalid token' }), { status: 401, headers: { 'Content-Type': 'application/json' } });
+    const userData = await perfilRes.json();
+    const callerId = userData.id;
+
+    const callerPapelRes = await net.fetch(`${SUPABASE_URL}/rest/v1/usuarios?id=eq.${callerId}&select=papel`, {
+      headers: { 'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`, 'apikey': SUPABASE_SERVICE_KEY }
+    });
+    
+    if (!callerPapelRes.ok) return new Response(JSON.stringify({ error: 'Permission denied' }), { status: 403, headers: { 'Content-Type': 'application/json' } });
+    const callerPapelData = await callerPapelRes.json();
+    const callerPapel = callerPapelData[0]?.papel;
+
+    if (!callerPapel || !['admin', 'dono', 'gestor'].includes(callerPapel)) {
+      return new Response(JSON.stringify({ error: 'Acesso restrito' }), { status: 403, headers: { 'Content-Type': 'application/json' } });
+    }
+
+    const body = await request.json();
+    const { userId, papel, departamento, isActive, password } = body;
+
+    const isSuper = callerPapel === 'admin' || callerPapel === 'dono';
+    if (!isSuper && papel && ['admin', 'dono'].includes(papel)) {
+      return new Response(JSON.stringify({ error: 'Nao pode atribuir papel superior' }), { status: 403, headers: { 'Content-Type': 'application/json' } });
+    }
+
+    if (password) {
+      const updateAuthRes = await net.fetch(`${SUPABASE_URL}/auth/v1/admin/users/${userId}`, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`, 'apikey': SUPABASE_SERVICE_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password })
+      });
+      if (!updateAuthRes.ok) return new Response(JSON.stringify({ error: 'Erro de senha' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+      
+      await net.fetch(`${SUPABASE_URL}/rest/v1/usuarios?id=eq.${userId}`, {
+        method: 'PATCH',
+        headers: { 'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`, 'apikey': SUPABASE_SERVICE_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ senha_definida: true })
+      });
+    }
+
+    let ops = {};
+    if (papel !== undefined) ops.papel = papel;
+    if (departamento !== undefined) ops.departamento = departamento;
+    if (isActive !== undefined) ops.ativo = isActive;
+
+    if (Object.keys(ops).length > 0) {
+      const patchRes = await net.fetch(`${SUPABASE_URL}/rest/v1/usuarios?id=eq.${userId}`, {
+        method: 'PATCH',
+        headers: { 'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`, 'apikey': SUPABASE_SERVICE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify(ops)
+      });
+      if (!patchRes.ok) return new Response(JSON.stringify({ error: 'Erro DB' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+    }
+
+    return new Response(JSON.stringify({ success: true }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  } catch (error) {
+    return new Response(JSON.stringify({ error: 'Internal Error' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+  }
+}
+
 // ── Handler da API de Membros ──────────────────────────────────────────────────
 async function handleMembros(request) {
   try {
@@ -471,6 +544,11 @@ function setupProtocol() {
       return handleMembros(request);
     }
 
+    // Rota da API de atualização de membros (POST/PATCH)
+    if (pathname === '/api/membros-update') {
+      return handleMembrosUpdate(request);
+    }
+
     // Roteia as APIs do Comercial para o backend em producao (Jira/RDO)
     if (appName === 'comercial' && pathname.startsWith('/api/')) {
       const targetUrl = `${COMERCIAL_API_ORIGIN}${pathname}${url.search}`;
@@ -605,9 +683,16 @@ function setupIPC() {
   });
 
   // ── Criar usuário quando admin aprova acesso ──────────────────
-  ipcMain.handle('admin:criarUsuario', async (_event, { email, nome, papel }) => {
+  ipcMain.handle('admin:criarUsuario', async (_event, { email, nome, papel, senhaTemp }) => {
     try {
-      // 1. Criar usuário no Supabase Auth (sem senha — primeiro acesso via OTP)
+      // 1. Criar usuário no Supabase Auth com senha temporária
+      const body = {
+        email: email.trim().toLowerCase(),
+        email_confirm: true,
+        user_metadata: { nome: nome.trim() },
+      };
+      if (senhaTemp) body.password = senhaTemp;
+
       const createRes = await net.fetch(
         `${SUPABASE_URL}/auth/v1/admin/users`,
         {
@@ -617,23 +702,50 @@ function setupIPC() {
             'apikey': SUPABASE_SERVICE_KEY,
             'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
           },
-          body: JSON.stringify({
-            email: email.trim().toLowerCase(),
-            email_confirm: true,
-            user_metadata: { nome: nome.trim() },
-          }),
+          body: JSON.stringify(body),
         }
       );
 
       const createData = await createRes.json();
-      if (!createRes.ok) {
-        // Usuário já existe no auth? Tenta buscar
-        if (!createData.id) {
-          return { sucesso: false, erro: createData.msg || 'Erro ao criar usuário no Auth.' };
+      let userId = createData.id;
+
+      if (!createRes.ok || !userId) {
+        // Usuário já existe — busca pelo email e atualiza senha
+        const listRes = await net.fetch(
+          `${SUPABASE_URL}/auth/v1/admin/users?email=${encodeURIComponent(email.trim().toLowerCase())}`,
+          {
+            method: 'GET',
+            headers: {
+              'apikey': SUPABASE_SERVICE_KEY,
+              'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+            },
+          }
+        );
+        const listData = await listRes.json();
+        const existingUser = listData?.users?.[0];
+
+        if (!existingUser?.id) {
+          return { sucesso: false, erro: createData.msg || createData.message || 'Erro ao criar usuário no Auth.' };
+        }
+
+        userId = existingUser.id;
+
+        // Atualiza senha temporária no usuário existente
+        if (senhaTemp) {
+          await net.fetch(
+            `${SUPABASE_URL}/auth/v1/admin/users/${userId}`,
+            {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/json',
+                'apikey': SUPABASE_SERVICE_KEY,
+                'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+              },
+              body: JSON.stringify({ password: senhaTemp, email_confirm: true }),
+            }
+          );
         }
       }
-
-      const userId = createData.id;
 
       // 2. Criar/atualizar registro em usuarios
       const upsertRes = await net.fetch(
@@ -652,7 +764,7 @@ function setupIPC() {
             email: email.trim().toLowerCase(),
             papel,
             ativo: true,
-            senha_definida: false,
+            senha_definida: false,  // força troca de senha no primeiro acesso
           }),
         }
       );

@@ -1,12 +1,14 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../infrastructure/supabase/client';
 import { Sidebar } from './Sidebar';
+import { ChatMembros } from '../ChatMembros';
 
 export function LayoutAutenticado() {
   const { isAuthenticated, loading, usuario } = useAuth();
   const location = useLocation();
+  const [chatAberto, setChatAberto] = useState(false);
 
   // Heartbeat de presença
   useEffect(() => {
@@ -61,10 +63,13 @@ export function LayoutAutenticado() {
 
   return (
     <div className="flex h-screen bg-slate-50 overflow-hidden">
-      <Sidebar />
-      <main className="flex-1 overflow-y-auto">
-        <Outlet />
+      <Sidebar onAbrirChat={() => setChatAberto(true)} />
+      <main className="flex-1 min-h-0 flex flex-col overflow-hidden">
+        <div className="flex-1 min-h-0 overflow-y-auto flex flex-col">
+          <Outlet />
+        </div>
       </main>
+      <ChatMembros aberto={chatAberto} onFechar={() => setChatAberto(false)} />
     </div>
   );
 }

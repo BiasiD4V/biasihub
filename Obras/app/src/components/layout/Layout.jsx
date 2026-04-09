@@ -1,13 +1,15 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { Outlet } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import Header from './Header'
 import ScrollToTop from './ScrollToTop'
+import { ChatMembros } from '../ChatMembros'
 import { ObraProvider } from '../../context/ObraContext'
 import { SidebarProvider, useSidebar } from '../../context/SidebarContext'
 
 function LayoutContent() {
   const { sidebarAberta, fecharSidebar } = useSidebar()
+  const [chatAberto, setChatAberto] = useState(false)
 
   return (
     <div className="flex min-h-screen" style={{ backgroundColor: '#f8fafc' }}>
@@ -15,7 +17,7 @@ function LayoutContent() {
       <div className={`fixed md:sticky md:top-0 md:h-screen inset-y-0 left-0 z-40 transition-transform duration-300 ${
         sidebarAberta ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
       }`}>
-        <Sidebar />
+        <Sidebar onAbrirChat={() => setChatAberto(true)} />
       </div>
 
       {/* Overlay em mobile quando sidebar aberta */}
@@ -37,6 +39,8 @@ function LayoutContent() {
           <Outlet />
         </main>
       </div>
+
+      <ChatMembros aberto={chatAberto} onFechar={() => setChatAberto(false)} />
     </div>
   )
 }

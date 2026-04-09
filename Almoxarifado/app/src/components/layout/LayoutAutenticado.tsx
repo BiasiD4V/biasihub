@@ -1,14 +1,16 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../infrastructure/supabase/client';
 import { Sidebar } from './Sidebar';
 import { UpdateChecker } from './UpdateChecker';
 import { NotificacoesDropdown } from '../NotificacoesDropdown';
+import { ChatMembros } from '../ChatMembros';
 
 export function LayoutAutenticado() {
   const { isAuthenticated, loading, usuario } = useAuth();
   const location = useLocation();
+  const [chatAberto, setChatAberto] = useState(false);
 
   useEffect(() => {
     if (!usuario) return;
@@ -60,16 +62,11 @@ export function LayoutAutenticado() {
     return <Navigate to="/login" replace />;
   }
 
-  // Todos os usuários autenticados têm acesso ao Almoxarifado.
-  // O controle granular (quem pode cadastrar, aprovar, etc.) é feito dentro de cada página.
-
   return (
     <div className="flex h-screen bg-slate-50 overflow-hidden">
-      <Sidebar />
+      <Sidebar onAbrirChat={() => setChatAberto(true)} />
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Banner de atualização (Desktop: redireciona para Hub) */}
         <UpdateChecker />
-        {/* Topbar com notificações */}
         <div className="flex-shrink-0 flex justify-end items-center px-4 py-2 bg-slate-900 border-b border-slate-800 lg:hidden" />
         <div className="absolute top-3 right-4 z-20">
           <NotificacoesDropdown />
@@ -78,6 +75,7 @@ export function LayoutAutenticado() {
           <Outlet />
         </main>
       </div>
+      <ChatMembros aberto={chatAberto} onFechar={() => setChatAberto(false)} />
     </div>
   );
 }

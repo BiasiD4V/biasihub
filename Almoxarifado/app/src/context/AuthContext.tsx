@@ -19,11 +19,29 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-// Validar se usuário pode acessar módulo Almoxarifado
-function podeAcessarAlmoxarifado(papel?: string): boolean {
-  if (!papel) return false;
+// Consulta o banco para verificar se o papel tem acesso ao módulo
+async function podeAcessarModulo(papel: string, moduloKey: string): Promise<boolean> {
   const p = papel.toLowerCase().trim();
-  return p === 'almoxarifado' || p === 'gestor' || p === 'admin' || p === 'dono';
+  // Admin/Dono sempre têm acesso
+  if (p === 'admin' || p === 'dono') return true;
+
+  try {
+    const { data } = await supabase
+      .from('modulo_acesso')
+      .select('papeis, disponivel')
+      .eq('modulo_key', moduloKey)
+      .maybeSingle();
+
+    if (!data) {
+      // Sem configuração no banco → fallback para almoxarifado/gestor
+      return p === 'almoxarifado' || p === 'gestor';
+    }
+    if (!data.disponivel) return false;
+    const papeis = (data.papeis ?? []).map((r: string) => r.toLowerCase());
+    return papeis.includes(p);
+  } catch {
+    return p === 'almoxarifado' || p === 'gestor';
+  }
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -135,12 +153,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           departamento: data.departamento || null,
         };
 
-        // Validar acesso ao módulo Almoxarifado
-        if (!podeAcessarAlmoxarifado(novoUsuario.papel)) {
+        // Validar acesso ao módulo Almoxarifado via banco (modulo_acesso)
+        const temAcesso = await podeAcessarModulo(novoUsuario.papel, 'almoxarifado');
+        if (!temAcesso) {
           console.warn(`❌ Usuário ${novoUsuario.email} (papel: ${novoUsuario.papel}) não tem acesso ao módulo Almoxarifado`);
-          // Fazer logout automático
-          await supabase.auth.signOut();
-          alert(`❌ Acesso negado!\n\nVocê não tem permissão para acessar o módulo Almoxarifado.\n\nPapel requerido: almoxarifado\nSeu papel: ${novoUsuario.papel}`);
+          // Redirecionar para o Hub sem fazer signOut (preserva sessão do Hub)
+          const isElectron = navigator.userAgent.includes('Electron');
+          window.location.href = isElectron ? 'app://hub.local/' : 'https://biasihub-hub.vercel.app/';
           return false;
         }
 

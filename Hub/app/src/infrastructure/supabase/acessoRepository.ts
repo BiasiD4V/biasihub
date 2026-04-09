@@ -50,7 +50,11 @@ export const acessoRepository = {
     return (data ?? []) as Solicitacao[];
   },
 
-  async aprovarSolicitacao(id: string, cargoId: string, adminId: string): Promise<{ sucesso: boolean; erro?: string }> {
+  async aprovarSolicitacao(
+    id: string,
+    cargoId: string,
+    adminId: string
+  ): Promise<{ sucesso: boolean; erro?: string; senhaTemp?: string }> {
     // 1. Busca dados da solicitação e do cargo
     const { data: sol } = await supabase
       .from('solicitacoes_acesso')
@@ -64,18 +68,28 @@ export const acessoRepository = {
       .eq('id', cargoId)
       .single();
 
-    // 2. Cria usuário no Auth via Electron bridge (service role)
+    if (!sol || !cargo) return { sucesso: false, erro: 'Dados da solicitação não encontrados.' };
+
+    // 2. Gera senha temporária segura (ex: "Biasi@A3x7")
+    const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+    const rand = Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+    const senhaTemp = `Biasi@${rand}`;
+
+    // 3. Cria usuário no Auth via Electron bridge (service role)
     const bridge = (window as any).electronBridge;
-    if (sol && cargo && bridge?.criarUsuario) {
+    if (bridge?.criarUsuario) {
       const res = await bridge.criarUsuario({
         email: sol.email,
         nome: sol.nome,
         papel: cargo.papel,
+        senhaTemp,
       });
       if (!res.sucesso) return { sucesso: false, erro: res.erro };
+    } else {
+      return { sucesso: false, erro: 'Electron bridge não disponível.' };
     }
 
-    // 3. Marca solicitação como aprovada
+    // 4. Marca solicitação como aprovada
     const { error } = await supabase
       .from('solicitacoes_acesso')
       .update({
@@ -87,7 +101,7 @@ export const acessoRepository = {
       .eq('id', id);
 
     if (error) return { sucesso: false, erro: error.message };
-    return { sucesso: true };
+    return { sucesso: true, senhaTemp };
   },
 
   async negarSolicitacao(id: string, adminId: string, observacao?: string): Promise<{ sucesso: boolean; erro?: string }> {
@@ -194,6 +208,16 @@ export const acessoRepository = {
         },
         { onConflict: 'modulo_key' }
       );
+
+    if (error) return { sucesso: false, erro: error.message };
+    return { sucesso: true };
+  },
+
+  async deletarSolicitacao(id: string): Promise<{ sucesso: boolean; erro?: string }> {
+    const { error } = await supabase
+      .from('solicitacoes_acesso')
+      .delete()
+      .eq('id', id);
 
     if (error) return { sucesso: false, erro: error.message };
     return { sucesso: true };

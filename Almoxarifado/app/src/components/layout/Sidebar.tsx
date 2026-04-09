@@ -1,7 +1,11 @@
 import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Package, ArrowLeftRight, ClipboardList, Truck, Laptop, LogOut, Menu, X, Sparkles, FileSpreadsheet, Bot, Home } from 'lucide-react';
+import { LayoutDashboard, Package, ArrowLeftRight, ClipboardList, Truck, Laptop, LogOut, Menu, X, Sparkles, FileSpreadsheet, Bot, Home, MessageCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+
+interface SidebarProps {
+  onAbrirChat: () => void;
+}
 
 const NAV_SECTIONS = [
   {
@@ -53,7 +57,7 @@ const NAV_SECTIONS = [
 const IS_ELECTRON = navigator.userAgent.includes('Electron');
 const HUB_URL = IS_ELECTRON ? 'app://hub.local' : 'https://biasihub-portal.vercel.app';
 
-export function Sidebar() {
+export function Sidebar({ onAbrirChat }: SidebarProps) {
   const { usuario, logout } = useAuth();
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -124,9 +128,9 @@ export function Sidebar() {
         </button>
       </div>
 
-      {/* User + Logout */}
-      <div className="px-3 py-4 border-t border-[rgba(255,255,255,0.1)]">
-        <div className="flex items-center gap-3 px-3 py-2.5 mb-1">
+      {/* User info */}
+      <div className="px-3 pt-2 pb-1">
+        <div className="flex items-center gap-3 px-3 py-2">
           <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0">
             <span className="text-white text-xs font-bold">{initials}</span>
           </div>
@@ -135,13 +139,28 @@ export function Sidebar() {
             <p className="text-[rgba(255,200,45,0.6)] text-[10px] truncate">{usuario?.departamento} · {usuario?.papel}</p>
           </div>
         </div>
-        <button
-          onClick={handleLogout}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-[rgba(255,255,255,0.75)] hover:text-red-400 hover:bg-red-600/20 transition-colors"
-        >
-          <LogOut size={18} />
-          Sair
-        </button>
+      </div>
+
+      {/* Footer: Chat + Sair (igual Comercial) */}
+      <div className="px-3 py-3 border-t border-[rgba(255,255,255,0.1)]">
+        <div className="grid grid-cols-2 gap-1">
+          <button
+            onClick={() => { onAbrirChat(); setMobileOpen(false); }}
+            className="relative flex flex-col items-center gap-1 px-2 py-2 rounded-lg text-xs text-sky-300 hover:bg-sky-900/40 hover:text-sky-200 transition-colors"
+            title="Abrir Chat"
+          >
+            <MessageCircle size={15} />
+            Chat
+          </button>
+          <button
+            onClick={handleLogout}
+            className="flex flex-col items-center gap-1 px-2 py-2 rounded-lg text-xs text-red-300 hover:bg-red-900/40 hover:text-red-200 transition-colors"
+            title="Sair"
+          >
+            <LogOut size={15} />
+            Sair
+          </button>
+        </div>
       </div>
     </div>
   );

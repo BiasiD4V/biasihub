@@ -5,7 +5,7 @@ import {
   Users, DollarSign, TrendingUp, ChevronLeft, ChevronRight, LogOut, HelpCircle, Database,
   CheckSquare, Handshake, Calendar,
   BarChart2, Activity, FileText, GitBranch, Gauge, HardHat, ShoppingCart,
-  Layers, Calculator, Target, ShieldCheck, Home
+  Layers, Calculator, Target, ShieldCheck, Home, MessageCircle
 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 
@@ -65,7 +65,7 @@ const grupos = [
 const IS_ELECTRON = navigator.userAgent.includes('Electron')
 const HUB_URL = IS_ELECTRON ? 'app://hub.local/' : 'https://biasihub-portal.vercel.app'
 
-export default function Sidebar() {
+export default function Sidebar({ onAbrirChat }) {
   const [recolhido, setRecolhido] = useState(false)
   const { usuario, logout } = useAuth()
   const location = useLocation()
@@ -197,33 +197,51 @@ export default function Sidebar() {
       {/* USUÁRIO — FIXO NO FUNDO */}
       <div className="p-3 flex-shrink-0" style={{ borderTop: '1px solid rgba(255,255,255,0.1)' }}>
         {!recolhido ? (
-          <div className="flex items-center gap-2.5">
-            {usuario?.foto_url ? (
-              <img
-                src={usuario.foto_url}
-                alt={usuario?.nome || 'Avatar'}
-                className="w-8 h-8 rounded-full object-cover border-2 border-yellow-300 flex-shrink-0"
-                style={{ backgroundColor: '#FFC82D' }}
-              />
-            ) : (
-              <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
-                style={{ backgroundColor: '#FFC82D', color: '#233772' }}>
-                {usuario?.avatar || '?'}
+          <>
+            <div className="flex items-center gap-2.5 mb-2">
+              {usuario?.foto_url ? (
+                <img
+                  src={usuario.foto_url}
+                  alt={usuario?.nome || 'Avatar'}
+                  className="w-8 h-8 rounded-full object-cover border-2 border-yellow-300 flex-shrink-0"
+                  style={{ backgroundColor: '#FFC82D' }}
+                />
+              ) : (
+                <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
+                  style={{ backgroundColor: '#FFC82D', color: '#233772' }}>
+                  {usuario?.avatar || '?'}
+                </div>
+              )}
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-semibold text-white truncate leading-tight">
+                  {usuario?.nome?.split(' ').slice(0,2).join(' ')}
+                </p>
+                <p className="text-[10px] capitalize" style={{ color: 'rgba(255,255,255,0.45)' }}>{usuario?.perfil}</p>
               </div>
-            )}
-            <div className="min-w-0 flex-1">
-              <p className="text-xs font-semibold text-white truncate leading-tight">
-                {usuario?.nome?.split(' ').slice(0,2).join(' ')}
-              </p>
-              <p className="text-[10px] capitalize" style={{ color: 'rgba(255,255,255,0.45)' }}>{usuario?.perfil}</p>
             </div>
-            <button onClick={handleLogout} title="Sair"
-              className="p-1.5 rounded transition-colors flex-shrink-0"
-              style={{ color: 'rgba(255,255,255,0.35)' }}
-              onMouseEnter={e => e.currentTarget.style.color = '#FFC82D'}
-              onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.35)'}
-            ><LogOut size={14} /></button>
-          </div>
+            <div className="grid grid-cols-2 gap-1.5">
+              <button
+                onClick={onAbrirChat}
+                className="flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-medium transition-all"
+                style={{ backgroundColor: 'rgba(186,230,253,0.15)', color: '#7dd3fc' }}
+                onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(186,230,253,0.25)'; e.currentTarget.style.color = '#bae6fd' }}
+                onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'rgba(186,230,253,0.15)'; e.currentTarget.style.color = '#7dd3fc' }}
+              >
+                <MessageCircle size={13} />
+                <span>Chat</span>
+              </button>
+              <button
+                onClick={handleLogout}
+                className="flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-medium transition-all"
+                style={{ backgroundColor: 'rgba(254,202,202,0.15)', color: '#fca5a5' }}
+                onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(254,202,202,0.25)'; e.currentTarget.style.color = '#fecaca' }}
+                onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'rgba(254,202,202,0.15)'; e.currentTarget.style.color = '#fca5a5' }}
+              >
+                <LogOut size={13} />
+                <span>Sair</span>
+              </button>
+            </div>
+          </>
         ) : (
           <div className="flex flex-col items-center gap-2">
             {usuario?.foto_url ? (
@@ -239,6 +257,12 @@ export default function Sidebar() {
                 {usuario?.avatar || '?'}
               </div>
             )}
+            <button onClick={onAbrirChat} title="Chat"
+              className="p-1 rounded transition-colors"
+              style={{ color: '#7dd3fc' }}
+              onMouseEnter={e => e.currentTarget.style.color = '#bae6fd'}
+              onMouseLeave={e => e.currentTarget.style.color = '#7dd3fc'}
+            ><MessageCircle size={12} /></button>
             <button onClick={handleLogout} title="Sair"
               className="p-1 rounded transition-colors"
               style={{ color: 'rgba(255,255,255,0.35)' }}
