@@ -22,6 +22,7 @@ export interface OrcamentoSupabase {
   data_proxima_acao: string | null
   data_envio: string | null
   data_entrada: string | null
+  observacao_comercial: string | null
   criado_em: string
   atualizado_em: string
   clientes?: {

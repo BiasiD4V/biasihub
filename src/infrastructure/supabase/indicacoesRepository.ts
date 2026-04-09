@@ -20,15 +20,16 @@ export interface IndicacaoSupabase {
 export type CriarIndicacaoInput = Omit<IndicacaoSupabase, 'id' | 'created_at'>
 
 export const STATUS_INDICACAO: Record<string, { label: string; cor: string; bg: string }> = {
-  nova:             { label: 'Nova',             cor: 'text-blue-700',   bg: 'bg-blue-100'   },
-  em_contato:       { label: 'Em contato',        cor: 'text-amber-700',  bg: 'bg-amber-100'  },
-  proposta_gerada:  { label: 'Proposta gerada',   cor: 'text-violet-700', bg: 'bg-violet-100' },
-  convertida:       { label: 'Convertida',        cor: 'text-green-700',  bg: 'bg-green-100'  },
-  perdida:          { label: 'Perdida',           cor: 'text-red-700',    bg: 'bg-red-100'    },
+  ouro:             { label: 'Master / Top',       cor: 'text-yellow-700', bg: 'bg-yellow-100'  },
+  recomendado:      { label: 'Recomendado',        cor: 'text-green-700',  bg: 'bg-green-100'   },
+  ativo:            { label: 'Ativo / Padrão',     cor: 'text-blue-700',   bg: 'bg-blue-100'    },
+  em_avaliacao:     { label: 'Em avaliação',       cor: 'text-amber-700',  bg: 'bg-amber-100'   },
+  bloqueado:        { label: 'Não indicar',        cor: 'text-red-700',    bg: 'bg-red-100'     },
+  inativo:          { label: 'Inativo',            cor: 'text-slate-500',  bg: 'bg-slate-100'   },
 }
 
-export const TIPO_INDICADOR = ['cliente', 'parceiro', 'colaborador', 'outro']
-export const CANAIS_INDICACAO = ['WhatsApp', 'LinkedIn', 'Telefone', 'E-mail', 'Evento', 'Outro']
+export const TIPO_INDICADOR = ['Prestador', 'Loja', 'Colaborador', 'Agência', 'Outro']
+export const CANAIS_INDICACAO = ['Sede Biasi', 'Obra', 'WhatsApp', 'LinkedIn', 'Evento', 'Outro']
 
 export const indicacoesRepository = {
   async listarTodas(filtros?: { status?: string | null; responsavel?: string | null; busca?: string }): Promise<IndicacaoSupabase[]> {

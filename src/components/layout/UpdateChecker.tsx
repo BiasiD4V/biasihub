@@ -1,96 +1,112 @@
 import { useEffect, useState } from 'react';
-import { Rocket, RefreshCw } from 'lucide-react';
+import { X, ArrowLeft, Sparkles, RefreshCw } from 'lucide-react';
 
 declare const __BUILD_VERSION__: string;
 
-const CHECK_INTERVAL = 2 * 60 * 1000; // Check every 2 minutes
+const WEB_CHECK_INTERVAL = 2 * 60 * 1000;
+const DESKTOP_CHECK_INTERVAL = 5 * 60 * 1000;
+
+function getBridge() {
+  return (window as any).electronBridge;
+}
 
 export function UpdateChecker() {
-  const [desatualizado, setDesatualizado] = useState(false);
+  const [versaoNova, setVersaoNova] = useState<string | null>(null);
+  const [versaoAtual, setVersaoAtual] = useState<string | null>(null);
+  const [dispensado, setDispensado] = useState(false);
+
+  const bridge = getBridge();
+  const isDesktop = !!bridge;
 
   useEffect(() => {
-    const currentVersion = __BUILD_VERSION__;
+    let cancelado = false;
 
-    async function checkVersion() {
+    async function verificar() {
+      // Modo Desktop: usa bridge do Electron
+      if (isDesktop) {
+        try {
+          const [resultado, versao] = await Promise.all([
+            bridge.checkForUpdates?.(),
+            bridge.getAppVersion?.().catch(() => null),
+          ]);
+          if (cancelado) return;
+          if (versao) setVersaoAtual(versao);
+          if (resultado?.hasUpdate) setVersaoNova(resultado.version ?? 'nova');
+          else setVersaoNova(null);
+        } catch {
+          // ignora
+        }
+        return;
+      }
+
+      // Modo Web: verifica version.json
       try {
+        const current = __BUILD_VERSION__;
         const res = await fetch(`/version.json?t=${Date.now()}`, { cache: 'no-store' });
-        if (!res.ok) return;
+        if (!res.ok || cancelado) return;
         const data = await res.json();
-        if (data.v && data.v !== currentVersion) {
-          setDesatualizado(true);
+        if (data.v && data.v !== current) {
+          setVersaoAtual(current);
+          setVersaoNova(data.v);
         }
       } catch {
-        // Network error, ignore
+        // ignora
       }
     }
 
-    // First check after 30s, then every 2min
-    const initialTimeout = setTimeout(checkVersion, 30000);
-    const interval = setInterval(checkVersion, CHECK_INTERVAL);
-
-    return () => {
-      clearTimeout(initialTimeout);
-      clearInterval(interval);
-    };
+    const t = setTimeout(verificar, 15000);
+    const iv = setInterval(verificar, isDesktop ? DESKTOP_CHECK_INTERVAL : WEB_CHECK_INTERVAL);
+    return () => { cancelado = true; clearTimeout(t); clearInterval(iv); };
   }, []);
 
-  if (!desatualizado) return null;
+  if (!versaoNova || dispensado) return null;
 
-  return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div
-        className="bg-white rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden"
-        style={{ animation: 'bounceIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)' }}
-      >
-        {/* Header gradient */}
-        <div className="bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-600 px-8 pt-8 pb-6 text-center text-white">
-          <div className="relative mx-auto w-20 h-20 mb-4">
-            <div className="absolute inset-0 rounded-full bg-white/20 animate-ping" style={{ animationDuration: '2s' }} />
-            <div className="relative bg-white/20 backdrop-blur rounded-full w-20 h-20 flex items-center justify-center">
-              <Rocket size={36} className="text-white" style={{ transform: 'rotate(-45deg)' }} />
-            </div>
-          </div>
-          <h2 className="text-2xl font-bold tracking-tight">Nova versão disponível!</h2>
-          <p className="text-blue-100 text-sm mt-1.5">A equipe de desenvolvimento da BIASI não para</p>
-        </div>
-
-        {/* Body */}
-        <div className="px-8 py-6 text-center">
-          <p className="text-slate-600 text-sm leading-relaxed">
-            Enquanto você trabalhava, soltamos <strong>atualizações novas</strong> no sistema.
-            Seu navegador ainda está com a versão antiga em cache.
-          </p>
-
-          <div className="mt-5 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
-            <p className="text-amber-800 text-xs font-medium">
-              💡 Atualize para ter acesso às últimas funcionalidades e correções
-            </p>
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="px-8 pb-8">
-          <button
-            onClick={() => window.location.reload()}
-            className="w-full flex items-center justify-center gap-2.5 py-3.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold text-sm hover:from-blue-700 hover:to-indigo-700 transition-all shadow-lg shadow-blue-500/30 active:scale-[0.98]"
-          >
-            <RefreshCw size={18} />
-            Atualizar Agora
-          </button>
-          <p className="text-center text-[10px] text-slate-400 mt-3">
-            Ou pressione <kbd className="px-1.5 py-0.5 bg-slate-100 rounded text-slate-500 font-mono text-[9px]">F5</kbd> / <kbd className="px-1.5 py-0.5 bg-slate-100 rounded text-slate-500 font-mono text-[9px]">Ctrl+R</kbd>
-          </p>
-        </div>
+  // Desktop: banner simples no topo, manda para o Hub
+  if (isDesktop) {
+    return (
+      <div className="flex items-center gap-3 px-4 py-2 bg-indigo-600 text-white text-xs font-medium flex-shrink-0">
+        <Sparkles size={13} className="flex-shrink-0 opacity-80" />
+        <span className="flex-1">
+          Nova versão <strong>v{versaoNova}</strong> disponível
+          {versaoAtual ? ` (atual: v${versaoAtual})` : ''} — volte ao Hub para atualizar.
+        </span>
+        <button
+          onClick={() => { window.location.href = 'app://hub.local/'; }}
+          className="flex items-center gap-1 px-2.5 py-1 bg-white text-indigo-700 font-semibold rounded-lg hover:bg-indigo-50 transition-colors whitespace-nowrap"
+        >
+          <ArrowLeft size={11} /> Ir para o Hub
+        </button>
+        <button onClick={() => setDispensado(true)} className="p-0.5 opacity-60 hover:opacity-100 transition-opacity">
+          <X size={13} />
+        </button>
       </div>
+    );
+  }
 
-      <style>{`
-        @keyframes bounceIn {
-          0% { transform: scale(0.3); opacity: 0; }
-          50% { transform: scale(1.05); opacity: 1; }
-          70% { transform: scale(0.95); }
-          100% { transform: scale(1); }
-        }
-      `}</style>
+  // Web: toast no canto inferior
+  return (
+    <div className="fixed bottom-4 right-4 z-50 max-w-sm bg-white rounded-xl shadow-xl border border-slate-200 p-4">
+      <div className="flex items-start gap-3">
+        <Sparkles size={18} className="text-blue-600 flex-shrink-0 mt-0.5" />
+        <div className="flex-1">
+          <p className="font-semibold text-slate-800 text-sm">Atualização disponível</p>
+          <p className="text-xs text-slate-500 mt-0.5">Recarregue para usar a versão mais recente.</p>
+          {(versaoAtual || versaoNova) && (
+            <p className="text-[10px] text-slate-400 mt-1">
+              {versaoAtual && `Atual: ${versaoAtual}`}{versaoNova && ` → Nova: ${versaoNova}`}
+            </p>
+          )}
+        </div>
+        <button onClick={() => setDispensado(true)} className="text-slate-300 hover:text-slate-500">
+          <X size={15} />
+        </button>
+      </div>
+      <button
+        onClick={() => window.location.reload()}
+        className="mt-3 w-full flex items-center justify-center gap-2 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg transition-colors"
+      >
+        <RefreshCw size={13} /> Atualizar agora
+      </button>
     </div>
   );
 }

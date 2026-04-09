@@ -4,7 +4,7 @@ import { Modal } from '../ui/Modal';
 import { useClientes } from '../../context/ClientesContext';
 import type { Cliente } from '../../domain/entities/Cliente';
 import { SEGMENTOS_CLIENTE } from '../../domain/value-objects/SegmentoCliente';
-import { buscarDadosCNPJ } from '../../infrastructure/supabase/clientesRepository';
+import { buscarDadosCNPJ, clientesRepository } from '../../infrastructure/supabase/clientesRepository';
 
 const UFS = [
   'AC','AL','AP','AM','BA','CE','DF','ES','GO',
@@ -92,10 +92,12 @@ export function ModalCliente({
 }: ModalClienteProps) {
   const { criarCliente, editarCliente } = useClientes();
   const [passo, setPasso] = useState<'cnpj' | 'form'>('cnpj');
-  const [cnpjBusca, setCnpjBusca] = useState('');
-  const [buscandoCNPJ, setBuscandoCNPJ] = useState(false);
+  const [tipoDocumento, setTipoDocumento] = useState<'PJ' | 'PF'>('PJ');
+  const [documentoBusca, setDocumentoBusca] = useState('');
+  const [buscandoDados, setBuscandoDados] = useState(false);
   const [erroBusca, setErroBusca] = useState('');
   const [form, setForm] = useState<FormCliente>(formVazio);
+  const [buscandoCEP, setBuscandoCEP] = useState(false);
   const [erro, setErro] = useState('');
   const [salvando, setSalvando] = useState(false);
 
@@ -103,12 +105,14 @@ export function ModalCliente({
     if (aberto) {
       setErro('');
       setErroBusca('');
-      setCnpjBusca('');
+      setDocumentoBusca('');
       if (clienteEditando) {
         setForm(clienteParaForm(clienteEditando));
+        setTipoDocumento(clienteEditando.tipo);
         setPasso('form');
       } else {
         setForm(formVazio());
+        setTipoDocumento('PJ');
         setPasso('cnpj');
       }
     }
@@ -124,37 +128,143 @@ export function ModalCliente({
     onFechar();
   }
 
-  async function handleBuscarCNPJ() {
-    const limpo = cnpjBusca.replace(/\D/g, '');
-    if (limpo.length !== 14) {
-      setErroBusca('Digite um CNPJ válido com 14 dígitos.');
-      return;
-    }
-    setBuscandoCNPJ(true);
+  function validarCPF(cpf: string) {
+    const limpo = cpf.replace(/\D/g, '');
+    if (limpo.length !== 11) return false;
+    if (/^(\d)\1+$/.test(limpo)) return false;
+    let soma = 0;
+    for (let i = 1; i <= 9; i++) soma += parseInt(limpo.substring(i - 1, i)) * (11 - i);
+    let resto = (soma * 10) % 11;
+    if (resto === 10 || resto === 11) resto = 0;
+    if (resto !== parseInt(limpo.substring(9, 10))) return false;
+    soma = 0;
+    for (let i = 1; i <= 10; i++) soma += parseInt(limpo.substring(i - 1, i)) * (12 - i);
+    resto = (soma * 10) % 11;
+    if (resto === 10 || resto === 11) resto = 0;
+    if (resto !== parseInt(limpo.substring(10, 11))) return false;
+    return true;
+  }
+
+  async function handleConsultarDocumento() {
+    const limpo = documentoBusca.replace(/\D/g, '');
+    
+    setBuscandoDados(true);
     setErroBusca('');
-    const dados = await buscarDadosCNPJ(cnpjBusca);
-    setBuscandoCNPJ(false);
-    if (!dados) {
-      setErroBusca('CNPJ não encontrado. Verifique o número ou preencha manualmente.');
-      return;
+
+    try {
+      // 1. SEMPRE verifica primeiro no banco de dados local
+      const existente = await clientesRepository.buscarPorDocumento(documentoBusca);
+      if (existente) {
+        // Mapeamento de segmento (idêntico ao do ClientesContext)
+        const segmentoMap: Record<string, string> = {
+          privado: 'Privado',
+          publico: 'Público',
+          construtora: 'Construção Civil',
+          industria: 'Indústria',
+          prefeitura: 'Público',
+          predial: 'Predial',
+          comercio: 'Varejo / Comercial',
+          residencial: 'Condomínio',
+        };
+
+        setForm({
+          tipo: (existente.tipo_pessoa === 'Física' || existente.tipo_pessoa === 'fisica' ? 'PF' : 'PJ'),
+          razaoSocial: existente.nome,
+          nomeFantasia: existente.nome_fantasia ?? '',
+          nomeInterno: existente.nome_interno ?? '',
+          cnpjCpf: existente.cnpj_cpf ?? documentoBusca,
+          segmento: segmentoMap[existente.tipo || ''] || 'Outros',
+          ativo: existente.ativo,
+          contatoPrincipal: existente.contato_nome ?? '',
+          telefone: existente.contato_telefone ?? '',
+          email: existente.contato_email ?? '',
+          cidade: existente.cidade ?? '',
+          uf: existente.estado ?? '',
+          endereco: existente.endereco ?? '',
+          bairro: existente.bairro ?? '',
+          cep: existente.cep ?? '',
+          observacoes: '', // Não existe na tabela
+        } as any);
+        setBuscandoDados(false);
+        setPasso('form');
+        return;
+      }
+
+      // 2. Se não existe no banco, tenta buscar fora (se for PJ)
+      if (tipoDocumento === 'PJ') {
+        if (limpo.length !== 14) {
+          setErroBusca('Digite um CNPJ válido com 14 dígitos.');
+          setBuscandoDados(false);
+          return;
+        }
+        const dados = await buscarDadosCNPJ(documentoBusca);
+        if (!dados) {
+          setErroBusca('CNPJ não encontrado. Verifique o número ou preencha manualmente.');
+          setBuscandoDados(false);
+          return;
+        }
+        setForm((prev) => ({
+          ...prev,
+          tipo: 'PJ',
+          cnpjCpf: documentoBusca,
+          razaoSocial: dados.razaoSocial,
+          nomeFantasia: dados.nomeFantasia,
+          cidade: dados.cidade,
+          uf: dados.uf,
+          endereco: dados.endereco,
+          bairro: dados.bairro,
+          cep: dados.cep,
+          telefone: dados.telefone,
+        }));
+        setPasso('form');
+      } else {
+        // CPF - Apenas validação local
+        if (!validarCPF(limpo)) {
+          setErroBusca('Digite um CPF válido.');
+          setBuscandoDados(false);
+          return;
+        }
+        setTimeout(() => {
+          setForm((prev) => ({ ...prev, tipo: 'PF', cnpjCpf: documentoBusca }));
+          setBuscandoDados(false);
+          setPasso('form');
+        }, 600);
+      }
+    } catch (err) {
+      console.error(err);
+      setErroBusca('Erro ao consultar documento. Tente novamente.');
+    } finally {
+      if (tipoDocumento === 'PJ') setBuscandoDados(false);
     }
-    setForm((prev) => ({
-      ...prev,
-      cnpjCpf: cnpjBusca,
-      razaoSocial: dados.razaoSocial,
-      nomeFantasia: dados.nomeFantasia,
-      cidade: dados.cidade,
-      uf: dados.uf,
-      endereco: dados.endereco,
-      bairro: dados.bairro,
-      cep: dados.cep,
-      telefone: dados.telefone,
-    }));
-    setPasso('form');
+  }
+
+  async function handleBuscarCEP(cepOverride?: string) {
+    const limpo = (cepOverride ?? form.cep).replace(/\D/g, '');
+    if (limpo.length !== 8) return;
+
+    setBuscandoCEP(true);
+    try {
+      // Usando o protocolo app:// vindo do main do Electron se precisar, ou fetch direto
+      const res = await fetch(`https://viacep.com.br/ws/${limpo}/json/`);
+      const dados = await res.json();
+      if (dados.erro) return;
+
+      setForm((prev) => ({
+        ...prev,
+        endereco: [dados.logradouro, dados.complemento].filter(Boolean).join(', '),
+        bairro: dados.bairro,
+        cidade: dados.localidade,
+        uf: dados.uf,
+      }));
+    } catch (err) {
+      console.error('Erro ao buscar CEP:', err);
+    } finally {
+      setBuscandoCEP(false);
+    }
   }
 
   function preencherManualmente() {
-    setForm((prev) => ({ ...prev, cnpjCpf: cnpjBusca }));
+    setForm((prev) => ({ ...prev, tipo: documentoBusca.replace(/\D/g, '').length === 11 ? 'PF' : 'PJ', cnpjCpf: documentoBusca }));
     setPasso('form');
   }
 
@@ -214,24 +324,44 @@ export function ModalCliente({
     return (
       <Modal titulo={titulo} aberto={aberto} onFechar={fechar} largura="sm">
         <div className="px-6 py-8 flex flex-col items-center gap-6">
-          <div className="text-center">
-            <div className="w-14 h-14 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-3">
+          <div className="text-center w-full">
+            <div className="w-14 h-14 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-4">
               <Search size={24} className="text-blue-600" />
             </div>
-            <p className="text-sm text-slate-600">
-              Informe o CNPJ para buscar os dados da empresa automaticamente.
+            <p className="text-sm text-slate-600 mb-6">
+              Informe o documento para buscar os dados automaticamente.
             </p>
+
+            {/* Toggle Tipo */}
+            <div className="flex bg-slate-100 p-1 rounded-lg mb-6 w-full">
+              <button
+                onClick={() => { setTipoDocumento('PJ'); setErroBusca(''); }}
+                className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-all ${
+                  tipoDocumento === 'PJ' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                CNPJ (Empresa)
+              </button>
+              <button
+                onClick={() => { setTipoDocumento('PF'); setErroBusca(''); }}
+                className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-all ${
+                  tipoDocumento === 'PF' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                CPF (Pessoa Física)
+              </button>
+            </div>
           </div>
 
           <div className="w-full space-y-3">
             <div>
-              <label className={labelCls}>CNPJ da empresa</label>
+              <label className={labelCls}>{tipoDocumento === 'PJ' ? 'CNPJ da empresa' : 'CPF do cliente'}</label>
               <input
                 type="text"
-                value={cnpjBusca}
-                onChange={(e) => { setCnpjBusca(e.target.value); setErroBusca(''); }}
-                onKeyDown={(e) => e.key === 'Enter' && handleBuscarCNPJ()}
-                placeholder="00.000.000/0001-00"
+                value={documentoBusca}
+                onChange={(e) => { setDocumentoBusca(e.target.value); setErroBusca(''); }}
+                onKeyDown={(e) => e.key === 'Enter' && handleConsultarDocumento()}
+                placeholder={tipoDocumento === 'PJ' ? '00.000.000/0001-00' : '000.000.000-00'}
                 autoFocus
                 className={`${inputCls} font-mono text-center tracking-widest`}
               />
@@ -241,19 +371,19 @@ export function ModalCliente({
             </div>
 
             <button
-              onClick={handleBuscarCNPJ}
-              disabled={buscandoCNPJ}
+              onClick={handleConsultarDocumento}
+              disabled={buscandoDados}
               className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-70"
             >
-              {buscandoCNPJ ? (
+              {buscandoDados ? (
                 <>
                   <Loader2 size={16} className="animate-spin" />
-                  Buscando...
+                  {tipoDocumento === 'PJ' ? 'Buscando...' : 'Validando...'}
                 </>
               ) : (
                 <>
                   <Search size={16} />
-                  Buscar dados do CNPJ
+                  {tipoDocumento === 'PJ' ? 'Buscar dados do CNPJ' : 'Verificar CPF'}
                 </>
               )}
             </button>
@@ -516,16 +646,30 @@ export function ModalCliente({
                   className={inputCls}
                 />
               </div>
-              <div>
+              <div className="relative">
                 <label className={labelCls}>CEP</label>
                 <input
                   type="text"
                   value={form.cep}
-                  onChange={(e) => set('cep', e.target.value)}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    set('cep', val);
+                    const limpo = val.replace(/\D/g, '');
+                    if (limpo.length === 8) {
+                      // Dispara busca automática ao digitar o 8º dígito
+                      setTimeout(() => handleBuscarCEP(limpo), 50);
+                    }
+                  }}
+                  onBlur={() => handleBuscarCEP()}
                   disabled={disabled}
                   placeholder="00000-000"
-                  className={`${inputCls} font-mono`}
+                  className={`${inputCls} font-mono pr-8`}
                 />
+                {buscandoCEP && (
+                  <div className="absolute right-2 bottom-2.5">
+                    <Loader2 size={14} className="animate-spin text-blue-500" />
+                  </div>
+                )}
               </div>
             </div>
 
@@ -553,7 +697,7 @@ export function ModalCliente({
               onClick={() => setPasso('cnpj')}
               className="text-xs text-slate-400 hover:text-slate-600 transition-colors"
             >
-              ← Buscar outro CNPJ
+              ← Buscar outro documento
             </button>
           )}
           <div className="flex items-center gap-3 ml-auto">

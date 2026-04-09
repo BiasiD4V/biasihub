@@ -76,4 +76,18 @@ export const fornecedoresRepository = {
     if (error) throw error
     return data
   },
+
+  async buscarPorDocumento(documento: string): Promise<FornecedorSupabase | null> {
+    const limpo = documento.replace(/\D/g, '')
+    const { data, error } = await supabase
+      .from('fornecedores')
+      .select('*')
+      .or(`cnpj.eq.${limpo},cnpj.eq.${documento}`)
+      .order('criado_em', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (error) throw error
+    return data
+  }
 }

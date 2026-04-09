@@ -1,43 +1,36 @@
 import { Suspense, lazy } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 
-// Providers
+import { ErrorBoundary } from './components/ErrorBoundary';
+import { LayoutAutenticado } from './components/layout/LayoutAutenticado';
 import { AuthProvider } from './context/AuthContext';
 import { CadastrosMestresProvider } from './context/CadastrosMestresContext';
 import { ClientesProvider } from './context/ClientesContext';
 import { NovoOrcamentoProvider } from './context/NovoOrcamentoContext';
-
-// Layout autenticado
-import { LayoutAutenticado } from './components/layout/LayoutAutenticado';
-import { RedirectToDashboard } from './components/RedirectToDashboard';
-import { ErrorBoundary } from './components/ErrorBoundary';
-
-// Páginas públicas
-import { Login } from './pages/Login';
 import { ConfiguracaoDebug } from './pages/ConfiguracaoDebug';
-import { ConfiguradorUUIDs } from './pages/ConfiguradorUUIDs';
-
-// Páginas autenticadas
 import { Configuracoes } from './pages/Configuracoes';
-import { OrcamentosNovos } from './pages/OrcamentosNovos';
-import { OrcamentosKanban } from './pages/OrcamentosKanban';
-import { OrcamentoDetalhe } from './pages/OrcamentoDetalhe';
-import { Clientes } from './pages/Clientes';
-import { Fornecedores } from './pages/Fornecedores';
+import { ConfiguradorUUIDs } from './pages/ConfiguradorUUIDs';
+import { CriarPlanilha } from './pages/CriarPlanilha';
+import { DiarioDeObra } from './pages/DiarioDeObra';
+import { Indicacoes } from './pages/Indicacoes';
+import { InclusoExcluso } from './pages/InclusoExcluso';
 import { Insumos } from './pages/Insumos';
-import { Composicoes } from './pages/Composicoes';
-import { Templates } from './pages/Templates';
+import { MaoDeObra } from './pages/MaoDeObra';
+import { Membros } from './pages/Membros';
+import { MeusDispositivos } from './pages/MeusDispositivos';
+import { OrcamentoDetalhe } from './pages/OrcamentoDetalhe';
+import { OrcamentosKanban } from './pages/OrcamentosKanban';
+import { OrcamentosNovos } from './pages/OrcamentosNovos';
+import { PlanilhaOrcamentaria } from './pages/PlanilhaOrcamentaria';
+import { Propostas } from './pages/Propostas';
 import { Aprovacoes } from './pages/Aprovacoes';
 import { Bira } from './pages/Bira';
-import { DiarioDeObra } from './pages/DiarioDeObra';
-import { Propostas } from './pages/Propostas';
-import { MaoDeObra } from './pages/MaoDeObra';
-import { InclusoExcluso } from './pages/InclusoExcluso';
-import { MeusDispositivos } from './pages/MeusDispositivos';
-import { Membros } from './pages/Membros';
-import { PlanilhaOrcamentaria } from './pages/PlanilhaOrcamentaria';
-import { CriarPlanilha } from './pages/CriarPlanilha';
-import { Indicacoes } from './pages/Indicacoes';
+import { ArenaComercial } from './pages/ArenaComercial';
+import { Clientes } from './pages/Clientes';
+import { Composicoes } from './pages/Composicoes';
+import { Fornecedores } from './pages/Fornecedores';
+import { Login } from './pages/Login';
+import { Templates } from './pages/Templates';
 
 const DashboardBI = lazy(() => import('./pages/DashboardBI').then((m) => ({ default: m.DashboardBI })));
 
@@ -45,20 +38,16 @@ export function App() {
   return (
     <AuthProvider>
       <CadastrosMestresProvider>
-          <ClientesProvider>
+        <ClientesProvider>
           <NovoOrcamentoProvider>
             <BrowserRouter>
               <Routes>
-                {/* Rota pública */}
                 <Route path="/login" element={<Login />} />
                 <Route path="/debug" element={<ConfiguracaoDebug />} />
                 <Route path="/setup-uuids" element={<ConfiguradorUUIDs />} />
 
-                {/* Raiz → redireciona baseado na autenticação */}
-                <Route path="/" element={<RedirectToDashboard />} />
-
-                {/* Rotas autenticadas — verificação feita no LayoutAutenticado */}
                 <Route element={<LayoutAutenticado />}>
+                  <Route path="/" element={<Navigate to="/dashboard" replace />} />
                   <Route
                     path="/dashboard"
                     element={(
@@ -82,7 +71,9 @@ export function App() {
                   <Route path="/incluso-excluso" element={<InclusoExcluso />} />
                   <Route path="/aprovacoes" element={<Aprovacoes />} />
                   <Route path="/bira" element={<Bira />} />
+                  <Route path="/arena" element={<ArenaComercial />} />
                   <Route path="/rdo" element={<DiarioDeObra />} />
+                  <Route path="/obras" element={<Navigate to="/dashboard" replace />} />
                   <Route path="/bi" element={<Navigate to="/dashboard" replace />} />
                   <Route path="/operacao/orcamentos" element={<Propostas />} />
                   <Route path="/meus-dispositivos" element={<MeusDispositivos />} />
@@ -93,13 +84,12 @@ export function App() {
                   <Route path="/indicacoes" element={<Indicacoes />} />
                 </Route>
 
-                {/* Fallback */}
-                <Route path="*" element={<Navigate to="/dashboard" replace />} />
+                <Route path="*" element={<Navigate to="/login" replace />} />
               </Routes>
             </BrowserRouter>
           </NovoOrcamentoProvider>
-          </ClientesProvider>
-        </CadastrosMestresProvider>
+        </ClientesProvider>
+      </CadastrosMestresProvider>
     </AuthProvider>
   );
 }

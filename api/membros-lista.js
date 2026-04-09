@@ -28,10 +28,10 @@ export default async function handler(req, res) {
 
     if (!userRes.ok) return res.status(401).json({ error: 'Invalid token' });
 
-    // Buscar todos os usuários ativos (bypass RLS com service_role)
+    // Buscar todos os usuários (bypass RLS com service_role)
     const [membrosRes, presencaRes] = await Promise.all([
       fetch(
-        `${supabaseUrl}/rest/v1/usuarios?select=id,nome,email,papel,ativo&ativo=eq.true&order=nome.asc`,
+        `${supabaseUrl}/rest/v1/usuarios?select=id,nome,email,papel,ativo&order=nome.asc`,
         {
           headers: {
             'Authorization': `Bearer ${serviceKey}`,

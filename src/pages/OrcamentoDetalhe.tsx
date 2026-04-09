@@ -12,6 +12,8 @@ import { HistoricoEtapas } from '../components/orcamentos/HistoricoEtapas';
 import { AlertasOrcamento } from '../components/orcamentos/AlertasOrcamento';
 import { ModalNovoFollowUp } from '../components/orcamentos/ModalNovoFollowUp';
 import { ModalNovaPendencia } from '../components/orcamentos/ModalNovaPendencia';
+import { MapaJornadaComercial } from '../components/orcamentos/MapaJornadaComercial';
+import { gamificacaoService } from '../services/gamificacaoService';
 
 import { propostasRepository, type PropostaSupabase, type MudancaEtapaRow, type FollowUpRow } from '../infrastructure/supabase/propostasRepository';
 import type { FollowUp } from '../domain/entities/FollowUp';
@@ -318,6 +320,7 @@ export function OrcamentoDetalhe() {
       const autoAprovado = papelAtual && ['dono', 'admin', 'gestor'].includes(papelAtual);
       const statusMudanca = autoAprovado ? 'aprovado' : 'pendente';
 
+      if (orc?.responsavel) gamificacaoService.registrarAtividadePorEtapa(orc.responsavel, etapaNova).catch(console.error);
       propostasRepository.atualizar(id, { etapa_funil: etapaNova }).then((p) => {
         setPropostaSupa(p);
       }).catch(() => {});
@@ -364,6 +367,7 @@ export function OrcamentoDetalhe() {
         }
       }).catch(() => {});
     } else {
+      if (orc?.responsavel) gamificacaoService.registrarAtividadePorEtapa(orc.responsavel, etapaNova).catch(console.error);
       atualizarEtapaFunil(id, etapaNova, usuario?.nome ?? 'Paulo Confar', observacao);
     }
   }
@@ -416,15 +420,15 @@ export function OrcamentoDetalhe() {
       const update = dados.resultado === 'ganho'
         ? { resultado_comercial: 'ganho', etapa_funil: 'pos_venda', valor_orcado: dados.valorFechado }
         : { resultado_comercial: 'perdido' };
+      if (dados.resultado === 'ganho' && orc?.responsavel) gamificacaoService.registrarAtividadeDireta(orc.responsavel, 'contrato_fechado').catch(console.error);
       propostasRepository.atualizar(id, update).then((p) => { setPropostaSupa(p); }).catch(() => {});
+      if (dados.resultado === 'ganho' && orc?.responsavel) {
+        gamificacaoService.registrarAtividadeDireta(orc.responsavel, 'contrato_fechado').catch(console.error);
+      }
     } else {
       if (dados.resultado === 'ganho') {
-        atualizarComercial(id, {
-          resultadoComercial: 'ganho',
-          etapaFunil: 'pos_venda',
-          dataFechamento: dados.dataFechamento,
-          valorProposta: dados.valorFechado,
-        });
+        atualizarComercial(id, {resultadoComercial: 'ganho'});
+        if (orc?.responsavel) gamificacaoService.registrarAtividadeDireta(orc.responsavel, 'contrato_fechado').catch(console.error);
       } else {
         atualizarComercial(id, {
           resultadoComercial: 'perdido',
@@ -718,9 +722,18 @@ export function OrcamentoDetalhe() {
                 }
               }}
             />
+            {/* Mapa de Jornada Gamificado */}
+            {orc && (
+              <div className="mt-8">
+                <MapaJornadaComercial 
+                  etapaAtual={orc.etapaFunil} 
+                  resultadoComercial={orc.resultadoComercial} 
+                />
+              </div>
+            )}
           </div>
 
-          {/* Coluna lateral */}
+ {/* Coluna lateral */}
           <div className="space-y-6">
             {/* Pendências */}
             <BlocoPendencias
@@ -905,6 +918,7 @@ export function OrcamentoDetalhe() {
             const updateData = fu.proximaAcao
               ? { proxima_acao: fu.proximaAcao, data_proxima_acao: fu.dataProximaAcao ?? null, ultima_interacao: fu.data.slice(0, 10) }
               : { ultima_interacao: fu.data.slice(0, 10) };
+            if (orc?.responsavel) gamificacaoService.registrarAtividadeDireta(orc.responsavel, 'followup_realizado').catch(console.error);
             propostasRepository.atualizar(id, updateData).then((p) => setPropostaSupa(p)).catch(() => {});
           } : undefined}
         />
@@ -934,3 +948,6 @@ export function OrcamentoDetalhe() {
     </div>
   );
 }
+
+
+

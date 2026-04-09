@@ -72,7 +72,8 @@ export interface CriarOrcamentoInput {
   titulo: string;
   clienteId: string;
   tiposObraIds: string[];
-  dataBase: string;
+  dataEntrada: string;
+  dataLimite: string;
   responsavel: string;
   disciplinaIds: string[];
 }
@@ -271,7 +272,7 @@ export function NovoOrcamentoProvider({ children }: { children: ReactNode }) {
       tiposObraNomes,
       disciplinaIds: input.disciplinaIds,
       disciplinaNomes,
-      dataBase: input.dataBase,
+      dataBase: input.dataEntrada,
       responsavel: input.responsavel,
       status: 'em_elaboracao',
       statusLabel: STATUS_LABELS['em_elaboracao'],

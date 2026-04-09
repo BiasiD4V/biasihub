@@ -9,9 +9,11 @@ import { ChevronsLeft, ChevronsRight, Menu, X, Phone, Video, PhoneOff } from 'lu
 import { UpdateChecker } from './UpdateChecker';
 
 const STORAGE_KEY_SIDEBAR_HIDDEN = 'layout-sidebar-hidden-v1';
+const CALL_WINDOW_NAME = 'biasi-hub-call';
 
 export function LayoutAutenticado() {
   const { isAuthenticated, loading, erroConexao, usuario } = useAuth();
+  const [authTimeout, setAuthTimeout] = useState(false);
   const [sidebarAberta, setSidebarAberta] = useState(false);
   const [sidebarOcultaDesktop, setSidebarOcultaDesktop] = useState(false);
   const [pauloAberto, setPauloAberto] = useState(false);
@@ -285,9 +287,60 @@ export function LayoutAutenticado() {
     }
   }, [sidebarOcultaDesktop]);
 
+  useEffect(() => {
+    if (!loading) {
+      setAuthTimeout(false);
+      return;
+    }
+
+    // Aumentando o limite de visualização de timeout na tela para 30s (ajuda na rede no modo dev)
+    const timer = setTimeout(() => setAuthTimeout(true), 30000);
+    return () => clearTimeout(timer);
+  }, [loading]);
+
   const fecharSidebar = () => setSidebarAberta(false);
 
+  function limparSessaoLocal() {
+    const keys = Object.keys(localStorage);
+    for (const key of keys) {
+      if (key.includes('remember_me') || key.includes('supabase') || key.includes('sb-')) {
+        localStorage.removeItem(key);
+      }
+    }
+    sessionStorage.removeItem('biasi-hub-pwa-reset-v1');
+  }
+
   if (loading) {
+    if (authTimeout) {
+      return (
+        <div className="flex items-center justify-center min-h-screen bg-slate-50 p-4">
+          <div className="w-full max-w-md bg-white border border-slate-200 rounded-xl shadow-sm p-6 text-center">
+            <h2 className="text-lg font-semibold text-slate-800">Sessao travada no carregamento</h2>
+            <p className="text-sm text-slate-600 mt-2">
+              A autenticacao passou do tempo esperado. Redirecionando para o login limpo...
+            </p>
+            <div className="mt-5 flex gap-2 justify-center">
+              <button
+                onClick={() => window.location.reload()}
+                className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-100 transition-colors"
+              >
+                Tentar de novo
+              </button>
+              <button
+                onClick={() => {
+                  limparSessaoLocal();
+                  window.location.replace('/login');
+                }}
+                className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+              >
+                Ir para login
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="flex items-center justify-center min-h-screen bg-slate-50">
         <div className="text-center">
@@ -398,6 +451,8 @@ export function LayoutAutenticado() {
 
       {/* Conteúdo principal */}
       <main className={`flex-1 flex flex-col min-h-screen min-w-0 pt-12 lg:pt-0 overflow-x-hidden ${sidebarOcultaDesktop ? 'lg:ml-0' : 'lg:ml-64'}`}>
+        {/* Banner de atualização (Desktop: redireciona para Hub) */}
+        <UpdateChecker />
         <Outlet />
       </main>
 
@@ -427,8 +482,7 @@ export function LayoutAutenticado() {
         </div>
       )}
 
-      {/* Version update checker */}
-      <UpdateChecker />
+      {/* UpdateChecker movido para dentro de <main> */}
 
       {/* Incoming call notification */}
       {callNotif && (
@@ -458,7 +512,11 @@ export function LayoutAutenticado() {
                 Recusar
               </button>
               <button
-                onClick={() => { window.open(callNotif.url, '_blank'); fecharCallNotif(); }}
+                onClick={() => {
+                  const callWindow = window.open(callNotif.url, CALL_WINDOW_NAME);
+                  callWindow?.focus();
+                  fecharCallNotif();
+                }}
                 className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-emerald-500 text-white hover:bg-emerald-600 transition-colors font-medium text-sm shadow-lg shadow-emerald-500/30"
               >
                 {callNotif.tipo === 'video' ? <Video size={16} /> : <Phone size={16} />}

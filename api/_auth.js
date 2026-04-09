@@ -11,9 +11,13 @@ const SUPABASE_URL = 'https://vzaabtzcilyoknksvhrc.supabase.co';
  * Sets appropriate error responses on the res object when auth fails.
  */
 export async function verificarAuth(req, res) {
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!serviceKey) {
-    res.status(500).json({ error: 'Not configured' });
+  const apiKey =
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.SUPABASE_ANON_KEY ||
+    process.env.VITE_SUPABASE_ANON_KEY;
+
+  if (!apiKey) {
+    res.status(500).json({ error: 'Not configured: missing Supabase API key' });
     return null;
   }
 
@@ -29,7 +33,7 @@ export async function verificarAuth(req, res) {
     const userRes = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
       headers: {
         'Authorization': `Bearer ${userToken}`,
-        'apikey': serviceKey,
+        'apikey': apiKey,
       },
     });
 

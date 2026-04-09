@@ -1,47 +1,29 @@
 import {
   Zap, Star, CheckSquare, BookOpen, Bug, Package, GitBranch,
 } from 'lucide-react';
+import type { BiraTarefa, BiraComentario } from '../../infrastructure/supabase/biraRepository';
 
-// ── Types ──────────────────────────────────────────────────────────────────────
-export interface JiraIssue {
-  key: string;
-  summary: string;
-  status: string;
-  statusCategory: string;
-  issuetype: string;
-  assigneeName: string | null;
-  assigneeAvatar: string | null;
-  priority: string;
-  created: string | null;
-  updated: string | null;
-  duedate: string | null;
-  parentKey: string | null;
-  parentSummary: string | null;
-  labels: string[];
-  webUrl: string;
-}
-
-export interface JiraComment {
-  id: string;
-  author: string;
-  authorAvatar: string | null;
-  body: string;
-  created: string;
-}
-
-export interface JiraIssueDetail extends JiraIssue {
-  description: string;
-  comments: JiraComment[];
+export type { BiraTarefa as JiraIssue, BiraComentario as JiraComment };
+export interface JiraIssueDetail extends BiraTarefa {
+  comentarios: BiraComentario[];
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 export const TRANSITIONS: { id: string; name: string }[] = [
-  { id: '11', name: 'Ideia' },
-  { id: '21', name: 'A fazer' },
-  { id: '31', name: 'Em andamento' },
-  { id: '41', name: 'Em análise' },
-  { id: '51', name: 'Concluído' },
+  { id: 'ideia',        name: 'Ideia' },
+  { id: 'a_fazer',      name: 'A fazer' },
+  { id: 'em_andamento', name: 'Em andamento' },
+  { id: 'em_analise',   name: 'Em análise' },
+  { id: 'concluido',    name: 'Concluído' },
 ];
+
+export const STATUS_DB_MAP: Record<string, string> = {
+  'Ideia':        'ideia',
+  'A fazer':      'a_fazer',
+  'Em andamento': 'em_andamento',
+  'Em análise':   'em_analise',
+  'Concluído':    'concluido',
+};
 
 export const STATUS_CONFIG: Record<string, { cls: string; dot: string }> = {
   'Ideia':        { cls: 'bg-slate-100 text-slate-600 border border-slate-200',   dot: 'bg-slate-400' },
@@ -51,15 +33,29 @@ export const STATUS_CONFIG: Record<string, { cls: string; dot: string }> = {
   'Concluído':    { cls: 'bg-green-100 text-green-700 border border-green-200',    dot: 'bg-green-500' },
 };
 
-export function statusCls(s: string) { return STATUS_CONFIG[s]?.cls ?? 'bg-slate-100 text-slate-500 border border-slate-200'; }
-export function statusDot(s: string) { return STATUS_CONFIG[s]?.dot ?? 'bg-slate-400'; }
+export const STATUS_LABEL: Record<string, string> = {
+  'ideia':        'Ideia',
+  'a_fazer':      'A fazer',
+  'em_andamento': 'Em andamento',
+  'em_analise':   'Em análise',
+  'concluido':    'Concluído',
+};
+
+export function statusCls(s: string) { 
+  const label = STATUS_LABEL[s] || s;
+  return STATUS_CONFIG[label]?.cls ?? 'bg-slate-100 text-slate-500 border border-slate-200'; 
+}
+export function statusDot(s: string) { 
+  const label = STATUS_LABEL[s] || s;
+  return STATUS_CONFIG[label]?.dot ?? 'bg-slate-400'; 
+}
 
 export const COLUNAS_QUADRO = [
-  { status: 'Ideia',        titulo: 'IDEIA',        cor: 'border-slate-300 bg-slate-50/60',  badge: 'bg-slate-100 text-slate-600' },
-  { status: 'A fazer',      titulo: 'A FAZER',      cor: 'border-yellow-300 bg-yellow-50/60', badge: 'bg-yellow-100 text-yellow-700' },
-  { status: 'Em andamento', titulo: 'EM ANDAMENTO', cor: 'border-blue-300 bg-blue-50/60',     badge: 'bg-blue-100 text-blue-700' },
-  { status: 'Em análise',   titulo: 'EM ANÁLISE',   cor: 'border-amber-300 bg-amber-50/60',   badge: 'bg-amber-100 text-amber-700' },
-  { status: 'Concluído',    titulo: 'CONCLUÍDO',    cor: 'border-green-300 bg-green-50/60',   badge: 'bg-green-100 text-green-700' },
+  { status: 'ideia',        titulo: 'IDEIA',        cor: 'border-slate-300 bg-slate-50/60',  badge: 'bg-slate-100 text-slate-600' },
+  { status: 'a_fazer',      titulo: 'A FAZER',      cor: 'border-yellow-300 bg-yellow-50/60', badge: 'bg-yellow-100 text-yellow-700' },
+  { status: 'em_andamento', titulo: 'EM ANDAMENTO', cor: 'border-blue-300 bg-blue-50/60',     badge: 'bg-blue-100 text-blue-700' },
+  { status: 'em_analise',   titulo: 'EM ANÁLISE',   cor: 'border-amber-300 bg-amber-50/60',   badge: 'bg-amber-100 text-amber-700' },
+  { status: 'concluido',    titulo: 'CONCLUÍDO',    cor: 'border-green-300 bg-green-50/60',   badge: 'bg-green-100 text-green-700' },
 ];
 
 export const PRIORITY_CLS: Record<string, string> = {
@@ -71,21 +67,21 @@ export const PRIORITY_ICON: Record<string, string> = {
 };
 
 export const ISSUE_TYPE_ICON: Record<string, React.ElementType> = {
-  Epic: Zap, Feature: Star, Tarefa: CheckSquare, História: BookOpen,
-  Bug: Bug, Recurso: Package, Subtask: GitBranch,
+  epic: Zap, feature: Star, tarefa: CheckSquare, historia: BookOpen,
+  bug: Bug, recurso: Package, subtask: GitBranch,
 };
 
 export const ISSUE_TYPES_CREATE = [
-  { id: '10003', name: 'Feature', icon: Star },
-  { id: '10004', name: 'Tarefa', icon: CheckSquare },
-  { id: '10005', name: 'História', icon: BookOpen },
-  { id: '10006', name: 'Bug', icon: Bug },
-  { id: '10007', name: 'Recurso', icon: Package },
+  { id: 'feature',  name: 'Feature',  icon: Star },
+  { id: 'tarefa',   name: 'Tarefa',   icon: CheckSquare },
+  { id: 'historia', name: 'História', icon: BookOpen },
+  { id: 'bug',      name: 'Bug',      icon: Bug },
+  { id: 'recurso',  name: 'Recurso',  icon: Package },
 ];
 
 export const PRIORITIES_CREATE = [
-  { id: '1', name: 'Highest' }, { id: '2', name: 'High' },
-  { id: '3', name: 'Medium' }, { id: '4', name: 'Low' }, { id: '5', name: 'Lowest' },
+  { id: 'Highest', name: 'Highest' }, { id: 'High', name: 'High' },
+  { id: 'Medium',  name: 'Medium' }, { id: 'Low', name: 'Low' }, { id: 'Lowest', name: 'Lowest' },
 ];
 
 // ── Helpers ────────────────────────────────────────────────────────────────────

@@ -21,6 +21,7 @@ import {
   Download,
   Gift,
   Home,
+  Trophy,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useState, useEffect } from 'react';
@@ -65,6 +66,7 @@ const MENU: SecaoMenu[] = [
   {
     titulo: 'Gestão',
     itens: [
+      { rotulo: '🏆 Arena', para: '/arena', icone: Trophy },
       { rotulo: 'Bira', para: '/bira', icone: KanbanSquare },
     ],
   },

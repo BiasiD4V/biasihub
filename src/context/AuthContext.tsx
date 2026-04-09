@@ -1,11 +1,11 @@
-import { createContext, useContext, useState, useEffect, useRef, type ReactNode } from 'react';
+import { createContext, type ReactNode, useContext, useEffect, useRef, useState } from 'react';
 import { supabase } from '../infrastructure/supabase/client';
 import type { Usuario } from '../domain/entities/Usuario';
 import type { PapelUsuario } from '../domain/value-objects/PapelUsuario';
-import { 
-  createDeviceSession, 
-  validateRememberedSession, 
-  clearRememberedSession 
+import {
+  clearRememberedSession,
+  createDeviceSession,
+  validateRememberedSession,
 } from '../infrastructure/services/deviceSessionService';
 
 interface AuthContextType {
@@ -19,40 +19,137 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
+const AUTH_TIMEOUT_MS = 30000;
+
+// Consulta o banco para verificar se o papel tem acesso ao módulo
+async function podeAcessarModulo(papel: string, moduloKey: string): Promise<boolean> {
+  const p = papel.toLowerCase().trim();
+  // Admin/Dono sempre têm acesso
+  if (p === 'admin' || p === 'dono') return true;
+
+  try {
+    const response = await Promise.race([
+      supabase.from('modulo_acesso').select('papeis, disponivel').eq('modulo_key', moduloKey).maybeSingle(),
+      new Promise<any>((_, reject) => setTimeout(() => reject(new Error('Timeout Modulo')), 5000))
+    ]);
+    const data = response.data;
+
+    if (!data) {
+      return p === 'comercial' || p === 'gestor';
+    }
+    if (!data.disponivel) return false;
+    const papeis = (data.papeis ?? []).map((r: string) => r.toLowerCase());
+    return papeis.includes(p);
+  } catch (err) {
+    console.warn('Fallback ativado devida à timeout no modulo_acesso', err);
+    return p === 'comercial' || p === 'gestor';
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [usuario, setUsuario] = useState<Usuario | null>(null);
   const [loading, setLoading] = useState(true);
   const [erroConexao, setErroConexao] = useState<string | null>(null);
   const inicializado = useRef(false);
 
-  useEffect(() => {
-    // Timeout de segurança: se Supabase não responder em 5s, libera a tela de login
-    const timeout = setTimeout(() => {
-      if (!inicializado.current) {
-        inicializado.current = true;
-        setLoading(false);
-      }
-    }, 5000);
-
-    let subscription: { unsubscribe: () => void } | null = null;
-
+  const loadUserProfile = async (userId: string): Promise<boolean> => {
     try {
-      const { data } = supabase.auth.onAuthStateChange(
-        async (_event, session) => {
-          if (inicializado.current && _event === 'INITIAL_SESSION') return;
+      const response = await Promise.race([
+        supabase.from('usuarios').select('*').eq('id', userId).single(),
+        new Promise<any>((_, reject) => setTimeout(() => reject(new Error('Timeout Perfil')), 5000))
+      ]);
+      const data = response.data;
+      const error = response.error;
 
-          clearTimeout(timeout);
+      if (error) {
+        console.error('Erro ao carregar perfil:', error);
+        return false;
+      }
 
-          if (_event === 'INITIAL_SESSION') {
+      if (!data) {
+        setUsuario(null);
+        return false;
+      }
+
+      const novoUsuario = {
+        id: data.id,
+        nome: data.nome,
+        email: data.email,
+        papel: data.papel as PapelUsuario,
+        ativo: data.ativo,
+        departamento: data.departamento || null,
+      };
+
+      // Validar acesso ao módulo Comercial via banco (modulo_acesso)
+      const temAcesso = await podeAcessarModulo(novoUsuario.papel, 'comercial');
+      if (!temAcesso) {
+        console.warn(`❌ Usuário ${novoUsuario.email} (papel: ${novoUsuario.papel}) não tem acesso ao módulo Comercial`);
+        // Redirecionar para o Hub sem fazer signOut (preserva sessão do Hub)
+        const isElectron = navigator.userAgent.includes('Electron');
+        window.location.href = isElectron ? 'app://hub.local/' : 'https://biasihub-hub.vercel.app/';
+        return false;
+      }
+
+      setUsuario(novoUsuario);
+      return true;
+    } catch (error) {
+      console.error('❌ Erro crítico ao carregar perfil:', error);
+      return false;
+    }
+  };
+
+  useEffect(() => {
+    let subscription: { unsubscribe: () => void } | null = null;
+    let timeout: ReturnType<typeof setTimeout>;
+
+    async function init() {
+      // SSO: processar hash tokens ANTES de configurar o listener para evitar race conditions
+      const hash = window.location.hash;
+      if (hash.includes('access_token=')) {
+        const params = new URLSearchParams(hash.slice(1));
+        const accessToken = params.get('access_token');
+        const refreshToken = params.get('refresh_token');
+        window.history.replaceState({}, '', window.location.pathname);
+
+        if (accessToken && refreshToken) {
+          try {
+            const { data: ssoData } = await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken,
+            });
+            if (ssoData.session?.user) {
+              await loadUserProfile(ssoData.session.user.id);
+            }
+            setLoading(false);
+            inicializado.current = true;
+            setErroConexao(null);
+          } catch (err) {
+            console.error('Erro ao restaurar sessão SSO:', err);
+            setLoading(false);
+            inicializado.current = true;
+          }
+        }
+      }
+
+      // Safety timeout para garantir que o loading termine mesmo em caso de falha de rede
+      timeout = setTimeout(() => {
+        if (!inicializado.current) {
+          inicializado.current = true;
+          setLoading(false);
+        }
+      }, AUTH_TIMEOUT_MS);
+
+      try {
+        const { data } = supabase.auth.onAuthStateChange(async (event, session) => {
+          // Pular INITIAL_SESSION se SSO já inicializou
+          if (inicializado.current && event === 'INITIAL_SESSION') return;
+
+          if (event === 'INITIAL_SESSION') {
             if (session?.user) {
               await loadUserProfile(session.user.id);
             } else {
-              // Tentar validar Remember Me antes de liberar para login
               const remembered = await validateRememberedSession();
-              
               if (remembered.valid && remembered.userId) {
-                // A sessão foi restaurada no Supabase Auth pelo validateRememberedSession
-                // Buscar o usuário para carregar o perfil
                 await loadUserProfile(remembered.userId);
               } else {
                 setUsuario(null);
@@ -61,62 +158,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setLoading(false);
             inicializado.current = true;
             setErroConexao(null);
-          } else if (_event === 'SIGNED_IN') {
-            // loadUserProfile já é chamado por login() e pelo INITIAL_SESSION (Remember Me)
-            // Não chamar aqui para evitar race condition
+            clearTimeout(timeout);
+          } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+            if (session?.user) await loadUserProfile(session.user.id);
             setErroConexao(null);
-          } else if (_event === 'SIGNED_OUT') {
+            clearTimeout(timeout);
+          } else if (event === 'SIGNED_OUT') {
             setUsuario(null);
             clearRememberedSession();
             setLoading(false);
+            clearTimeout(timeout);
           }
-        }
-      );
-      subscription = data.subscription;
-    } catch (err) {
-      clearTimeout(timeout);
-      inicializado.current = true;
-      console.error('Erro ao conectar com Supabase Auth:', err);
-      setErroConexao('Não foi possível conectar ao servidor de autenticação.');
-      setLoading(false);
+        });
+        subscription = data.subscription;
+      } catch (err) {
+        clearTimeout(timeout);
+        inicializado.current = true;
+        console.error('Erro ao conectar com Supabase Auth:', err);
+        setErroConexao('Não foi possível conectar ao servidor de autenticação.');
+        setLoading(false);
+      }
     }
+
+    init();
 
     return () => {
       clearTimeout(timeout);
       subscription?.unsubscribe();
     };
   }, []);
-
-  const loadUserProfile = async (userId: string): Promise<boolean> => {
-    try {
-      const { data, error } = await supabase
-        .from('usuarios')
-        .select('*')
-        .eq('id', userId)
-        .single();
-
-      if (error) {
-        console.error('Erro ao carregar perfil:', error);
-        return false;
-      }
-
-      if (data) {
-        setUsuario({
-          id: data.id,
-          nome: data.nome,
-          email: data.email,
-          papel: data.papel as PapelUsuario,
-          ativo: data.ativo,
-          departamento: data.departamento || null,
-        });
-        return true;
-      }
-      return false;
-    } catch (error) {
-      console.error('Erro ao carregar perfil do usuário:', error);
-      return false;
-    }
-  };
 
   async function login(
     email: string,
@@ -147,7 +217,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return { sucesso: false, erro: 'Perfil de usuário não encontrado. Contate o administrador.' };
         }
 
-        // Se "Lembrar de mim" está marcado, criar sessão de dispositivo
         if (rememberMe) {
           await createDeviceSession(data.user.id, email.trim());
         }
@@ -156,7 +225,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       return { sucesso: false, erro: 'Erro inesperado no login.' };
-    } catch (error) {
+    } catch {
       return { sucesso: false, erro: 'Erro de conexão. Verifique sua internet e tente novamente.' };
     }
   }
@@ -172,14 +241,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{
-      isAuthenticated: !!usuario,
-      usuario,
-      loading,
-      erroConexao,
-      login,
-      logout
-    }}>
+    <AuthContext.Provider
+      value={{
+        isAuthenticated: !!usuario,
+        usuario,
+        loading,
+        erroConexao,
+        login,
+        logout,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

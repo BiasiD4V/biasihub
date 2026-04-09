@@ -1,7 +1,6 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-import { VitePWA } from 'vite-plugin-pwa'
-import { writeFileSync } from 'fs'
+import { writeFileSync } from 'fs';
+import react from '@vitejs/plugin-react';
+import { defineConfig } from 'vite';
 
 const buildVersion = Date.now().toString();
 
@@ -14,52 +13,6 @@ export default defineConfig({
         writeFileSync('public/version.json', JSON.stringify({ v: buildVersion }));
       },
     },
-    VitePWA({
-      registerType: 'autoUpdate',
-      includeAssets: ['logo-biasi.svg', 'logo-biasi.png', 'pwa-icon.svg'],
-      manifest: {
-        name: 'BiasíHub',
-        short_name: 'BiasíHub',
-        description: 'Sistema de orçamentos e gestão comercial Biasi Engenharia',
-        theme_color: '#1e2a5e',
-        background_color: '#1e2a5e',
-        display: 'standalone',
-        start_url: '/',
-        icons: [
-          {
-            src: 'pwa-icon.svg',
-            sizes: '192x192',
-            type: 'image/svg+xml',
-            purpose: 'any',
-          },
-          {
-            src: 'pwa-icon.svg',
-            sizes: '512x512',
-            type: 'image/svg+xml',
-            purpose: 'any',
-          },
-          {
-            src: 'pwa-icon.svg',
-            sizes: 'any',
-            type: 'image/svg+xml',
-            purpose: 'maskable',
-          },
-        ],
-      },
-      workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
-        runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/vzaabtzcilyoknksvhrc\.supabase\.co\/.*/i,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'supabase-cache',
-              expiration: { maxEntries: 50, maxAgeSeconds: 60 * 60 },
-            },
-          },
-        ],
-      },
-    }),
   ],
   define: {
     __BUILD_VERSION__: JSON.stringify(buildVersion),
@@ -79,11 +32,14 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    watch: {
+      usePolling: true,
+    },
     proxy: {
       '/api': {
         target: 'http://localhost:3001',
         changeOrigin: true,
       },
     },
-  }
-})
+  },
+});

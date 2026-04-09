@@ -1,7 +1,8 @@
 import React from 'react';
-import { X, Search, Paperclip, CornerUpLeft, CheckCheck, Phone, Video, MessageCircle, Smile, Trash2, ExternalLink } from 'lucide-react';
+import { CheckCheck, CornerUpLeft, ExternalLink, MessageCircle, Paperclip, Phone, Search, Smile, Trash2, Video, X } from 'lucide-react';
 import type { Membro, Mensagem, ReacaoAgregada } from './chatTypes';
 
+const CALL_WINDOW_NAME = 'biasi-hub-call';
 const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '🙏'];
 
 const URL_REGEX = /https?:\/\/[^\s<]+[^\s<.,;:!?)}\]'"]/g;
@@ -36,9 +37,12 @@ function renderConteudoComLinks(text: string, isMine: boolean) {
   const parts = text.split(URL_REGEX);
   const matches = text.match(URL_REGEX);
   if (!matches) return <span>{text}</span>;
+
   const elements: React.ReactNode[] = [];
+
   parts.forEach((part, i) => {
     if (part) elements.push(<span key={`t${i}`}>{part}</span>);
+
     if (matches[i]) {
       elements.push(
         <a
@@ -48,12 +52,13 @@ function renderConteudoComLinks(text: string, isMine: boolean) {
           rel="noopener noreferrer"
           className={`inline-flex items-center gap-0.5 underline underline-offset-2 break-all ${isMine ? 'text-blue-200 hover:text-white' : 'text-blue-600 hover:text-blue-700'}`}
         >
-          {matches[i].length > 40 ? matches[i].slice(0, 40) + '...' : matches[i]}
+          {matches[i].length > 40 ? `${matches[i].slice(0, 40)}...` : matches[i]}
           <ExternalLink size={10} className="inline flex-shrink-0" />
-        </a>
+        </a>,
       );
     }
   });
+
   return <>{elements}</>;
 }
 
@@ -83,7 +88,6 @@ export function ChatMessagesList({
 }: ChatMessagesListProps) {
   return (
     <>
-      {/* Search Bar */}
       {buscaMsgAberta && (
         <div className="px-3 pt-2 pb-1 bg-white border-b border-slate-100 flex items-center gap-2">
           <Search size={13} className="text-slate-400 flex-shrink-0" />
@@ -91,19 +95,21 @@ export function ChatMessagesList({
             autoFocus
             type="text"
             value={buscaMensagem}
-            onChange={e => onSetBuscaMensagem(e.target.value)}
+            onChange={(e) => onSetBuscaMensagem(e.target.value)}
             placeholder="Buscar nas mensagens..."
             className="flex-1 text-sm bg-transparent focus:outline-none placeholder:text-slate-400"
           />
           {buscaMensagem && (
-            <span className="text-[10px] text-slate-400 flex-shrink-0">{mensagensFiltradas.length} resultado{mensagensFiltradas.length !== 1 ? 's' : ''}</span>
+            <span className="text-[10px] text-slate-400 flex-shrink-0">
+              {mensagensFiltradas.length} resultado{mensagensFiltradas.length !== 1 ? 's' : ''}
+            </span>
           )}
           <button onClick={() => { onSetBuscaMsgAberta(false); onSetBuscaMensagem(''); }} className="p-1 text-slate-400 hover:text-slate-600 rounded">
             <X size={13} />
           </button>
         </div>
       )}
-      {/* Messages Area */}
+
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-0.5 bg-gradient-to-b from-slate-50/50 to-white">
         {carregando ? (
           <div className="flex flex-col items-center justify-center py-12 gap-3">
@@ -127,9 +133,9 @@ export function ChatMessagesList({
             const showDate = shouldShowDateSeparator(mensagensFiltradas, idx);
             const isDeleted = msg.tipo === 'deletado';
             const msgReacoes = reacoesPorMsg[msg.id] || [];
+
             return (
               <div key={msg.id}>
-                {/* Date separator */}
                 {showDate && (
                   <div className="flex items-center gap-3 py-3">
                     <div className="flex-1 h-px bg-slate-200" />
@@ -139,48 +145,36 @@ export function ChatMessagesList({
                     <div className="flex-1 h-px bg-slate-200" />
                   </div>
                 )}
+
                 <div className={`flex ${isMine ? 'justify-end' : 'justify-start'} ${consecutive ? 'mt-0.5' : 'mt-3'} group`}>
-                  {/* Avatar for other users (only shown when not consecutive) */}
                   {!isMine && !consecutive && (
                     <div className={`bg-gradient-to-br ${getAvatarColor(msg.remetente_nome)} rounded-full w-7 h-7 flex items-center justify-center flex-shrink-0 mr-2 mt-5 shadow-sm`}>
                       <span className="text-white text-[10px] font-bold">{msg.remetente_nome.charAt(0).toUpperCase()}</span>
                     </div>
                   )}
                   {!isMine && consecutive && <div className="w-7 mr-2 flex-shrink-0" />}
+
                   <div className={`max-w-[75%] ${isMine ? 'order-2' : ''}`}>
                     {!isMine && !consecutive && (
                       <p className="text-[10px] font-semibold text-slate-500 mb-1 ml-1">{msg.remetente_nome}</p>
                     )}
 
                     {isDeleted ? (
-                      /* Deleted message placeholder */
-                      <div className={`px-3.5 py-2 text-[13px] leading-relaxed rounded-2xl border border-dashed ${
-                        isMine ? 'bg-slate-100 border-slate-300 text-slate-400' : 'bg-slate-50 border-slate-200 text-slate-400'
-                      }`}>
+                      <div className={`px-3.5 py-2 text-[13px] leading-relaxed rounded-2xl border border-dashed ${isMine ? 'bg-slate-100 border-slate-300 text-slate-400' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>
                         <span className="italic flex items-center gap-1.5">
                           <Trash2 size={11} className="opacity-50" />
                           Mensagem apagada
                         </span>
                       </div>
                     ) : (
-                      /* Normal message bubble */
-                      <div className={`px-3.5 py-2 text-[13px] leading-relaxed shadow-sm ${
-                        isMine
-                          ? `bg-gradient-to-br from-blue-600 to-blue-700 text-white ${consecutive ? 'rounded-2xl rounded-tr-md' : 'rounded-2xl rounded-br-md'}`
-                          : `bg-white text-slate-800 border border-slate-100 ${consecutive ? 'rounded-2xl rounded-tl-md' : 'rounded-2xl rounded-bl-md'}`
-                      }`}>
-                        {/* Reply preview */}
+                      <div className={`px-3.5 py-2 text-[13px] leading-relaxed shadow-sm ${isMine ? `bg-gradient-to-br from-blue-600 to-blue-700 text-white ${consecutive ? 'rounded-2xl rounded-tr-md' : 'rounded-2xl rounded-br-md'}` : `bg-white text-slate-800 border border-slate-100 ${consecutive ? 'rounded-2xl rounded-tl-md' : 'rounded-2xl rounded-bl-md'}`}`}>
                         {msg.resposta_conteudo && (
-                          <div className={`text-[10px] mb-2 px-2.5 py-1.5 rounded-lg border-l-2 ${
-                            isMine
-                              ? 'bg-blue-500/30 border-blue-300 text-blue-100'
-                              : 'bg-slate-50 border-slate-300 text-slate-500'
-                          }`}>
+                          <div className={`text-[10px] mb-2 px-2.5 py-1.5 rounded-lg border-l-2 ${isMine ? 'bg-blue-500/30 border-blue-300 text-blue-100' : 'bg-slate-50 border-slate-300 text-slate-500'}`}>
                             <p className="font-bold truncate">{msg.resposta_remetente_nome}</p>
                             <p className="truncate opacity-80">{msg.resposta_conteudo}</p>
                           </div>
                         )}
-                        {/* File attachment */}
+
                         {msg.arquivo_url && (
                           msg.arquivo_tipo?.startsWith('image/')
                             ? (
@@ -202,7 +196,7 @@ export function ChatMessagesList({
                             ? (
                               <a
                                 href={msg.arquivo_url!}
-                                target="_blank"
+                                target={CALL_WINDOW_NAME}
                                 rel="noopener noreferrer"
                                 className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors ${isMine ? 'bg-white/20 text-white hover:bg-white/30' : 'bg-green-50 text-green-700 hover:bg-green-100 border border-green-200'}`}
                               >
@@ -228,26 +222,21 @@ export function ChatMessagesList({
                               </a>
                             )
                         )}
-                        {/* Text content with link detection */}
+
                         {msg.conteudo && renderConteudoComLinks(msg.conteudo, isMine)}
                       </div>
                     )}
 
-                    {/* Reaction badges */}
                     {msgReacoes.length > 0 && (
                       <div className={`flex flex-wrap gap-1 mt-1 ${isMine ? 'justify-end' : 'justify-start'}`}>
-                        {msgReacoes.map(r => {
+                        {msgReacoes.map((r) => {
                           const jaReagi = r.userIds.includes(usuarioId ?? '');
                           return (
                             <button
                               key={r.emoji}
                               onClick={() => onToggleReacao(msg.id, r.emoji)}
                               title={r.usuarios.join(', ')}
-                              className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-xs border transition-all hover:scale-105 ${
-                                jaReagi
-                                  ? 'bg-blue-50 border-blue-300 text-blue-700'
-                                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                              }`}
+                              className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-xs border transition-all hover:scale-105 ${jaReagi ? 'bg-blue-50 border-blue-300 text-blue-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
                             >
                               <span>{r.emoji}</span>
                               <span className="text-[10px] font-medium">{r.userIds.length}</span>
@@ -257,10 +246,8 @@ export function ChatMessagesList({
                       </div>
                     )}
 
-                    {/* Time + actions row */}
                     {!isDeleted && (
                       <div className={`flex items-center gap-1 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity ${isMine ? 'justify-end mr-1' : 'ml-1'}`}>
-                        {/* Quick reactions */}
                         <div className="relative">
                           <button
                             onClick={() => onSetReacaoPickerAberto(reacaoPickerAberto === msg.id ? null : msg.id)}
@@ -271,7 +258,7 @@ export function ChatMessagesList({
                           </button>
                           {reacaoPickerAberto === msg.id && (
                             <div className={`absolute ${isMine ? 'right-0' : 'left-0'} bottom-full mb-1 flex items-center gap-0.5 bg-white border border-slate-200 rounded-full shadow-lg px-1.5 py-1 z-50`}>
-                              {QUICK_REACTIONS.map(emoji => (
+                              {QUICK_REACTIONS.map((emoji) => (
                                 <button
                                   key={emoji}
                                   onClick={() => onToggleReacao(msg.id, emoji)}
@@ -283,6 +270,7 @@ export function ChatMessagesList({
                             </div>
                           )}
                         </div>
+
                         <button
                           onClick={() => onSetRespostaParaMsg(msg)}
                           className="p-0.5 text-slate-300 hover:text-blue-500 transition-colors"
@@ -290,6 +278,7 @@ export function ChatMessagesList({
                         >
                           <CornerUpLeft size={10} />
                         </button>
+
                         {isMine && (
                           <button
                             onClick={() => { if (confirm('Apagar esta mensagem?')) onDeletarMensagem(msg.id); }}
@@ -299,9 +288,11 @@ export function ChatMessagesList({
                             <Trash2 size={10} />
                           </button>
                         )}
+
                         <p className="text-[10px] text-slate-400">
                           {new Date(msg.criado_em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                         </p>
+
                         {isMine && dmAtivo && msg.id === ultimaMinhaMensagemId && msg.lido && (
                           <>
                             <CheckCheck size={11} className="text-blue-400" />
@@ -316,7 +307,7 @@ export function ChatMessagesList({
             );
           })
         )}
-        {/* Typing indicator */}
+
         {quemDigitando && (
           <div className="flex items-center gap-2 px-1 py-2 mt-2">
             <div className="bg-white border border-slate-100 rounded-2xl rounded-bl-md px-3.5 py-2 shadow-sm">

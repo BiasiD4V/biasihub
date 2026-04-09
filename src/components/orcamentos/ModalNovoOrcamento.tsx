@@ -7,6 +7,7 @@ import { clientesRepository, type ClienteSupabase } from '../../infrastructure/s
 import { propostasRepository } from '../../infrastructure/supabase/propostasRepository';
 import { responsaveisComerciaisRepository, type ResponsavelComercial } from '../../infrastructure/supabase/responsaveisComerciaisRepository';
 import { supabase } from '../../infrastructure/supabase/client';
+import { gamificacaoService } from '../../services/gamificacaoService';
 import { Search, Loader2, X } from 'lucide-react';
 
 interface ModalNovoOrcamentoProps {
@@ -19,7 +20,8 @@ const CAMPOS_VAZIOS: CriarOrcamentoInput = {
   titulo: '',
   clienteId: '',
   tiposObraIds: [],
-  dataBase: new Date().toISOString().slice(0, 10),
+  dataEntrada: new Date().toISOString().slice(0, 10),
+  dataLimite: new Date(new Date().setDate(new Date().getDate() + 30)).toISOString().slice(0, 10),
   responsavel: '',
   disciplinaIds: [],
 };
@@ -45,7 +47,7 @@ export function ModalNovoOrcamento({ aberto, onFechar, onCriado }: ModalNovoOrca
   useEffect(() => {
     responsaveisComerciaisRepository.listarTodos()
       .then((r) => setResponsaveis(r.filter((x) => x.ativo)))
-      .catch(() => {});
+      .catch(() => { });
 
     supabase
       .from('usuarios')
@@ -89,12 +91,12 @@ export function ModalNovoOrcamento({ aberto, onFechar, onCriado }: ModalNovoOrca
   // Clientes filtrados pela busca
   const clientesFiltrados = clienteBusca.trim()
     ? clientes.filter((c) => {
-        const termo = clienteBusca.toLowerCase();
-        return (
-          c.nome.toLowerCase().includes(termo) ||
-          (c.nome_fantasia ?? '').toLowerCase().includes(termo)
-        );
-      })
+      const termo = clienteBusca.toLowerCase();
+      return (
+        c.nome.toLowerCase().includes(termo) ||
+        (c.nome_fantasia ?? '').toLowerCase().includes(termo)
+      );
+    })
     : clientes;
 
   function selecionarCliente(c: ClienteSupabase) {
@@ -149,8 +151,12 @@ export function ModalNovoOrcamento({ aberto, onFechar, onCriado }: ModalNovoOrca
       setErro('Selecione ao menos um tipo de obra.');
       return;
     }
-    if (!form.dataBase) {
-      setErro('Informe a data-base.');
+    if (!form.dataEntrada) {
+      setErro('Informe a data de início.');
+      return;
+    }
+    if (!form.dataLimite) {
+      setErro('Informe a data de entrega.');
       return;
     }
     if (form.disciplinaIds.length === 0) {
@@ -170,10 +176,17 @@ export function ModalNovoOrcamento({ aberto, onFechar, onCriado }: ModalNovoOrca
         cliente: clienteSelecionado?.nome_fantasia ?? clienteSelecionado?.nome ?? '',
         tipo: tipoNome,
         disciplina: disciplinaNomes || null,
-        data_entrada: form.dataBase,
+        data_entrada: form.dataEntrada,
+        data_limite: form.dataLimite,
         responsavel: form.responsavel.trim() || '',
         responsavel_comercial: responsavelComercialSelecionado || null,
+        etapa_funil: 'entrada_oportunidade', // Força etapa inicial
       });
+
+      // Automação: Dá os pontos iniciais de entrada no funil
+      if (form.responsavel) {
+        gamificacaoService.registrarAtividadePorEtapa(form.responsavel, 'entrada_oportunidade').catch(console.error);
+      }
 
       resetar();
       onCriado(proposta.id);
@@ -310,17 +323,30 @@ export function ModalNovoOrcamento({ aberto, onFechar, onCriado }: ModalNovoOrca
           </div>
         </div>
 
-        {/* Data-base */}
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1.5">
-            Data-base <span className="text-red-500">*</span>
-          </label>
-          <input
-            type="date"
-            value={form.dataBase}
-            onChange={(e) => setForm((p) => ({ ...p, dataBase: e.target.value }))}
-            className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+        {/* Data Início e Entrega */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">
+              Data de Início <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="date"
+              value={form.dataEntrada}
+              onChange={(e) => setForm((p) => ({ ...p, dataEntrada: e.target.value }))}
+              className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">
+              Data de Entrega <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="date"
+              value={form.dataLimite}
+              onChange={(e) => setForm((p) => ({ ...p, dataLimite: e.target.value }))}
+              className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
         </div>
 
         {/* Responsável técnico + Responsável Comercial */}
@@ -369,11 +395,10 @@ export function ModalNovoOrcamento({ aberto, onFechar, onCriado }: ModalNovoOrca
               .map((d) => (
                 <label
                   key={d.id}
-                  className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg border cursor-pointer transition-colors ${
-                    form.disciplinaIds.includes(d.id)
+                  className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg border cursor-pointer transition-colors ${form.disciplinaIds.includes(d.id)
                       ? 'border-blue-500 bg-blue-50 text-blue-700'
                       : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-                  }`}
+                    }`}
                 >
                   <input
                     type="checkbox"

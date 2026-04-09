@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  PlusCircle, Search, Gift, TrendingUp, CheckCircle, Clock,
+  PlusCircle, Search, Gift, CheckCircle,
   X, Save, Trash2, ExternalLink, ChevronDown, Users,
 } from 'lucide-react'
 import {
@@ -13,17 +13,16 @@ import {
   CANAIS_INDICACAO,
 } from '../infrastructure/supabase/indicacoesRepository'
 import { responsaveisComerciaisRepository } from '../infrastructure/supabase/responsaveisComerciaisRepository'
-import { formatarMoeda } from '../utils/calculos'
 
 const STATUS_LIST = Object.entries(STATUS_INDICACAO)
 
 const FORM_VAZIO: CriarIndicacaoInput = {
   data: new Date().toISOString().slice(0, 10),
   indicador_nome: '',
-  indicador_tipo: 'cliente',
+  indicador_tipo: 'Prestador',
   cliente_indicado: '',
-  canal: null,
-  status: 'nova',
+  canal: 'Obra',
+  status: 'ativo',
   proposta_id: null,
   valor_potencial: null,
   observacao: null,
@@ -131,22 +130,21 @@ function ModalIndicacao({ aberto, onFechar, onSalvo, edicao, responsaveis }: Mod
             <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-2.5 rounded-lg">{erro}</div>
           )}
 
-          {/* Quem indicou */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className={labelInput}>Quem indicou <span className="text-red-500">*</span></label>
+              <label className={labelInput}>Nome / Empresa <span className="text-red-500">*</span></label>
               <input
                 className={input}
                 value={form.indicador_nome}
                 onChange={e => setForm(p => ({ ...p, indicador_nome: e.target.value }))}
-                placeholder="Nome do indicador"
+                placeholder="Ex: João Eletricista ou Loja X"
               />
             </div>
             <div>
-              <label className={labelInput}>Tipo de indicador</label>
+              <label className={labelInput}>Categoria</label>
               <select className={select} value={form.indicador_tipo} onChange={e => setForm(p => ({ ...p, indicador_tipo: e.target.value }))}>
                 {TIPO_INDICADOR.map(t => (
-                  <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>
+                  <option key={t} value={t}>{t}</option>
                 ))}
               </select>
             </div>
@@ -154,12 +152,12 @@ function ModalIndicacao({ aberto, onFechar, onSalvo, edicao, responsaveis }: Mod
 
           {/* Cliente indicado */}
           <div>
-            <label className={labelInput}>Cliente / Lead indicado <span className="text-red-500">*</span></label>
+            <label className={labelInput}>Especialidade / Serviço <span className="text-red-500">*</span></label>
             <input
               className={input}
               value={form.cliente_indicado}
               onChange={e => setForm(p => ({ ...p, cliente_indicado: e.target.value }))}
-              placeholder="Nome da empresa ou pessoa"
+              placeholder="Ex: Elétrica Residencial, Encanamentos, Piso..."
             />
           </div>
 
@@ -266,7 +264,7 @@ function ModalIndicacao({ aberto, onFechar, onSalvo, edicao, responsaveis }: Mod
             ) : (
               <Save size={14} />
             )}
-            {edicao ? 'Salvar' : 'Criar indicação'}
+            {edicao ? 'Salvar Alterações' : 'Cadastrar no Diretório'}
           </button>
         </div>
       </div>
@@ -348,11 +346,6 @@ export function Indicacoes() {
 
   // KPIs
   const total = indicacoes.length
-  const convertidas = indicacoes.filter(x => x.status === 'convertida').length
-  const emAndamento = indicacoes.filter(x => ['nova', 'em_contato', 'proposta_gerada'].includes(x.status)).length
-  const valorPotencial = indicacoes
-    .filter(x => x.status !== 'perdida' && x.status !== 'convertida')
-    .reduce((acc, x) => acc + (x.valor_potencial ?? 0), 0)
 
   return (
     <div className="flex flex-col h-full">
@@ -360,9 +353,9 @@ export function Indicacoes() {
       <div className="px-4 py-3 sm:px-8 sm:py-6 border-b border-slate-200 bg-white">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold text-slate-800">Indicações</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-800" style={{ fontFamily: 'Montserrat, sans-serif' }}>Diretório de Indicações</h1>
             <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-              Leads e oportunidades indicadas por clientes e parceiros
+              Profissionais, lojas e parceiros para recomendar aos clientes
             </p>
           </div>
           <button
@@ -370,8 +363,8 @@ export function Indicacoes() {
             className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg transition-colors shadow-sm"
           >
             <PlusCircle size={16} />
-            <span className="hidden sm:inline">Nova Indicação</span>
-            <span className="sm:hidden">Nova</span>
+            <span className="hidden sm:inline">Adicionar Parceiro</span>
+            <span className="sm:hidden">Novo</span>
           </button>
         </div>
       </div>
@@ -382,31 +375,31 @@ export function Indicacoes() {
         {/* KPIs */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4 mb-4 sm:mb-6">
           <div className="bg-white rounded-xl border border-slate-200 p-3 sm:p-4 flex items-center gap-2 sm:gap-3">
-            <div className="bg-blue-50 p-2 rounded-lg flex-shrink-0"><Gift size={18} className="text-blue-600" /></div>
+            <div className="bg-blue-50 p-2 rounded-lg flex-shrink-0"><Users size={18} className="text-blue-600" /></div>
             <div className="min-w-0">
-              <p className="text-[10px] sm:text-xs text-slate-500">Total</p>
+              <p className="text-[10px] sm:text-xs text-slate-500">Total Parceiros</p>
               <p className="text-xl font-bold text-slate-800">{total}</p>
             </div>
           </div>
           <div className="bg-white rounded-xl border border-slate-200 p-3 sm:p-4 flex items-center gap-2 sm:gap-3">
-            <div className="bg-amber-50 p-2 rounded-lg flex-shrink-0"><Clock size={18} className="text-amber-600" /></div>
+            <div className="bg-yellow-50 p-2 rounded-lg flex-shrink-0"><Gift size={18} className="text-yellow-600" /></div>
             <div className="min-w-0">
-              <p className="text-[10px] sm:text-xs text-slate-500">Em andamento</p>
-              <p className="text-xl font-bold text-slate-800">{emAndamento}</p>
+              <p className="text-[10px] sm:text-xs text-slate-500">Master / Top</p>
+              <p className="text-xl font-bold text-slate-800">{indicacoes.filter(x => x.status === 'ouro').length}</p>
             </div>
           </div>
           <div className="bg-white rounded-xl border border-slate-200 p-3 sm:p-4 flex items-center gap-2 sm:gap-3">
             <div className="bg-green-50 p-2 rounded-lg flex-shrink-0"><CheckCircle size={18} className="text-green-600" /></div>
             <div className="min-w-0">
-              <p className="text-[10px] sm:text-xs text-slate-500">Convertidas</p>
-              <p className="text-xl font-bold text-slate-800">{convertidas}</p>
+              <p className="text-[10px] sm:text-xs text-slate-500">Recomendados</p>
+              <p className="text-xl font-bold text-slate-800">{indicacoes.filter(x => x.status === 'recomendado').length}</p>
             </div>
           </div>
           <div className="bg-white rounded-xl border border-slate-200 p-3 sm:p-4 flex items-center gap-2 sm:gap-3">
-            <div className="bg-purple-50 p-2 rounded-lg flex-shrink-0"><TrendingUp size={18} className="text-purple-600" /></div>
+            <div className="bg-slate-50 p-2 rounded-lg flex-shrink-0"><Search size={18} className="text-slate-600" /></div>
             <div className="min-w-0">
-              <p className="text-[10px] sm:text-xs text-slate-500">Valor potencial</p>
-              <p className="text-sm sm:text-base font-bold text-slate-800">{valorPotencial > 0 ? formatarMoeda(valorPotencial, true) : '—'}</p>
+              <p className="text-[10px] sm:text-xs text-slate-500">Em avaliação</p>
+              <p className="text-xl font-bold text-slate-800">{indicacoes.filter(x => x.status === 'em_avaliacao').length}</p>
             </div>
           </div>
         </div>
@@ -475,16 +468,16 @@ export function Indicacoes() {
         ) : indicacoes.length === 0 ? (
           <div className="text-center py-16 text-slate-400">
             <div className="bg-slate-100 rounded-2xl p-5 mb-4 inline-block">
-              <Users size={32} className="text-slate-400" />
+              <Search size={32} className="text-slate-400" />
             </div>
-            <p className="text-base font-medium">Nenhuma indicação encontrada</p>
-            <p className="text-sm mt-1">Registre indicações de clientes e parceiros aqui.</p>
+            <p className="text-base font-medium">Nenhum parceiro encontrado</p>
+            <p className="text-sm mt-1">Sua lista de especialistas e fornecedores recomendados aparecerá aqui.</p>
             <button
               onClick={() => { setEdicao(null); setModalAberto(true) }}
               className="mt-4 flex items-center gap-2 mx-auto bg-blue-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-blue-700"
             >
               <PlusCircle size={15} />
-              Nova Indicação
+              Adicionar Primeiro Parceiro
             </button>
           </div>
         ) : (
@@ -492,7 +485,7 @@ export function Indicacoes() {
             {/* Mobile cards */}
             <div className="sm:hidden space-y-2">
               {indicacoes.map(ind => {
-                const st = STATUS_INDICACAO[ind.status]
+                const st = STATUS_INDICACAO[ind.status] || { label: ind.status, cor: 'text-slate-500', bg: 'bg-slate-100' }
                 const vencido = ind.data_retorno && new Date(ind.data_retorno + 'T00:00:00') < new Date() && !['convertida', 'perdida'].includes(ind.status)
                 return (
                   <div key={ind.id} className="bg-white rounded-xl border border-slate-200 p-3">
@@ -509,7 +502,6 @@ export function Indicacoes() {
                     <div className="flex items-center gap-2 flex-wrap text-[10px] text-slate-400">
                       <span>{formatarData(ind.data)}</span>
                       {ind.responsavel && <span>· {ind.responsavel}</span>}
-                      {ind.valor_potencial && <span className="ml-auto font-semibold text-slate-600">{formatarMoeda(ind.valor_potencial, true)}</span>}
                       {vencido && <span className="text-red-500 font-medium">⚠ Retorno vencido</span>}
                     </div>
                     <div className="flex items-center gap-2 mt-2.5 pt-2 border-t border-slate-100">
@@ -536,75 +528,54 @@ export function Indicacoes() {
               <table className="w-full text-sm">
                 <thead className="bg-slate-50 text-slate-500 text-xs uppercase sticky top-0">
                   <tr>
-                    <th className="px-4 py-3 text-left">Cliente / Lead</th>
-                    <th className="px-4 py-3 text-left">Indicado por</th>
-                    <th className="px-4 py-3 text-left">Canal</th>
-                    <th className="px-4 py-3 text-left">Data</th>
-                    <th className="px-4 py-3 text-left">Retorno</th>
-                    <th className="px-4 py-3 text-left">Responsável</th>
-                    <th className="px-4 py-3 text-right">Valor potencial</th>
-                    <th className="px-4 py-3 text-center">Status</th>
+                    <th className="px-4 py-3 text-left">Especialidade / Serviço</th>
+                    <th className="px-4 py-3 text-left">Pessoa / Empresa</th>
+                    <th className="px-4 py-3 text-left">Região / Unidade</th>
+                    <th className="px-4 py-3 text-left">Ult. Contato</th>
+                    <th className="px-4 py-3 text-left">Avalição / Obs</th>
+                    <th className="px-4 py-3 text-center">Recomendação</th>
                     <th className="px-2 py-3 w-16"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {indicacoes.map(ind => {
-                    const st = STATUS_INDICACAO[ind.status]
-                    const vencido = ind.data_retorno && new Date(ind.data_retorno + 'T00:00:00') < new Date() && !['convertida', 'perdida'].includes(ind.status)
+                    const st = STATUS_INDICACAO[ind.status] || { label: ind.status, cor: '', bg: '' }
                     return (
                       <tr key={ind.id} className="hover:bg-slate-50 transition-colors">
                         <td className="px-4 py-3">
-                          <p className="font-medium text-slate-800">{ind.cliente_indicado}</p>
-                          {ind.observacao && (
-                            <p className="text-xs text-slate-400 truncate max-w-[180px]" title={ind.observacao}>{ind.observacao}</p>
-                          )}
+                          <p className="font-bold text-blue-900 text-sm">{ind.cliente_indicado}</p>
+                          <p className="text-[10px] text-slate-400 uppercase tracking-wider">{ind.indicador_tipo}</p>
                         </td>
-                        <td className="px-4 py-3 text-slate-600">
-                          <p>{ind.indicador_nome}</p>
-                          <p className="text-xs text-slate-400 capitalize">{ind.indicador_tipo}</p>
+                        <td className="px-4 py-3 text-slate-700 font-medium">
+                          {ind.indicador_nome}
                         </td>
                         <td className="px-4 py-3 text-slate-500 whitespace-nowrap">{ind.canal || '—'}</td>
-                        <td className="px-4 py-3 text-slate-500 whitespace-nowrap">{formatarData(ind.data)}</td>
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          {ind.data_retorno ? (
-                            <span className={vencido ? 'text-red-600 font-medium' : 'text-slate-500'}>
-                              {vencido && '⚠ '}{formatarData(ind.data_retorno)}
-                            </span>
-                          ) : <span className="text-slate-300">—</span>}
-                        </td>
-                        <td className="px-4 py-3 text-slate-600">{ind.responsavel || '—'}</td>
-                        <td className="px-4 py-3 text-right font-medium text-slate-700 whitespace-nowrap">
-                          {ind.valor_potencial ? formatarMoeda(ind.valor_potencial, true) : '—'}
+                        <td className="px-4 py-3 text-slate-500 whitespace-nowrap text-xs">{formatarData(ind.data)}</td>
+                        <td className="px-4 py-3">
+                          <p className="text-xs text-slate-500 truncate max-w-[200px]" title={ind.observacao || ''}>
+                            {ind.observacao || <span className="text-slate-300">Sem observações</span>}
+                          </p>
                         </td>
                         <td className="px-4 py-3 text-center">
-                          <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${st.bg} ${st.cor}`}>
+                          <span className={`inline-block px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${st.bg} ${st.cor}`}>
                             {st.label}
                           </span>
                         </td>
                         <td className="px-2 py-3">
                           <div className="flex items-center justify-center gap-1">
-                            {ind.proposta_id && (
-                              <button
-                                onClick={() => navigate(`/orcamentos/${ind.proposta_id}`)}
-                                className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                title="Ver proposta"
-                              >
-                                <ExternalLink size={13} />
-                              </button>
-                            )}
                             <button
                               onClick={() => { setEdicao(ind); setModalAberto(true) }}
                               className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                              title="Editar"
+                              title="Editar Informações"
                             >
-                              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                             </button>
                             <button
                               onClick={() => handleExcluir(ind.id)}
                               className={`p-1.5 rounded-lg transition-colors ${excluindo === ind.id ? 'text-red-600 bg-red-50' : 'text-slate-400 hover:text-red-500 hover:bg-red-50'}`}
-                              title={excluindo === ind.id ? 'Clique para confirmar exclusão' : 'Excluir'}
+                              title="Remover do Diretório"
                             >
-                              <Trash2 size={13} />
+                              <Trash2 size={14} />
                             </button>
                           </div>
                         </td>

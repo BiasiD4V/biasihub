@@ -10,3 +10,15 @@ interface ImportMeta {
 }
 
 declare const __BUILD_VERSION__: string;
+
+interface ElectronBridge {
+  getAnthropicKey: () => Promise<string>;
+  setAnthropicKey: (key: string) => Promise<boolean>;
+  getAppVersion: () => Promise<string>;
+  checkForUpdates: () => Promise<{ hasUpdate: boolean; version?: string; error?: string }>;
+  downloadAndInstall: () => Promise<{ success: boolean; error?: string }>;
+}
+
+interface Window {
+  electronBridge?: ElectronBridge;
+}

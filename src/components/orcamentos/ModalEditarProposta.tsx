@@ -3,8 +3,10 @@ import { X, Save, Loader2, CheckCircle } from 'lucide-react';
 import type { PropostaSupabase } from '../../infrastructure/supabase/propostasRepository';
 import { propostasRepository } from '../../infrastructure/supabase/propostasRepository';
 import { ETAPA_LABELS, ORDEM_FUNIL } from '../../domain/value-objects/EtapaFunil';
+import type { EtapaFunil } from '../../domain/value-objects/EtapaFunil';
 import { RESULTADO_LABELS } from '../../domain/value-objects/ResultadoComercial';
 import type { ResultadoComercial } from '../../domain/value-objects/ResultadoComercial';
+import { gamificacaoService } from '../../services/gamificacaoService';
 
 
 interface Props {
@@ -124,19 +126,27 @@ export function ModalEditarProposta({
       // Detecta mudança de etapa_funil
       const etapaAnterior = proposta?.etapa_funil;
       const etapaNova = form.etapa_funil;
-      const mudouEtapa = etapaAnterior && etapaNova && etapaAnterior !== etapaNova;
+      const mudouEtapa = Boolean(etapaNova && etapaNova !== etapaAnterior);
       const atualizado = await propostasRepository.atualizar(proposta!.id, dados);
       // Se mudou etapa, grava no histórico
       if (mudouEtapa) {
         await propostasRepository.inserirMudancaEtapa({
           proposta_id: proposta!.id,
-          etapa_anterior: etapaAnterior,
-          etapa_nova: etapaNova,
+          etapa_anterior: (etapaAnterior as EtapaFunil) || 'entrada_oportunidade',
+          etapa_nova: etapaNova as EtapaFunil,
           responsavel: form.responsavel || 'Usuário',
           observacao: 'Alteração manual via edição geral.',
           arquivo: null,
           status: 'aprovado',
         });
+
+        // Automação de Pontos na Arena Comercial
+        if (form.responsavel) {
+          await gamificacaoService.registrarAtividadePorEtapa(
+            form.responsavel, 
+            etapaNova as EtapaFunil
+          );
+        }
       }
       setToast(true);
       setTimeout(() => setToast(false), 3000);

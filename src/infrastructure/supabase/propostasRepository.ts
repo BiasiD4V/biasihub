@@ -360,6 +360,7 @@ export const propostasRepository = {
     tipo: string | null;
     disciplina: string | null;
     data_entrada: string;
+    data_limite: string;
     responsavel: string;
     responsavel_comercial?: string | null;
   }): Promise<PropostaSupabase> {
@@ -385,6 +386,7 @@ export const propostasRepository = {
         tipo: dados.tipo,
         disciplina: dados.disciplina,
         data_entrada: dados.data_entrada,
+        data_limite: dados.data_limite,
         responsavel: dados.responsavel,
         responsavel_comercial: dados.responsavel_comercial ?? null,
         status: 'EM_ABERTO',
