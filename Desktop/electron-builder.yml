@@ -1,0 +1,39 @@
+appId: com.biasi.biasihub
+productName: BiasíHub
+copyright: "Copyright © 2025 Biasi Engenharia"
+
+directories:
+  output: BUILD_FINAL_NEW
+  buildResources: resources
+
+files:
+  - electron/**
+  - package.json
+  - "!node_modules/.cache"
+
+extraResources:
+  - from: apps/
+    to: apps/
+    filter:
+      - "**/*"
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  icon: resources/icon.ico
+  artifactName: biasihub-desktop-setup-${version}.${ext}
+
+nsis:
+  oneClick: true
+  perMachine: false
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: BiasíHub
+
+publish:
+  provider: github
+  owner: BiasiD4V
+  repo: biasihub
+  releaseType: release
