@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
 import { SidebarAutenticada } from './SidebarAutenticada';
 import { PauloAjuda } from './PauloAjuda';
@@ -29,9 +29,6 @@ export function LayoutAutenticado() {
 
   useEffect(() => {
     chatAbertoRef.current = chatAberto;
-    if (chatAberto) {
-      setMensagensNaoLidas(0);
-    }
   }, [chatAberto]);
 
   // Request browser notification permission on mount
@@ -142,8 +139,27 @@ export function LayoutAutenticado() {
     if (callTimeoutRef.current) { clearTimeout(callTimeoutRef.current); callTimeoutRef.current = null; }
   }
 
+  const contarNaoLidas = useCallback(async () => {
+    if (!usuario?.id) return;
+    try {
+      const { count } = await supabase
+        .from('chat_mensagens')
+        .select('*', { count: 'exact', head: true })
+        .eq('canal', 'dm')
+        .eq('destinatario_id', usuario.id)
+        .neq('remetente_id', usuario.id)
+        .or('tipo.is.null,tipo.neq.reacao')
+        .eq('lido', false);
+      setMensagensNaoLidas(count ?? 0);
+    } catch {
+      // silently fail
+    }
+  }, [usuario?.id]);
+
   useEffect(() => {
     if (!usuario?.id) return;
+
+    contarNaoLidas();
 
     const channel = supabase
       .channel(`chat-unread-${usuario.id}`)
@@ -158,9 +174,11 @@ export function LayoutAutenticado() {
             destinatario_id: string | null;
             conteudo: string;
             arquivo_nome: string | null;
+            tipo?: string | null;
           };
 
           if (nova.remetente_id === usuario.id) return;
+          if (nova.tipo === 'reacao') return;
 
           const ehMensagemGeral = nova.canal === 'geral';
           const ehDmParaMim = nova.canal === 'dm' && nova.destinatario_id === usuario.id;
@@ -181,10 +199,12 @@ export function LayoutAutenticado() {
               if (callTimeoutRef.current) clearTimeout(callTimeoutRef.current);
               callTimeoutRef.current = setTimeout(() => fecharCallNotif(), 30000);
             } else {
-              if (!chatAbertoRef.current) {
-                setMensagensNaoLidas((prev) => Math.min(prev + 1, 99));
+              if (!chatAbertoRef.current && ehDmParaMim) {
+                contarNaoLidas();
               }
-              tocarSomNotificacao();
+              if (ehMensagemGeral) {
+                tocarSomNotificacao();
+              }
               const preview = nova.conteudo?.trim() || nova.arquivo_nome || '📎 arquivo';
               if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
               setToastNotif({ nome: nova.remetente_nome, conteudo: preview, canal: nova.canal });
@@ -207,6 +227,11 @@ export function LayoutAutenticado() {
           }
         }
       )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'chat_mensagens' },
+        () => { contarNaoLidas(); }
+      )
       .subscribe();
 
     return () => {
@@ -215,7 +240,7 @@ export function LayoutAutenticado() {
       if (callTimeoutRef.current) clearTimeout(callTimeoutRef.current);
       ringtoneRef.current?.stop();
     };
-  }, [usuario?.id]);
+  }, [usuario?.id, contarNaoLidas]);
 
   // ── Presença global (registra online para todos os usuários autenticados) ──
   useEffect(() => {
