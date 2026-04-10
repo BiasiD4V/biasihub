@@ -51,6 +51,8 @@ export const gamificacaoService = {
     } catch (err) {
       console.error('[Gamificação] Erro ao registrar pontos automáticos:', err);
     }
+  },
+
   /**
    * Remove a pontuação se a etapa for desfeita.
    */

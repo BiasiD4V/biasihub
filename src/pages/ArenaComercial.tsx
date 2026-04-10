@@ -4,7 +4,6 @@ import {
   RefreshCw, Users, Target, Clock,
 } from 'lucide-react';
 import { supabase } from '../infrastructure/supabase/client';
-import { useAuth } from '../context/AuthContext';
 import { orcamentosRepository } from '../infrastructure/supabase/orcamentosRepository';
 import type { OrcamentoSupabase } from '../infrastructure/supabase/orcamentosRepository';
 import {
@@ -328,7 +327,6 @@ export function ArenaComercial() {
   const [loading, setLoading] = useState(true);
   const [aba, setAba] = useState<'temperatura' | 'energia' | 'vidautil' | 'ranking'>('temperatura');
   const [vendedorModal, setVendedorModal] = useState<string | null>(null);
-  const { usuario } = useAuth();
 
   // Helper para matching flexível de nomes
   const isMesmoVendedor = useCallback((nomeAtividade: string, nomeVendedor: string) => {
@@ -474,7 +472,7 @@ export function ArenaComercial() {
                 <span className="text-xs font-black text-red-600">{criticos.length} críti{criticos.length > 1 ? 'cos' : 'co'}</span>
               </div>
             )}
-            <button onClick={carregar} className={`p-2.5 text-slate-400 hover:text-blue-600 rounded-xl hover:bg-blue-50 transition-all ${loading ? 'animate-spin' : ''}`}>
+            <button onClick={() => carregar()} className={`p-2.5 text-slate-400 hover:text-blue-600 rounded-xl hover:bg-blue-50 transition-all ${loading ? 'animate-spin' : ''}`}>
               <RefreshCw size={18} />
             </button>
           </div>

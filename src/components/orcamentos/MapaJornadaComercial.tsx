@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Navigation, ShieldCheck, Trophy, Target, Zap, Building2, Briefcase } from 'lucide-react';
+import { ShieldCheck, Target, Zap, Building2, Briefcase } from 'lucide-react';
 import { ORDEM_FUNIL, ETAPA_LABELS, EtapaFunil } from '../../domain/value-objects/EtapaFunil';
 
 /**

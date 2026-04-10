@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   CheckSquare, Lock, ShieldCheck, XCircle, CheckCircle, 
-  Clock, User, Building, ArrowRight, RefreshCw, AlertCircle,
-  ExternalLink, MousePointer2
+  Clock, ArrowRight, RefreshCw,
+  ExternalLink
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { propostasRepository } from '../infrastructure/supabase/propostasRepository';
@@ -49,7 +49,7 @@ export function Aprovacoes() {
       }
 
       // 3. Remove da lista local com animação
-      setPendencias(prev => prev.filter(p => p.id !== id));
+      setPendencias((prev: PendenciaAprovacao[]) => prev.filter((p: PendenciaAprovacao) => p.id !== id));
     } catch (err) {
       console.error('Erro ao processar aprovação:', err);
     } finally {
@@ -154,7 +154,7 @@ export function Aprovacoes() {
                     </div>
                     <div className="flex-1 text-center font-black">
                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-2">Proposta</p>
-                       <span className={`text-xs font-black text-white px-3 py-1.5 rounded-xl shadow-lg border-2 border-white ${ETAPA_CORES[item.etapa_nova as any] || 'bg-slate-400'}`}>
+                       <span className={`text-xs font-black text-white px-3 py-1.5 rounded-xl shadow-lg border-2 border-white ${ETAPA_CORES[item.etapa_nova as keyof typeof ETAPA_CORES] || 'bg-slate-400'}`}>
                           {item.etapa_nova}
                        </span>
                     </div>

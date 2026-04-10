@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Calendar, User, Building, Tag, Clock, CheckCircle, XCircle, FolderOpen, Edit2, Save, X, Copy, Trash2 } from 'lucide-react';
+import { ArrowLeft, Calendar, User, Building, Clock, CheckCircle, XCircle, FolderOpen, Trash2 } from 'lucide-react';
 import { useNovoOrcamento } from '../context/NovoOrcamentoContext';
 import { useAuth } from '../context/AuthContext';
 import { StatusBadgeNovo } from '../components/ui/StatusBadgeNovo';
@@ -218,11 +218,9 @@ export function OrcamentoDetalhe() {
   
   const [modalFollowUpAberto, setModalFollowUpAberto] = useState(false);
   const [modalPendenciaAberto, setModalPendenciaAberto] = useState(false);
-  const [editandoLink, setEditandoLink] = useState(false);
   const [confirmarExclusao, setConfirmarExclusao] = useState(false);
   const [excluindo, setExcluindo] = useState(false);
   const [erroExclusao, setErroExclusao] = useState('');
-  const [linkInput, setLinkInput] = useState('');
 
   // Tentar do mock primeiro
   const orcMock = id ? buscarOrcamento(id) : null;
@@ -424,19 +422,6 @@ export function OrcamentoDetalhe() {
       }).then((p) => { setPropostaSupa(p); }).catch(() => {});
     } else {
       atualizarQualificacao(id, dados);
-    }
-  }
-
-  function handleSalvarLink() {
-    if (!id) return;
-    if (isSupa) {
-      propostasRepository.atualizar(id, { link_arquivo: linkInput.trim() || null })
-        .then((p) => { setPropostaSupa(p); })
-        .catch(() => {});
-      setEditandoLink(false);
-    } else {
-      atualizarComercial(id, { linkArquivo: linkInput.trim() });
-      setEditandoLink(false);
     }
   }
 
@@ -696,13 +681,13 @@ export function OrcamentoDetalhe() {
                   });
 
                   if (ehAUltima && mudancaParaDeletar) {
-                    const etapaReversa = (mudancaParaDeletar.etapa_anterior || ETAPA_DEFAULT) as EtapaFunil;
+                    const etapaReversa = (mudancaParaDeletar.etapaAnterior || ETAPA_DEFAULT) as EtapaFunil;
                     propostasRepository.atualizar(id, { etapa_funil: etapaReversa })
                       .then(p => {
                         setPropostaSupa(p);
                         // Reverter pontos se necessário
                         const responsavel = p.responsavel_comercial || p.responsavel || 'Usuário';
-                        gamificacaoService.reverterAtividadePorEtapa(responsavel, mudancaParaDeletar.etapa_nova as any);
+                        gamificacaoService.reverterAtividadePorEtapa(responsavel, mudancaParaDeletar.etapaNova as any);
                       })
                       .catch(console.error);
                   }

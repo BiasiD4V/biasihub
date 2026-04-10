@@ -33,6 +33,7 @@ export interface PropostaSupabase {
   valor_estrategico: string | null
   cliente_estrategico: string | null
   prazo_resposta: string | null
+  responsavel_comercial?: string | null
 }
 
 export interface FiltrosPropostas {

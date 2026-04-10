@@ -180,7 +180,6 @@ export function ModalNovoOrcamento({ aberto, onFechar, onCriado }: ModalNovoOrca
         data_limite: form.dataLimite,
         responsavel: form.responsavel.trim() || '',
         responsavel_comercial: responsavelComercialSelecionado || null,
-        etapa_funil: 'entrada_oportunidade', // Força etapa inicial
       });
 
       // Automação: Dá os pontos iniciais de entrada no funil
