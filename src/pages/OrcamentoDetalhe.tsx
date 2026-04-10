@@ -14,6 +14,7 @@ import { ModalNovoFollowUp } from '../components/orcamentos/ModalNovoFollowUp';
 import { ModalNovaPendencia } from '../components/orcamentos/ModalNovaPendencia';
 import { MapaJornadaComercial } from '../components/orcamentos/MapaJornadaComercial';
 import { gamificacaoService } from '../services/gamificacaoService';
+import { supabase } from '../infrastructure/supabase/client';
 
 import { propostasRepository, type PropostaSupabase, type MudancaEtapaRow, type FollowUpRow } from '../infrastructure/supabase/propostasRepository';
 import type { FollowUp } from '../domain/entities/FollowUp';
@@ -196,7 +197,7 @@ function propostaParaOrc(p: PropostaSupabase): OrcamentoCard {
     clienteEstrategico: (p.cliente_estrategico as any) ?? undefined,
     prazoResposta: p.prazo_resposta ?? undefined,
     linkArquivo: p.link_arquivo ?? undefined,
-    responsavelComercial: (p as any).responsavel_comercial ?? undefined as string | undefined,
+    responsavelComercial: (p as any).responsavel_comercial ?? undefined,
   };
 }
 
@@ -214,6 +215,7 @@ export function OrcamentoDetalhe() {
     atualizarComercial,
     atualizarQualificacao,
   } = useNovoOrcamento();
+  
   const [modalFollowUpAberto, setModalFollowUpAberto] = useState(false);
   const [modalPendenciaAberto, setModalPendenciaAberto] = useState(false);
   const [editandoLink, setEditandoLink] = useState(false);
@@ -229,10 +231,15 @@ export function OrcamentoDetalhe() {
   const [propostaSupa, setPropostaSupa] = useState<PropostaSupabase | null>(null);
   const [carregando, setCarregando] = useState(!orcMock && !!id);
 
+  const [localFollowUps, setLocalFollowUps] = useState<FollowUp[]>([]);
+  const [localMudancas, setLocalMudancas] = useState<MudancaEtapa[]>([]);
+  const [localPendencias, setLocalPendencias] = useState<Pendencia[]>([]);
+
   useEffect(() => {
     if (orcMock || !id) return;
     let cancelado = false;
     setCarregando(true);
+    
     Promise.all([
       propostasRepository.buscarPorId(id),
       propostasRepository.listarMudancasEtapa(id),
@@ -243,7 +250,6 @@ export function OrcamentoDetalhe() {
         setPropostaSupa(p);
         const locaisMudancas = lsGetMudancas(id);
         const locaisFollowUps = lsGetFollowUps(id);
-        // Mescla Supabase + localStorage para evitar "sumir" em cenários de persistência parcial.
         const m = mesclarMudancas(mudancas.map(rowParaMudanca), locaisMudancas);
         const f = mesclarFollowUps(fups.map(rowParaFollowUp), locaisFollowUps);
         lsSaveMudancas(id, m);
@@ -255,23 +261,48 @@ export function OrcamentoDetalhe() {
       }
     }).catch(() => {
       if (!cancelado) {
-        // Fallback total: carregar do localStorage
         setLocalMudancas(lsGetMudancas(id));
         setLocalFollowUps(lsGetFollowUps(id));
         setLocalPendencias(lsGetPendencias(id));
         setCarregando(false);
       }
     });
-    return () => { cancelado = true; };
+
+    // ── Supabase Realtime ───────────────────────────────────────────
+    const channel = supabase
+      .channel(`orcamento-${id}`)
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'propostas', 
+        filter: `id=eq.${id}` 
+      }, (payload) => {
+        if (!cancelado) setPropostaSupa(payload.new as PropostaSupabase);
+      })
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'mudancas_etapa', 
+        filter: `proposta_id=eq.${id}` 
+      }, () => {
+        if (!cancelado) {
+          propostasRepository.listarMudancasEtapa(id).then(mudancas => {
+            const m = mesclarMudancas(mudancas.map(rowParaMudanca), lsGetMudancas(id));
+            setLocalMudancas(m);
+            lsSaveMudancas(id, m);
+          });
+        }
+      })
+      .subscribe();
+
+    return () => { 
+      cancelado = true; 
+      supabase.removeChannel(channel);
+    };
   }, [id, orcMock]);
 
   const orc: OrcamentoCard | null = orcMock ?? (propostaSupa ? propostaParaOrc(propostaSupa) : null);
   const isSupa = !orcMock && !!propostaSupa;
-
-  // Estado local para Supabase (sem tabelas de histórico no banco)
-  const [localFollowUps, setLocalFollowUps] = useState<FollowUp[]>([]);
-  const [localMudancas, setLocalMudancas] = useState<MudancaEtapa[]>([]);
-  const [localPendencias, setLocalPendencias] = useState<Pendencia[]>([]);
 
   const followUps = isSupa ? localFollowUps : (id ? buscarFollowUps(id) : []);
   const pendencias = isSupa ? localPendencias : (id ? buscarPendencias(id) : []);
@@ -296,12 +327,8 @@ export function OrcamentoDetalhe() {
     return (
       <div className="flex flex-col h-full">
         <div className="px-8 py-6 border-b border-slate-200 bg-white flex items-center gap-4">
-          <button
-            onClick={() => navigate('/orcamentos')}
-            className="flex items-center gap-2 text-slate-500 hover:text-slate-700 text-sm transition-colors"
-          >
-            <ArrowLeft size={16} />
-            Voltar
+          <button onClick={() => navigate('/orcamentos')} className="flex items-center gap-2 text-slate-500 hover:text-slate-700 text-sm transition-colors">
+            <ArrowLeft size={16} /> Voltar
           </button>
         </div>
         <div className="flex-1 flex items-center justify-center">
@@ -313,46 +340,45 @@ export function OrcamentoDetalhe() {
 
   function handleMudarEtapa(etapaNova: EtapaFunil, observacao?: string, arquivoUrl?: string, skipHistorico?: boolean, etapaAnteriorOverride?: EtapaFunil) {
     if (!id) return;
+    const executor = usuario?.nome || orc?.responsavel || 'Usuário';
+
     if (isSupa) {
       const etapaAnterior = etapaAnteriorOverride ?? orc?.etapaFunil ?? null;
-      const resp = usuario?.nome ?? 'Usuário';
       const papelAtual = usuario?.papel;
       const autoAprovado = papelAtual && ['dono', 'admin', 'gestor'].includes(papelAtual);
       const statusMudanca = autoAprovado ? 'aprovado' : 'pendente';
 
-      if (orc?.responsavel) gamificacaoService.registrarAtividadePorEtapa(orc.responsavel, etapaNova).catch(console.error);
+      if (executor) gamificacaoService.registrarAtividadePorEtapa(executor, etapaNova).catch(console.error);
       propostasRepository.atualizar(id, { etapa_funil: etapaNova }).then((p) => {
         setPropostaSupa(p);
       }).catch(() => {});
 
-      // Se skipHistorico, só atualiza a etapa sem registrar transição
       if (skipHistorico) return;
 
-      // Criar registro local imediatamente (localStorage + state)
       const novaMudanca: MudancaEtapa = {
         id: crypto.randomUUID(),
         orcamentoId: id,
         etapaAnterior: etapaAnterior as EtapaFunil | null,
         etapaNova,
-        responsavel: resp,
+        responsavel: executor,
         observacao,
         arquivo: arquivoUrl,
         data: new Date().toISOString(),
         status: statusMudanca,
       };
+      
       const tempId = novaMudanca.id;
       setLocalMudancas((prev) => {
         const next = [novaMudanca, ...prev];
         lsSaveMudancas(id, next);
         return next;
       });
-      // Salvar no Supabase e, ao ter sucesso, substituir o registro local pelo do banco
-      // (garante que o ID e timestamp usados são os do Supabase, evitando duplicatas no merge)
+
       propostasRepository.inserirMudancaEtapa({
         proposta_id: id,
         etapa_anterior: etapaAnterior,
         etapa_nova: etapaNova,
-        responsavel: resp,
+        responsavel: executor,
         observacao: observacao ?? null,
         arquivo: arquivoUrl ?? null,
         status: statusMudanca,
@@ -367,8 +393,8 @@ export function OrcamentoDetalhe() {
         }
       }).catch(() => {});
     } else {
-      if (orc?.responsavel) gamificacaoService.registrarAtividadePorEtapa(orc.responsavel, etapaNova).catch(console.error);
-      atualizarEtapaFunil(id, etapaNova, usuario?.nome ?? 'Paulo Confar', observacao);
+      if (executor) gamificacaoService.registrarAtividadePorEtapa(executor, etapaNova).catch(console.error);
+      atualizarEtapaFunil(id, etapaNova, executor, observacao);
     }
   }
 
@@ -416,19 +442,21 @@ export function OrcamentoDetalhe() {
 
   function handleFechamento(dados: DadosFechamento) {
     if (!id) return;
+    const executor = usuario?.nome || orc?.responsavel || 'Usuário';
+
     if (isSupa) {
       const update = dados.resultado === 'ganho'
         ? { resultado_comercial: 'ganho', etapa_funil: 'pos_venda', valor_orcado: dados.valorFechado }
         : { resultado_comercial: 'perdido' };
-      if (dados.resultado === 'ganho' && orc?.responsavel) gamificacaoService.registrarAtividadeDireta(orc.responsavel, 'contrato_fechado').catch(console.error);
-      propostasRepository.atualizar(id, update).then((p) => { setPropostaSupa(p); }).catch(() => {});
-      if (dados.resultado === 'ganho' && orc?.responsavel) {
-        gamificacaoService.registrarAtividadeDireta(orc.responsavel, 'contrato_fechado').catch(console.error);
+      
+      if (dados.resultado === 'ganho' && executor) {
+        gamificacaoService.registrarAtividadeDireta(executor, 'contrato_fechado').catch(console.error);
       }
+      propostasRepository.atualizar(id, update).then((p) => { setPropostaSupa(p); }).catch(() => {});
     } else {
       if (dados.resultado === 'ganho') {
         atualizarComercial(id, {resultadoComercial: 'ganho'});
-        if (orc?.responsavel) gamificacaoService.registrarAtividadeDireta(orc.responsavel, 'contrato_fechado').catch(console.error);
+        if (executor) gamificacaoService.registrarAtividadeDireta(executor, 'contrato_fechado').catch(console.error);
       } else {
         atualizarComercial(id, {
           resultadoComercial: 'perdido',
@@ -474,7 +502,6 @@ export function OrcamentoDetalhe() {
           label={orc.statusLabel}
         />
         <h1 className="text-sm sm:text-lg font-bold text-slate-800 truncate">{orc.titulo}</h1>
-        {/* Badge A/B/C — hidden on very small screens */}
         {(() => {
           const abc = calcularScoreABC(orc);
           if (!abc) return null;
@@ -508,7 +535,7 @@ export function OrcamentoDetalhe() {
                     }
                   }}
                   disabled={excluindo}
-                  className="px-3 py-1.5 text-xs font-medium bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors disabled:opacity-50"
+                  className="px-3 py-1.5 text-xs font-medium bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
                 >
                   {excluindo ? 'Excluindo...' : 'Confirmar'}
                 </button>
@@ -535,17 +562,11 @@ export function OrcamentoDetalhe() {
       </div>
 
       {/* Meta strip */}
-      <div
-        className={`px-3 py-2 sm:px-8 sm:py-3 border-b border-slate-200 ${
-          orc.resultadoComercial === 'ganho'
-            ? 'bg-green-50'
-            : orc.resultadoComercial === 'perdido'
-            ? 'bg-red-50'
-            : 'bg-slate-50'
-        }`}
-      >
+      <div className={`px-3 py-2 sm:px-8 sm:py-3 border-b border-slate-200 ${
+        orc.resultadoComercial === 'ganho' ? 'bg-green-50' : 
+        orc.resultadoComercial === 'perdido' ? 'bg-red-50' : 'bg-slate-50'
+      }`}>
         <div className="flex items-center gap-3 sm:gap-8 text-sm flex-wrap overflow-x-auto no-scrollbar">
-          {/* Resultado comercial — destaque quando fechado */}
           {orc.resultadoComercial === 'ganho' && (
             <div className="flex items-center gap-2">
               <CheckCircle size={14} className="text-green-600 flex-shrink-0" />
@@ -558,16 +579,12 @@ export function OrcamentoDetalhe() {
               <span className="text-red-600 text-xs font-semibold">Perdido</span>
             </div>
           )}
-
-          {/* Etapa */}
           <div className="flex items-center gap-2">
             <span className="text-xs text-slate-400 uppercase tracking-wide">Etapa</span>
             <span className="bg-blue-50 text-blue-700 text-xs font-medium px-2.5 py-1 rounded-full">
               {orc.etapaAtual}
             </span>
           </div>
-
-          {/* Responsável Técnico */}
           {orc.responsavel && (
             <div className="flex items-center gap-2">
               <User size={14} className="text-slate-400 flex-shrink-0" />
@@ -575,8 +592,6 @@ export function OrcamentoDetalhe() {
               <span className="text-slate-600 text-xs font-medium">{orc.responsavel}</span>
             </div>
           )}
-
-          {/* Responsável Comercial */}
           {orc.responsavelComercial && (
             <div className="flex items-center gap-2">
               <User size={14} className="text-blue-400 flex-shrink-0" />
@@ -584,8 +599,6 @@ export function OrcamentoDetalhe() {
               <span className="text-blue-600 text-xs font-medium">{orc.responsavelComercial}</span>
             </div>
           )}
-
-          {/* Próxima ação — oculta quando fechado */}
           {orc.resultadoComercial === 'em_andamento' && (
             <div className="flex items-center gap-2">
               <Clock size={14} className="text-slate-400 flex-shrink-0" />
@@ -594,8 +607,6 @@ export function OrcamentoDetalhe() {
               </span>
             </div>
           )}
-
-          {/* Data da próxima ação */}
           {orc.dataProximaAcao && orc.resultadoComercial === 'em_andamento' && (
             <div className="flex items-center gap-2">
               <Calendar size={14} className="text-slate-400 flex-shrink-0" />
@@ -604,37 +615,21 @@ export function OrcamentoDetalhe() {
               </span>
             </div>
           )}
-
-          {/* Data de fechamento — quando fechado */}
-          {orc.dataFechamento && orc.resultadoComercial !== 'em_andamento' && (
-            <div className="flex items-center gap-2">
-              <Calendar size={14} className="text-slate-400 flex-shrink-0" />
-              <span className="text-slate-600 text-xs">
-                Fechado em{' '}
-                {formatarData(orc.dataFechamento)}
-              </span>
-            </div>
-          )}
         </div>
       </div>
 
       {/* Body */}
       <div className="flex-1 p-3 sm:p-8 overflow-y-auto">
-        {/* Banner de alertas operacionais — visível apenas quando em andamento */}
         {(() => {
           const prioridade = calcularPrioridade(orc);
           if (!prioridade || prioridade === 'baixa') return null;
           const cfg = PRIORIDADE_CONFIG[prioridade];
           return (
-            <div
-              className={`flex items-center gap-3 mb-6 px-4 py-3 rounded-xl border ${cfg.bg} border-opacity-60 ${
-                prioridade === 'alta' ? 'border-red-200' : 'border-amber-200'
-              }`}
-            >
+            <div className={`flex items-center gap-3 mb-6 px-4 py-3 rounded-xl border ${cfg.bg} border-opacity-60 ${
+              prioridade === 'alta' ? 'border-red-200' : 'border-amber-200'
+            }`}>
               <span className={`w-2 h-2 rounded-full flex-shrink-0 ${cfg.dot}`} />
-              <span className={`text-xs font-semibold ${cfg.text}`}>
-                Prioridade {cfg.label}
-              </span>
+              <span className={`text-xs font-semibold ${cfg.text}`}>Prioridade {cfg.label}</span>
               <span className="text-slate-300 text-xs">•</span>
               <AlertasOrcamento orc={orc} />
             </div>
@@ -642,7 +637,6 @@ export function OrcamentoDetalhe() {
         })()}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Coluna principal — Timeline */}
           <div className="lg:col-span-2 space-y-6">
             <TimelineFollowUp
               followUps={followUps}
@@ -674,7 +668,6 @@ export function OrcamentoDetalhe() {
               }}
             />
 
-            {/* Histórico de etapas */}
             <HistoricoEtapas 
               mudancas={mudancasEtapa}
               papelUsuario={usuario?.papel}
@@ -693,11 +686,27 @@ export function OrcamentoDetalhe() {
               }}
               onDeleteMudanca={(mudancaId) => {
                 if (isSupa && id) {
+                  const mudancaParaDeletar = mudancasEtapa.find(m => m.id === mudancaId);
+                  const ehAUltima = mudancasEtapa[0]?.id === mudancaId;
+
                   setLocalMudancas(prev => {
                     const next = prev.filter(m => m.id !== mudancaId);
                     lsSaveMudancas(id, next);
                     return next;
                   });
+
+                  if (ehAUltima && mudancaParaDeletar) {
+                    const etapaReversa = (mudancaParaDeletar.etapa_anterior || ETAPA_DEFAULT) as EtapaFunil;
+                    propostasRepository.atualizar(id, { etapa_funil: etapaReversa })
+                      .then(p => {
+                        setPropostaSupa(p);
+                        // Reverter pontos se necessário
+                        const responsavel = p.responsavel_comercial || p.responsavel || 'Usuário';
+                        gamificacaoService.reverterAtividadePorEtapa(responsavel, mudancaParaDeletar.etapa_nova as any);
+                      })
+                      .catch(console.error);
+                  }
+                  
                   propostasRepository.deletarMudancaEtapa(mudancaId).catch(() => {});
                 }
               }}
@@ -711,38 +720,24 @@ export function OrcamentoDetalhe() {
                   propostasRepository.atualizarMudancaEtapa(mudancaId, { status: 'aprovado' }).catch(() => {});
                 }
               }}
-              onRevogarMudanca={(mudancaId) => {
-                if (isSupa && id) {
-                  setLocalMudancas(prev => {
-                    const next = prev.map(m => m.id === mudancaId ? { ...m, status: 'pendente' as const } : m);
-                    lsSaveMudancas(id, next);
-                    return next;
-                  });
-                  propostasRepository.atualizarMudancaEtapa(mudancaId, { status: 'pendente' }).catch(() => {});
-                }
-              }}
             />
-            {/* Mapa de Jornada Gamificado */}
             {orc && (
               <div className="mt-8">
                 <MapaJornadaComercial 
                   etapaAtual={orc.etapaFunil} 
                   resultadoComercial={orc.resultadoComercial} 
+                  performer={usuario?.nome || orc.responsavel}
                 />
               </div>
             )}
           </div>
 
- {/* Coluna lateral */}
           <div className="space-y-6">
-            {/* Pendências */}
             <BlocoPendencias
               pendencias={pendencias}
               onResolver={(pendenciaId) => { void handleResolverPendencia(pendenciaId); }}
               onAdicionarNova={() => setModalPendenciaAberto(true)}
             />
-
-            {/* Bloco Comercial */}
             <BlocoComercial
               orc={orc}
               onMudarEtapa={handleMudarEtapa}
@@ -751,15 +746,9 @@ export function OrcamentoDetalhe() {
               mudancasEtapa={mudancasEtapa}
               papelUsuario={usuario?.papel}
             />
-
-            {/* Bloco Qualificação */}
             <BlocoQualificacao orc={orc} onAtualizar={handleQualificacao} />
-
-            {/* Identificação */}
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-              <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-4">
-                Identificação
-              </h3>
+              <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-4">Identificação</h3>
               <div className="space-y-3">
                 <div className="flex items-center gap-3">
                   <Building size={14} className="text-slate-400 flex-shrink-0" />
@@ -768,163 +757,47 @@ export function OrcamentoDetalhe() {
                     <p className="text-sm font-medium text-slate-700">{orc.clienteNome}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <Tag size={14} className="text-slate-400 flex-shrink-0" />
-                  <div>
-                    <p className="text-xs text-slate-400">Tipo de Obra</p>
-                    <p className="text-sm font-medium text-slate-700">
-                      {orc.tiposObraNomes.length > 0 ? orc.tiposObraNomes.join(', ') : '—'}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <Calendar size={14} className="text-slate-400 flex-shrink-0" />
-                  <div>
-                    <p className="text-xs text-slate-400">Data-base</p>
-                    <p className="text-sm font-medium text-slate-700">
-                      {formatarData(orc.dataBase)}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <User size={14} className="text-slate-400 flex-shrink-0" />
-                  <div>
-                    <p className="text-xs text-slate-400">Responsável</p>
-                    <p className="text-sm font-medium text-slate-700">{orc.responsavel || '—'}</p>
-                  </div>
-                </div>
-
-                {orc.responsavelComercial && (
-                  <div className="flex items-center gap-3">
-                    <User size={14} className="text-blue-400 flex-shrink-0" />
-                    <div>
-                      <p className="text-xs text-slate-400">Responsável Comercial</p>
-                      <p className="text-sm font-medium text-blue-700">{orc.responsavelComercial}</p>
+                {orc.linkArquivo && (
+                  <div className="flex items-start gap-3">
+                    <FolderOpen size={14} className="text-slate-400 flex-shrink-0 mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-slate-400">Link do Arquivo</p>
+                      <p className="text-xs font-mono text-slate-600 truncate">{orc.linkArquivo}</p>
                     </div>
                   </div>
                 )}
-
-                {/* Link do Arquivo */}
-                <div className="flex items-start gap-3">
-                  <FolderOpen size={14} className="text-slate-400 flex-shrink-0 mt-0.5" />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between mb-1">
-                      <p className="text-xs text-slate-400">Link do Arquivo</p>
-                      {!editandoLink ? (
-                        <button
-                          onClick={() => { setLinkInput(orc.linkArquivo ?? ''); setEditandoLink(true); }}
-                          className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700"
-                        >
-                          <Edit2 size={10} />
-                          {orc.linkArquivo ? 'Editar' : 'Adicionar'}
-                        </button>
-                      ) : (
-                        <div className="flex items-center gap-1">
-                          <button
-                            onClick={() => setEditandoLink(false)}
-                            className="text-slate-400 hover:text-slate-600"
-                          >
-                            <X size={12} />
-                          </button>
-                          <button
-                            onClick={handleSalvarLink}
-                            className="flex items-center gap-1 text-xs bg-blue-600 text-white px-2 py-0.5 rounded"
-                          >
-                            <Save size={10} />
-                            Salvar
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                    {editandoLink ? (
-                      <input
-                        type="text"
-                        value={linkInput}
-                        onChange={(e) => setLinkInput(e.target.value)}
-                        placeholder="Ex: \\FILESERVER\COMERCIAL\ORC-2024-001"
-                        className="w-full border border-slate-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
-                        autoFocus
-                        onKeyDown={(e) => { if (e.key === 'Enter') handleSalvarLink(); if (e.key === 'Escape') setEditandoLink(false); }}
-                      />
-                    ) : orc.linkArquivo ? (
-                      <div className="flex items-center gap-1 group">
-                        <p className="text-xs font-mono text-slate-600 truncate">{orc.linkArquivo}</p>
-                        <button
-                          onClick={() => navigator.clipboard.writeText(orc.linkArquivo!)}
-                          className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-slate-600 flex-shrink-0"
-                          title="Copiar caminho"
-                        >
-                          <Copy size={10} />
-                        </button>
-                      </div>
-                    ) : (
-                      <p className="text-xs text-slate-300 italic">Não informado</p>
-                    )}
-                  </div>
-                </div>
               </div>
             </div>
-
-            {/* Disciplinas */}
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-              <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-4">
-                Disciplinas
-              </h3>
-              {orc.disciplinaNomes.length > 0 ? (
-                <div className="flex flex-wrap gap-2">
-                  {orc.disciplinaNomes.map((nome) => (
-                    <span
-                      key={nome}
-                      className="bg-blue-50 text-blue-700 text-xs font-medium px-3 py-1.5 rounded-full"
-                    >
-                      {nome}
-                    </span>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-xs text-slate-400">Nenhuma disciplina informada.</p>
-              )}
-            </div>
-
           </div>
         </div>
       </div>
 
-      {/* Modal follow-up */}
       {id && (
         <ModalNovoFollowUp
           aberto={modalFollowUpAberto}
           onFechar={() => setModalFollowUpAberto(false)}
           orcamentoId={id}
           onRegistrado={isSupa ? (fu) => {
-            // Salvar no state + localStorage imediatamente
             setLocalFollowUps((prev) => {
               const next = [fu, ...prev];
               lsSaveFollowUps(id, next);
               return next;
             });
-            // Tentar salvar no Supabase (best-effort)
             propostasRepository.inserirFollowUp({
-              proposta_id: id,
-              tipo: fu.tipo,
-              data: fu.data,
-              responsavel: fu.responsavel,
-              resumo: fu.resumo,
-              proxima_acao: fu.proximaAcao ?? null,
-              data_proxima_acao: fu.dataProximaAcao ?? null,
-              arquivo: fu.arquivo ?? null,
+              proposta_id: id, tipo: fu.tipo, data: fu.data, responsavel: fu.responsavel,
+              resumo: fu.resumo, proxima_acao: fu.proximaAcao ?? null,
+              data_proxima_acao: fu.dataProximaAcao ?? null, arquivo: fu.arquivo ?? null,
             }).catch(() => {});
-            // Salvar próxima ação no Supabase
             const updateData = fu.proximaAcao
               ? { proxima_acao: fu.proximaAcao, data_proxima_acao: fu.dataProximaAcao ?? null, ultima_interacao: fu.data.slice(0, 10) }
               : { ultima_interacao: fu.data.slice(0, 10) };
-            if (orc?.responsavel) gamificacaoService.registrarAtividadeDireta(orc.responsavel, 'followup_realizado').catch(console.error);
+            const executor = usuario?.nome || orc?.responsavel || fu.responsavel;
+            if (executor) gamificacaoService.registrarAtividadeDireta(executor, 'followup_realizado').catch(console.error);
             propostasRepository.atualizar(id, updateData).then((p) => setPropostaSupa(p)).catch(() => {});
           } : undefined}
         />
       )}
 
-      {/* Modal nova pendência */}
       {id && (
         <ModalNovaPendencia
           aberto={modalPendenciaAberto}
@@ -932,22 +805,13 @@ export function OrcamentoDetalhe() {
           orcamentoId={id}
           onRegistrada={isSupa ? async (pend) => {
             const salvo = await propostasRepository.inserirPendencia({
-              orcamentoId: id,
-              descricao: pend.descricao,
-              status: pend.status,
-              responsavel: pend.responsavel,
-              prazo: pend.prazo,
+              orcamentoId: id, descricao: pend.descricao, status: pend.status,
+              responsavel: pend.responsavel, prazo: pend.prazo,
             });
-            if (!salvo) {
-              throw new Error('Falha ao salvar pendência no banco');
-            }
-            setLocalPendencias((prev) => [salvo, ...prev]);
+            if (salvo) setLocalPendencias((prev) => [salvo, ...prev]);
           } : undefined}
         />
       )}
     </div>
   );
 }
-
-
-

@@ -4,6 +4,7 @@ import {
   RefreshCw, Users, Target, Clock,
 } from 'lucide-react';
 import { supabase } from '../infrastructure/supabase/client';
+import { useAuth } from '../context/AuthContext';
 import { orcamentosRepository } from '../infrastructure/supabase/orcamentosRepository';
 import type { OrcamentoSupabase } from '../infrastructure/supabase/orcamentosRepository';
 import {
@@ -14,13 +15,7 @@ import {
   type VendedorStats, type Temperatura,
 } from '../components/gamification/gamificacaoTypes';
 
-const TIME_COMERCIAL = [
-  'PAULO CONFAR',
-  'LUAN',
-  'RYAN STRADIOTO',
-  'JENNI',
-  'GUILHERME'
-];
+import { biraRepository } from '../infrastructure/supabase/biraRepository';
 
 // ── Mini-components ──────────────────────────────────────────────────────────
 
@@ -114,8 +109,9 @@ function CardEnergia({
   return (
     <div className={`rounded-3xl border-2 p-5 transition-all ${isKO ? 'border-red-300 bg-red-50/80 shadow-red-200 shadow-lg animate-pulse' : 'border-slate-200 bg-white/80 shadow-lg hover:shadow-xl hover:scale-[1.01]'}`}>
       <div className="flex items-center gap-3 mb-4">
-        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 font-black text-sm ${isKO ? 'bg-red-200 text-red-700' : 'bg-gradient-to-br from-blue-600 to-indigo-700 text-white shadow-lg shadow-blue-500/30'}`}>
+        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 font-black text-sm relative ${isKO ? 'bg-red-200 text-red-700' : 'bg-gradient-to-br from-blue-600 to-indigo-700 text-white shadow-lg shadow-blue-500/30'}`}>
           {isKO ? '💀' : initials}
+          {!isKO && <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-2 border-white" title="Ativo" />}
         </div>
         <div className="flex-1 min-w-0">
           <p className="font-bold text-sm text-slate-800 truncate">{vendedor.split(' ').slice(0, 2).join(' ')}</p>
@@ -326,16 +322,29 @@ function ModalAtividade({ vendedor, onClose, onSalvar }: {
 // ── Página Principal: Arena Comercial ────────────────────────────────────────
 
 export function ArenaComercial() {
+  const [vendedores, setVendedores] = useState<string[]>([]);
   const [orcamentos, setOrcamentos] = useState<OrcamentoSupabase[]>([]);
   const [atividades, setAtividades] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [aba, setAba] = useState<'temperatura' | 'energia' | 'vidautil' | 'ranking'>('temperatura');
   const [vendedorModal, setVendedorModal] = useState<string | null>(null);
+  const { usuario } = useAuth();
 
-  const carregar = useCallback(async () => {
-    setLoading(true);
+  // Helper para matching flexível de nomes
+  const isMesmoVendedor = useCallback((nomeAtividade: string, nomeVendedor: string) => {
+    if (!nomeAtividade || !nomeVendedor) return false;
+    const n1 = nomeAtividade.toUpperCase();
+    const n2 = nomeVendedor.toUpperCase();
+    const base1 = n1.split(' ')[0];
+    const base2 = n2.split(' ')[0];
+    return n1 === n2 || n1.startsWith(n2) || n2.startsWith(n1) || (base1 === base2 && base1.length > 2);
+  }, []);
+
+  const carregar = useCallback(async (silencioso = false) => {
+    if (!silencioso) setLoading(true);
     try {
-      const [orcs, ativs] = await Promise.all([
+      const [members, orcs, ativs] = await Promise.all([
+        biraRepository.listarMembrosComercial(),
         orcamentosRepository.listarTodos(),
         supabase.from('vendedor_atividades')
           .select('*')
@@ -343,6 +352,7 @@ export function ArenaComercial() {
           .order('criado_em', { ascending: true })
           .then(r => r.data || []),
       ]);
+      setVendedores(members.map(m => m.nome.toUpperCase()));
       setOrcamentos(orcs);
       setAtividades(ativs);
     } catch (err) {
@@ -351,7 +361,23 @@ export function ArenaComercial() {
     setLoading(false);
   }, []);
 
-  useEffect(() => { carregar(); }, [carregar]);
+  useEffect(() => { 
+    carregar(); 
+
+    // ── Supabase Realtime ───────────────────────────────────────────
+    const channel = supabase
+      .channel('arena-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'vendedor_atividades' }, () => {
+        console.log('[Arena] Nova atividade detectada! Atualizando...');
+        carregar(true); // Atualização silenciosa
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'propostas' }, () => {
+        carregar(true);
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [carregar]);
 
   // Automação: Arquivar orçamentos "Congelados" automaticamente
   useEffect(() => {
@@ -391,15 +417,12 @@ export function ArenaComercial() {
     };
   }, [ativos]);
 
-  const vendedores = useMemo(() => {
-    return TIME_COMERCIAL.map(n => n.toUpperCase()).sort();
-  }, []);
 
   const energiaPorVendedor = useMemo(() => {
     const map: Record<string, number> = {};
     vendedores.forEach(v => {
       const pts = atividades
-        .filter(a => a.vendedor_nome?.toUpperCase() === v)
+        .filter(a => isMesmoVendedor(a.vendedor_nome, v))
         .reduce((acc, a) => acc + (a.pontos || 0), 0);
       map[v] = calcularEnergia(pts);
     });
@@ -409,7 +432,7 @@ export function ArenaComercial() {
   const atividadesPorVendedor = useMemo(() => {
     const map: Record<string, any[]> = {};
     vendedores.forEach(v => { 
-      map[v] = atividades.filter(a => a.vendedor_nome?.toUpperCase() === v); 
+      map[v] = atividades.filter(a => isMesmoVendedor(a.vendedor_nome, v)); 
     });
     return map;
   }, [vendedores, atividades]);

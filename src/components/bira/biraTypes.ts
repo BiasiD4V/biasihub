@@ -72,11 +72,13 @@ export const ISSUE_TYPE_ICON: Record<string, React.ElementType> = {
 };
 
 export const ISSUE_TYPES_CREATE = [
+  { id: 'epic',     name: 'Epic',     icon: Zap },
   { id: 'feature',  name: 'Feature',  icon: Star },
   { id: 'tarefa',   name: 'Tarefa',   icon: CheckSquare },
   { id: 'historia', name: 'História', icon: BookOpen },
   { id: 'bug',      name: 'Bug',      icon: Bug },
   { id: 'recurso',  name: 'Recurso',  icon: Package },
+  { id: 'subtask',  name: 'Subtask',  icon: GitBranch },
 ];
 
 export const PRIORITIES_CREATE = [

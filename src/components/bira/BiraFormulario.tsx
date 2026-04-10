@@ -12,6 +12,92 @@ import {
 import { biraRepository } from '../../infrastructure/supabase/biraRepository';
 import { useAuth } from '../../context/AuthContext';
 
+// ── SearchSelect Component ──────────────────────────────────────────────────
+function SearchSelect<T extends { id: string; titulo?: string; nome?: string; codigo?: string }>({ 
+  label, placeholder, items, value, onSelect, icon: Icon, disabled 
+}: {
+  label: string;
+  placeholder: string;
+  items: T[];
+  value: string; // id
+  onSelect: (item: T | null) => void;
+  icon: any;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const ref = useRef<HTMLDivElement>(null);
+
+  const selectedItem = items.find(i => i.id === value);
+  const filtered = items.filter(i => 
+    (i.titulo || i.nome || '').toLowerCase().includes(search.toLowerCase()) || 
+    (i.codigo || '').toLowerCase().includes(search.toLowerCase())
+  ).slice(0, 10);
+
+  useEffect(() => {
+    function handler(e: MouseEvent) { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); }
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  return (
+    <div ref={ref} className="relative space-y-1.5 flex-1">
+      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">{label}</label>
+      <div 
+        className={`relative group cursor-pointer ${disabled ? 'opacity-50 pointer-events-none' : ''}`}
+        onClick={() => setOpen(!open)}
+      >
+        <div className={`absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-hover:text-blue-500 transition-colors`}>
+          <Icon size={14} />
+        </div>
+        <div className={`w-full pl-11 pr-10 py-4 text-sm font-semibold truncate bg-slate-50 border border-transparent rounded-2xl group-hover:bg-white group-hover:border-blue-600/30 transition-all ${selectedItem ? 'text-slate-900' : 'text-slate-400'}`}>
+          {selectedItem ? (selectedItem.codigo ? `${selectedItem.codigo} - ${selectedItem.titulo}` : selectedItem.nome) : placeholder}
+        </div>
+        <div className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-300">
+           <ChevronDown size={14} className={`transition-transform duration-300 ${open ? 'rotate-180' : ''}`} />
+        </div>
+      </div>
+
+      {open && (
+        <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-2xl border border-slate-100 z-[70] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="p-3 border-b border-slate-50">
+            <input 
+              autoFocus
+              type="text" 
+              value={search} 
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Pesquisar..."
+              className="w-full px-4 py-2 bg-slate-50 border-none rounded-xl text-xs focus:ring-2 focus:ring-blue-500/10"
+              onClick={e => e.stopPropagation()}
+            />
+          </div>
+          <div className="max-h-60 overflow-y-auto p-2 space-y-1 no-scrollbar">
+            <button
+               onClick={() => { onSelect(null); setOpen(false); }}
+               className="w-full text-left px-4 py-2.5 text-xs text-slate-400 hover:bg-slate-50 rounded-xl transition-colors italic"
+            >
+               Nenhum / Remover
+            </button>
+            {filtered.map(item => (
+              <button
+                key={item.id}
+                onClick={(e) => { e.stopPropagation(); onSelect(item); setOpen(false); }}
+                className={`w-full text-left px-4 py-2.5 rounded-xl transition-all group ${item.id === value ? 'bg-blue-50 text-blue-700 font-bold' : 'hover:bg-blue-50/50 text-slate-600'}`}
+              >
+                <div className="flex flex-col">
+                   <span className="text-xs truncate">{item.titulo || item.nome}</span>
+                   {item.codigo && <span className="text-[9px] text-slate-400 font-mono">{item.codigo}</span>}
+                </div>
+              </button>
+            ))}
+            {filtered.length === 0 && <div className="p-4 text-center text-xs text-slate-400">Nenhum resultado</div>}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── StatusDropdown ───────────────────────────────────────────────────────────
 function StatusDropdown({ current, onSelect, disabled }: {
   current: string; onSelect: (t: typeof TRANSITIONS[0]) => void; disabled?: boolean;
@@ -227,22 +313,55 @@ export function CreateIssueModal({ onClose, onCreate }: { onClose: () => void; o
   const [summary, setSummary] = useState('');
   const [typeId, setTypeId] = useState('tarefa');
   const [priorityId, setPriorityId] = useState('Medium');
-  const [parentKey, setParentKey] = useState('');
+  const [parentId, setParentId] = useState<string | null>(null);
+  const [assigneeId, setAssigneeId] = useState<string | null>(null);
+  const [assigneeNome, setAssigneeNome] = useState<string | null>(null);
   const [description, setDescription] = useState('');
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState('');
+  
+  const [todasTarefas, setTodasTarefas] = useState<JiraIssue[]>([]);
+  const [comercial, setComercial] = useState<{ id: string; nome: string }[]>([]);
+
+  useEffect(() => {
+    biraRepository.listarTodas().then(setTodasTarefas).catch(console.error);
+    biraRepository.listarMembrosComercial().then(setComercial).catch(console.error);
+  }, []);
 
   async function handleCreate() {
     if (!summary.trim() || !usuario) { setError('Falha na autenticação'); return; }
     setCreating(true);
     setError('');
     try {
-      let parentId = null;
-      if (parentKey.trim()) {
-        const p = await biraRepository.listarTodas();
-        const found = p.find(x => x.codigo === parentKey.trim().toUpperCase());
-        if (found) parentId = found.id;
+      const parentFound = parentId ? todasTarefas.find(t => t.id === parentId) : null;
+
+      // ── Regras de Hierarquia ───────────────────────────────────────────
+      if (typeId === 'epic' && parentFound) {
+          setError('Um Epic não pode ter um pai.');
+          setCreating(false); return;
+      } 
+      else if (typeId === 'subtask') {
+        if (!parentFound) {
+          setError('Subtasks exigem um pai (Tarefa, História ou Bug).');
+          setCreating(false); return;
+        }
+        const tiposFilhoValidos = ['tarefa', 'historia', 'bug', 'feature', 'recurso'];
+        if (!tiposFilhoValidos.includes(parentFound.tipo)) {
+          setError('Uma Subtask deve ter como pai uma Tarefa, Bug ou História.');
+          setCreating(false); return;
+        }
       }
+      else if (typeId !== 'epic') {
+        if (!parentFound) {
+          setError(`${typeId.toUpperCase()} exige um Epic como pai.`);
+          setCreating(false); return;
+        }
+        if (parentFound.tipo !== 'epic') {
+          setError(`Esta tarefa deve ter um Epic como pai.`);
+          setCreating(false); return;
+        }
+      }
+
       const data = await biraRepository.criar({
         titulo: summary.trim(),
         tipo: typeId as any,
@@ -252,6 +371,8 @@ export function CreateIssueModal({ onClose, onCreate }: { onClose: () => void; o
         criador_id: usuario.id,
         criador_nome: usuario.nome,
         parent_id: parentId,
+        responsavel_id: assigneeId,
+        responsavel_nome: assigneeNome,
       });
       onCreate(data.id);
     } catch (err) {
@@ -261,9 +382,15 @@ export function CreateIssueModal({ onClose, onCreate }: { onClose: () => void; o
     setCreating(false);
   }
 
+  // Filtragem de pais sugeridos baseada no tipo selecionado
+  const suggestedParents = todasTarefas.filter(t => {
+     if (typeId === 'subtask') return ['tarefa', 'historia', 'bug', 'feature', 'recurso'].includes(t.tipo);
+     return t.tipo === 'epic';
+  });
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md animate-in fade-in duration-200" onClick={onClose}>
-      <div className="bg-white rounded-[32px] shadow-2xl w-full max-w-xl overflow-hidden border border-white/40 animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
+      <div className="bg-white rounded-[32px] shadow-2xl w-full max-w-xl border border-white/40 animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
         <div className="px-8 pt-8 pb-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
              <div className="p-2.5 bg-blue-600 rounded-2xl shadow-lg shadow-blue-600/30 text-white"><Plus size={20} /></div>
@@ -277,7 +404,10 @@ export function CreateIssueModal({ onClose, onCreate }: { onClose: () => void; o
             {ISSUE_TYPES_CREATE.map(t => {
               const Icon = t.icon;
               return (
-                <button key={t.id} onClick={() => setTypeId(t.id)}
+                <button key={t.id} onClick={() => {
+                  setTypeId(t.id);
+                  setParentId(null); // Limpa o pai ao trocar o tipo para forçar re-seleção válida
+                }}
                   className={`flex items-center gap-2 px-4 py-2 rounded-2xl text-xs font-bold transition-all ${typeId === t.id ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30 ring-2 ring-blue-600 ring-offset-2' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>
                   <Icon size={14} /> {t.name}
                 </button>
@@ -294,19 +424,34 @@ export function CreateIssueModal({ onClose, onCreate }: { onClose: () => void; o
               <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Descrição</label>
               <textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="O que precisa ser feito?" rows={4} className="w-full px-5 py-4 text-sm bg-slate-50 border border-transparent rounded-2xl resize-none focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:bg-white focus:border-blue-600/30 transition-all font-medium" />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Prioridade</label>
                 <select value={priorityId} onChange={e => setPriorityId(e.target.value)} className="w-full px-5 py-4 text-sm font-bold bg-slate-50 border border-transparent rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:bg-white focus:border-blue-600/30 transition-all">
                   {PRIORITIES_CREATE.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
               </div>
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Código do Pai</label>
-                <div className="relative">
-                   <Search size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
-                   <input type="text" value={parentKey} onChange={e => setParentKey(e.target.value.toUpperCase())} placeholder="BIRA-001" className="w-full pl-11 pr-5 py-4 text-sm font-mono font-bold bg-slate-50 border border-transparent rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:bg-white focus:border-blue-600/30 transition-all" />
-                </div>
+              <div className="grid grid-cols-1 gap-4">
+                <SearchSelect 
+                  label="Tarefa Pai"
+                  placeholder="Selecione um pai..."
+                  items={suggestedParents}
+                  value={parentId || ''}
+                  onSelect={(item) => setParentId(item?.id || null)}
+                  icon={Search}
+                  disabled={typeId === 'epic'}
+                />
+                <SearchSelect 
+                  label="Responsável (Comercial)"
+                  placeholder="Quem fará?"
+                  items={comercial}
+                  value={assigneeId || ''}
+                  onSelect={(item) => {
+                    setAssigneeId(item?.id || null);
+                    setAssigneeNome(item?.nome || null);
+                  }}
+                  icon={CheckSquare}
+                />
               </div>
             </div>
           </div>

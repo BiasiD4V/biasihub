@@ -1,233 +1,294 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Navigation, CheckCircle2, Lock, Award, Zap } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Navigation, ShieldCheck, Trophy, Target, Zap, Building2, Briefcase } from 'lucide-react';
 import { ORDEM_FUNIL, ETAPA_LABELS, EtapaFunil } from '../../domain/value-objects/EtapaFunil';
 
 /**
- * Componente TransparentSprite: Remove fundo branco via Canvas.
+ * Personagem CSS Animado: "The Corporate Climber"
  */
-function TransparentSprite({ src, alt, className }: { src: string; alt: string; className?: string }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [processedSrc, setProcessedSrc] = useState<string>('');
-
-  useEffect(() => {
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.src = src;
-    img.onload = () => {
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-      const ctx = canvas.getContext('2d', { willReadFrequently: true });
-      if (!ctx) return;
-      canvas.width = img.width;
-      canvas.height = img.height;
-      ctx.drawImage(img, 0, 0);
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const data = imageData.data;
-      for (let i = 0; i < data.length; i += 4) {
-        if (data[i] > 230 && data[i + 1] > 230 && data[i + 2] > 230) {
-          data[i + 3] = 0;
-        }
-      }
-      ctx.putImageData(imageData, 0, 0);
-      setProcessedSrc(canvas.toDataURL());
-    };
-  }, [src]);
-
+function CorporateCharacter({ isMoving }: { isMoving: boolean }) {
   return (
-    <>
-      <canvas ref={canvasRef} className="hidden" />
-      {processedSrc ? (
-        <img src={processedSrc} alt={alt} className={className} />
-      ) : (
-        <img src={src} alt={alt} className={`${className} opacity-0`} />
-      )}
-    </>
+    <div className={`relative w-12 h-16 flex flex-col items-center ${isMoving ? 'animate-walking' : 'animate-breathing'}`}>
+      {/* Head */}
+      <div className="w-6 h-6 bg-[#fcd34d] rounded-full border-2 border-slate-900 z-10 shadow-sm" />
+      
+      {/* Body / Suit */}
+      <div className="w-8 h-10 bg-slate-800 rounded-t-lg border-2 border-slate-900 -mt-1 relative overflow-hidden">
+        {/* Shirt */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-3 h-4 bg-white clip-path-shirt" />
+        {/* Tie */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1.5 h-6 bg-red-600 animate-tie" />
+      </div>
+      
+      {/* Legs */}
+      <div className="flex gap-2 -mt-1">
+        <div className={`w-2 h-4 bg-slate-900 rounded-full ${isMoving ? 'animate-leg-left' : ''}`} />
+        <div className={`w-2 h-4 bg-slate-900 rounded-full ${isMoving ? 'animate-leg-right' : ''}`} />
+      </div>
+
+      <style dangerouslySetInnerHTML={{ __html: `
+        .clip-path-shirt {
+          clip-path: polygon(0 0, 100% 0, 50% 100%);
+        }
+        @keyframes walking {
+          0%, 100% { transform: translateY(0) rotate(-2deg); }
+          50% { transform: translateY(-3px) rotate(2deg); }
+        }
+        @keyframes breathing {
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.02); }
+        }
+        @keyframes leg-left {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-4px); }
+        }
+        @keyframes leg-right {
+          0%, 100% { transform: translateY(-4px); }
+          50% { transform: translateY(0); }
+        }
+        @keyframes tie {
+          0%, 100% { transform: translateX(-50%) rotate(-2deg); }
+          50% { transform: translateX(-50%) rotate(2deg); }
+        }
+      `}} />
+    </div>
+  );
+}
+
+/**
+ * Ambiente Empresarial (Skyline SVG)
+ */
+function CorporateSkyline() {
+  return (
+    <div className="absolute inset-0 pointer-events-none opacity-20">
+      <svg width="100%" height="100%" viewBox="0 0 800 400" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="skyGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#1e293b" />
+            <stop offset="100%" stopColor="#334155" />
+          </linearGradient>
+        </defs>
+        <rect width="800" height="400" fill="url(#skyGrad)" />
+        
+        {/* Prédios ao fundo */}
+        <rect x="50" y="200" width="60" height="200" fill="#0f172a" />
+        <rect x="150" y="100" width="80" height="300" fill="#0f172a" />
+        <rect x="280" y="150" width="70" height="250" fill="#0f172a" />
+        <rect x="420" y="80" width="90" height="320" fill="#0f172a" />
+        <rect x="580" y="180" width="60" height="220" fill="#0f172a" />
+        <rect x="700" y="120" width="70" height="280" fill="#0f172a" />
+
+        {/* Janelas iluminadas (animadas aleatoriamente) */}
+        {[...Array(40)].map((_, i) => (
+          <rect 
+            key={i}
+            x={55 + (Math.random() * 700)} 
+            y={100 + (Math.random() * 250)} 
+            width="4" 
+            height="4" 
+            fill={Math.random() > 0.5 ? "#fbbf24" : "#38bdf8"}
+            className="animate-pulse"
+            style={{ animationDelay: `${Math.random() * 5}s` }}
+          />
+        ))}
+      </svg>
+    </div>
   );
 }
 
 interface MapaJornadaComercialProps {
   etapaAtual: EtapaFunil;
   resultadoComercial?: string;
+  performer?: string;
 }
 
-export function MapaJornadaComercial({ etapaAtual, resultadoComercial }: MapaJornadaComercialProps) {
+export function MapaJornadaComercial({ etapaAtual, resultadoComercial, performer }: MapaJornadaComercialProps) {
+  const [isMoving, setIsMoving] = useState(false);
   const currentIndex = ORDEM_FUNIL.indexOf(etapaAtual);
   const isGanho = resultadoComercial === 'ganho';
   const effectiveIndex = isGanho ? ORDEM_FUNIL.length - 1 : currentIndex;
+
+  // Detectar movimento para animar o personagem
+  useEffect(() => {
+    setIsMoving(true);
+    const timer = setTimeout(() => setIsMoving(false), 2000);
+    return () => clearTimeout(timer);
+  }, [etapaAtual]);
 
   const nodes = useMemo(() => ORDEM_FUNIL.map((etapa, idx) => {
     const row = Math.floor(idx / 4);
     const isEvenRow = row % 2 === 0;
     const colIndex = idx % 4;
     const col = isEvenRow ? colIndex : (3 - colIndex);
-    const y = 25 + (row * 28);
+    const y = 20 + (row * 35); // Aumentado de 30 para 35 para mais espaço vertical
     const x = 12.5 + (col * 25);
-    return { etapa, idx, x, y, isPassed: idx < effectiveIndex, isBoss: etapa === 'pos_venda' };
+    return { etapa, idx, x, y, isPassed: idx < effectiveIndex };
   }), [effectiveIndex]);
 
   const activeNode = nodes[effectiveIndex] || nodes[0];
 
   return (
-    <div className="w-full flex flex-col gap-5 p-2 selective-font">
-      {/* HUD PRINCIPAL - ESTILO NINTENDO SWITCH / MODERNO */}
-      <div className="flex items-center justify-between px-6 py-3 bg-slate-900 rounded-2xl shadow-[0_10px_20px_-10px_rgba(0,0,0,0.5)] border-b-4 border-slate-950">
-        <div className="flex items-center gap-4">
-            <div className="p-2 bg-blue-500 rounded-lg shadow-[inset_0_2px_4px_rgba(255,255,255,0.4)]">
-                <Navigation size={22} className="text-white animate-pulse" />
-            </div>
-            <div>
-                <h3 className="text-lg font-black text-white leading-tight tracking-wider uppercase italic">Biasí Adventure</h3>
-                <p className="text-[10px] text-blue-300 font-bold uppercase tracking-widest">Global World Map</p>
-            </div>
+    <div className="w-full flex flex-col gap-6 p-4 font-sans antialiased">
+      {/* HUD - CORPORATE EXECUTIVE DASHBOARD */}
+      <div className="flex items-center justify-between px-8 py-5 bg-gradient-to-r from-slate-900 to-slate-800 rounded-3xl shadow-xl border border-slate-700/50">
+        <div className="flex items-center gap-5">
+          <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-500/20">
+            <Target size={24} className="text-white" />
+          </div>
+          <div>
+            <h3 className="text-xl font-bold text-white tracking-tight leading-none">BIASÍ JOURNEY</h3>
+            <p className="text-[10px] text-blue-400 font-bold uppercase tracking-[0.2em] mt-1.5 flex items-center gap-1.5">
+              <Zap size={10} className="fill-blue-400" /> Executive Progress Monitor
+            </p>
+          </div>
         </div>
-        
-        <div className="flex items-center gap-6">
-            <div className="hidden lg:flex flex-col items-end">
-                <span className="text-[10px] text-slate-400 font-bold uppercase">Progresso</span>
-                <div className="w-32 h-2 bg-slate-800 rounded-full mt-1 border border-slate-700 overflow-hidden">
-                    <div 
-                        className="h-full bg-gradient-to-r from-blue-500 to-cyan-400 transition-all duration-1000 shadow-[0_0_10px_rgba(6,182,212,0.5)]"
-                        style={{ width: `${(effectiveIndex / (ORDEM_FUNIL.length - 1)) * 100}%` }}
-                    />
-                </div>
+
+        <div className="flex items-center gap-8">
+          <div className="hidden md:flex flex-col items-end">
+            <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-2">Conclusão do Business Plan</span>
+            <div className="w-48 h-2 bg-slate-950 rounded-full border border-slate-700 overflow-hidden shadow-inner">
+              <div 
+                className="h-full bg-gradient-to-r from-blue-500 via-cyan-400 to-blue-500 bg-[size:200%_auto] animate-[shimmer_2s_linear_infinite] transition-all duration-1000"
+                style={{ width: `${(effectiveIndex / (ORDEM_FUNIL.length - 1)) * 100}%` }}
+              />
             </div>
-            <div className="flex items-center gap-2 px-4 py-2 bg-slate-800 rounded-xl border border-slate-700 shadow-inner">
-                <Zap size={16} className="text-yellow-400 fill-yellow-400" />
-                <span className="text-sm font-black text-white">{effectiveIndex * 100} PTS</span>
-            </div>
+          </div>
+          <div className="flex flex-col items-center px-6 py-2 bg-slate-950/50 rounded-2xl border border-slate-800 shadow-inner">
+             <span className="text-2xl font-black text-white">{effectiveIndex * 250}</span>
+             <span className="text-[9px] font-black text-blue-500 uppercase tracking-tighter">Corporate XP</span>
+          </div>
         </div>
       </div>
-      
-      {/* MUNDO ADVENTURE - CAMADAS DE PARALLAX */}
-      <div className="relative w-full h-[450px] rounded-[3rem] border-[12px] border-slate-900 overflow-hidden shadow-[0_30px_70px_rgba(0,0,0,0.5)] ring-4 ring-slate-800/10 active:scale-[0.99] transition-transform">
+
+      {/* MUNDO EMPRESARIAL */}
+      <div className="relative w-full h-[600px] rounded-[3.5rem] bg-[#0f172a] border-[10px] border-slate-900 overflow-hidden shadow-2xl ring-1 ring-slate-700/30 group">
         
-        {/* Camada 0: Céu */}
-        <div className="absolute inset-0 bg-gradient-to-b from-[#87CEEB] to-[#E0F6FF]" />
+        <CorporateSkyline />
 
-        {/* Camada 1: Nuvens Parallax (Movimento Lento) */}
-        <div 
-            className="absolute inset-0 opacity-40 animate-[parallax_120s_linear_infinite]"
+        {/* Chão / Escritório */}
+        <div className="absolute inset-0">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_120%,rgba(30,58,138,0.2)_0%,transparent_60%)]" />
+          <div 
+            className="absolute inset-0 opacity-[0.03]"
             style={{ 
-                backgroundImage: 'url("/mapa_clouds.png")',
-                backgroundSize: 'cover',
-                backgroundRepeat: 'repeat-x'
+              backgroundImage: `repeating-linear-gradient(0deg, #fff 0, #fff 1px, transparent 1px, transparent 40px), repeating-linear-gradient(90deg, #fff 0, #fff 1px, transparent 1px, transparent 40px)`
             }} 
-        />
+          />
+        </div>
 
-        {/* Camada 2: Colinas Parallax (Movimento Médio) */}
-        <div 
-            className="absolute -bottom-10 left-0 right-0 h-1/2 opacity-60 animate-[parallax_80s_linear_infinite]"
-            style={{ 
-                backgroundImage: 'url("/mapa_hills.png")',
-                backgroundSize: 'contain',
-                backgroundRepeat: 'repeat-x',
-                backgroundPosition: 'bottom'
-            }} 
-        />
-
-        {/* Camada 3: Textura de Grama (Base) */}
-        <div 
-            className="absolute inset-0 opacity-100 mix-blend-overlay"
-            style={{ 
-                backgroundImage: 'url("/mapa_background_pixel.png")',
-                backgroundSize: '100px 100px', 
-                imageRendering: 'pixelated'
-            }} 
-        />
-
-        {/* Vinheta Estilizada */}
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_30%,rgba(0,0,0,0.4)_120%)] pointer-events-none" />
-        
-        {/* ESTRADAS DINÂMICAS (Curvas de Bézier) */}
+        {/* PATH / ESTRADA CORPORATIVA */}
         <svg className="absolute inset-0 w-full h-full pointer-events-none z-[5]">
           {nodes.map((node, i) => {
             if (i === nodes.length - 1) return null;
             const next = nodes[i + 1];
             const isLinePassed = node.idx < effectiveIndex;
             
-            // Calculando o ponto de controle para a curva
             const midX = (node.x + next.x) / 2;
             const midY = (node.y + next.y) / 2;
             const isVerticalMove = Math.abs(node.x - next.x) < 5;
-            const cpX = isVerticalMove ? midX + (i % 2 === 0 ? 5 : -5) : midX;
+            const cpX = isVerticalMove ? midX + (i % 2 === 0 ? 4 : -4) : midX;
             const cpY = isVerticalMove ? midY : midY + (i % 2 === 0 ? 3 : -3);
 
             const pathData = `M ${node.x} ${node.y} Q ${cpX} ${cpY} ${next.x} ${next.y}`;
 
             return (
               <React.Fragment key={`path-${i}`}>
-                {/* Sombra da Estrada */}
-                <path d={pathData} fill="none" stroke="rgba(0,0,0,0.3)" strokeWidth="20" strokeLinecap="round" transform="translate(0, 1)" />
-                {/* A Estrada em si */}
                 <path 
-                    d={pathData} 
-                    fill="none" 
-                    stroke={isLinePassed ? '#FFD700' : '#E2E8F0'} 
-                    strokeWidth="12" 
-                    strokeLinecap="round"
-                    className="transition-all duration-1000 ease-in-out"
-                    style={{ filter: isLinePassed ? 'drop-shadow(0 0 8px rgba(255,215,0,0.5))' : 'none' }}
+                  d={pathData} 
+                  fill="none" 
+                  stroke="rgba(30, 41, 59, 0.5)" 
+                  strokeWidth="16" 
+                  strokeLinecap="round" 
                 />
-                {/* Listras da Estrada para visualizar movimento */}
                 <path 
+                  d={pathData} 
+                  fill="none" 
+                  stroke={isLinePassed ? '#3b82f6' : '#1e293b'} 
+                  strokeWidth="8" 
+                  strokeLinecap="round"
+                  className="transition-all duration-1000 ease-in-out"
+                  style={{ filter: isLinePassed ? 'drop-shadow(0 0 12px rgba(59,130,246,0.6))' : 'none' }}
+                />
+                {/* Pontos de luz correndo no path */}
+                {isLinePassed && (
+                  <path 
                     d={pathData} 
                     fill="none" 
                     stroke="white" 
                     strokeWidth="2" 
-                    strokeDasharray="1, 8" 
+                    strokeDasharray="2, 20" 
                     strokeLinecap="round" 
-                    className="opacity-40"
-                />
+                    className="animate-flow-dash"
+                  />
+                )}
               </React.Fragment>
             );
           })}
         </svg>
 
-        {/* O AVATAR BIASÍ (O Herói) */}
+        {/* O PERSONAGEM (LOGGED USER) */}
         <div 
-          className="absolute -translate-x-1/2 -translate-y-1/2 z-[100] transition-all duration-1000 ease-[cubic-bezier(0.34,1.56,0.64,1)] flex flex-col items-center group"
+          className="absolute -translate-x-1/2 -translate-y-1/2 z-[200] transition-all duration-[2000ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] flex flex-col items-center"
           style={{ left: `${activeNode.x}%`, top: `${activeNode.y}%` }}
         >
-          {/* Aura de Poder ao redor do Herói */}
-          <div className="absolute inset-0 w-32 h-32 -translate-x-1/2 -translate-y-1/2 bg-blue-400/20 rounded-full blur-3xl animate-pulse" />
+          <div className="absolute -inset-8 bg-blue-500/10 rounded-full blur-2xl animate-pulse" />
+          <CorporateCharacter isMoving={isMoving} />
           
-          {/* Sombra Realista */}
-          <div className="absolute top-[40px] w-12 h-4 bg-black/40 rounded-[100%] blur-[6px] animate-[bounceScale_1.2s_infinite]" />
-          
-          {/* Modelo 3D com animação idle premium */}
-          <div className="relative w-[100px] h-[100px] -translate-y-[55px] animate-[heroFloat_2.5s_ease-in-out_infinite] cursor-pointer active:scale-90 transition-transform">
-            <TransparentSprite 
-                src="/vendedor_3d_clean.png" 
-                alt="Biasí Hero" 
-                className="w-full h-full object-contain drop-shadow-[0_20px_20px_rgba(0,0,0,0.4)]"
-            />
-            {/* Tag de Nome / Balão de Fala */}
-            <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-white text-blue-900 text-[10px] font-black px-4 py-1.5 rounded-2xl shadow-xl border-2 border-blue-100 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
-                Olá! Vamos avançar? 👋
-            </div>
+          {/* Nome do Colaborador */}
+          <div className="absolute -top-14 left-1/2 -translate-x-1/2 bg-slate-900 border border-slate-700 text-white text-[9px] font-black px-3 py-1.5 rounded-xl shadow-2xl whitespace-nowrap">
+            {performer || 'EXECUTIVO EM MISSÃO'} 💼
           </div>
         </div>
 
-        {/* BOSS FINAL: CLIENTE FINAL */}
+        {/* SEDE DO CLIENTE (FINAL GOAL) */}
         <div 
           className="absolute z-[50] flex flex-col items-center"
           style={{ left: `${nodes[nodes.length - 1].x}%`, top: `${nodes[nodes.length - 1].y}%` }}
         >
-           <div className={`relative w-[110px] h-[110px] -translate-x-1/2 -translate-y-[85%] transition-all duration-1000 ${isGanho ? 'scale-125 drop-shadow-[0_0_30px_rgba(255,215,0,0.6)]' : 'grayscale brightness-75 opacity-80 scale-95'}`}>
-              <TransparentSprite 
-                  src="/cliente_boss_clean.png" 
-                  alt="Boss" 
-                  className="w-full h-full object-contain"
-              />
-              <div className="absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap bg-gradient-to-r from-red-600 via-orange-500 to-red-600 bg-[size:200%_auto] animate-[shimmer_2s_linear_infinite] text-white font-black text-[12px] px-5 py-2 rounded-xl border-4 border-white shadow-[0_10px_25px_rgba(220,38,38,0.5)] italic uppercase tracking-tighter">
-                  LEVEL BOSS
+           <div className={`relative -translate-x-1/2 -translate-y-[60%] flex flex-col items-center transition-all duration-1000 ${isGanho ? 'scale-110' : 'opacity-80'}`}>
+              {/* Prédio 3D Representational */}
+              <div className="relative w-28 h-40 bg-slate-900 rounded-t-xl border-t-4 border-x-4 border-slate-700 flex flex-col shadow-[0_20px_50px_rgba(0,0,0,0.5)] overflow-hidden">
+                {/* Antena / Topo */}
+                <div className="absolute top-0 right-4 w-1 h-8 bg-slate-700 -translate-y-full flex flex-col items-center">
+                  <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse shadow-[0_0_10px_red]" />
+                </div>
+
+                {/* Letreiro Luminoso */}
+                <div className={`w-full py-2 flex items-center justify-center border-b border-slate-800 ${isGanho ? 'bg-blue-600/20' : 'bg-slate-800/40'}`}>
+                  <div className={`w-16 h-1 rounded-full ${isGanho ? 'bg-blue-400 animate-pulse shadow-[0_0_10px_#3b82f6]' : 'bg-slate-700'}`} />
+                </div>
+
+                {/* Janelas Matriz */}
+                <div className="flex-1 p-3 grid grid-cols-3 gap-2">
+                   {[...Array(12)].map((_, i) => (
+                      <div 
+                        key={i} 
+                        className={`rounded-sm transition-colors duration-500 ${isGanho ? (Math.random() > 0.3 ? 'bg-blue-400 shadow-[0_0_5px_#60a5fa]' : 'bg-slate-800') : (Math.random() > 0.7 ? 'bg-slate-700' : 'bg-slate-950')}`} 
+                      />
+                   ))}
+                </div>
+                
+                {/* Entrada / Lobby */}
+                <div className="h-8 bg-slate-800 mt-auto border-t border-slate-700 flex items-center justify-center">
+                   <div className="w-10 h-full bg-slate-950/50 flex items-center justify-center border-x border-slate-600">
+                      <Building2 size={16} className={isGanho ? "text-blue-400" : "text-slate-600"} />
+                   </div>
+                </div>
               </div>
+
+              {/* Tag de Nome do Prédio */}
+              <div className={`absolute -top-12 left-1/2 -translate-x-1/2 whitespace-nowrap px-4 py-2 rounded-xl border-2 font-black text-[10px] tracking-widest shadow-2xl transition-all
+                ${isGanho ? 'bg-blue-600 text-white border-white animate-bounce' : 'bg-slate-900 text-slate-500 border-slate-700'}`}>
+                  CLIENT HEADQUARTERS 🏢
+              </div>
+
+              {/* Brilho de baixo */}
+              {isGanho && <div className="absolute bottom-0 w-32 h-8 bg-blue-500/20 blur-2xl rounded-full" />}
            </div>
         </div>
 
-        {/* NÓS DO MUNDO (Fases) */}
+        {/* NÓS DE PROGRESSO */}
         {nodes.map((node) => {
-          if (node.isBoss) return null;
+          if (node.idx === nodes.length - 1) return null;
 
           return (
             <div
@@ -235,25 +296,27 @@ export function MapaJornadaComercial({ etapaAtual, resultadoComercial }: MapaJor
               className="absolute transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center z-10"
               style={{ left: `${node.x}%`, top: `${node.y}%` }}
             >
-              {/* Botão SNES 3D Refinado */}
+              {/* Terminal de Acesso */}
               <div
-                className={`w-11 h-11 rounded-2xl border-4 flex items-center justify-center transition-all duration-700 shadow-[0_6px_0_0_rgba(0,0,0,0.3)] hover:scale-110 active:translate-y-1 active:shadow-none cursor-pointer
-                ${node.idx < effectiveIndex ? 'bg-gradient-to-br from-yellow-300 via-yellow-400 to-yellow-600 border-yellow-100 shadow-[0_6px_0_0_#b45309]' : 
-                  node.idx === effectiveIndex ? 'bg-white border-blue-500 ring-8 ring-blue-500/20' : 
-                  'bg-gradient-to-br from-slate-200 to-slate-400 border-white'}`}
+                className={`w-10 h-10 rounded-xl border-2 flex items-center justify-center transition-all duration-700 shadow-lg 
+                ${node.idx < effectiveIndex ? 'bg-blue-600 border-blue-400 rotate-45 shadow-blue-500/30' : 
+                  node.idx === effectiveIndex ? 'bg-white border-blue-500 shadow-white/20 animate-pulse' : 
+                  'bg-slate-900 border-slate-800'}`}
               >
-                {node.idx < effectiveIndex ? (
-                    <Award size={20} className="text-yellow-900 drop-shadow-sm" />
-                ) : node.idx === effectiveIndex ? (
-                    <div className="w-4 h-4 bg-blue-500 rounded-full animate-ping" />
-                ) : (
-                    <Lock size={16} className="text-slate-500 opacity-60" />
-                )}
+                <div className={`${node.idx < effectiveIndex ? '-rotate-45' : ''}`}>
+                  {node.idx < effectiveIndex ? (
+                      <ShieldCheck size={18} className="text-white" />
+                  ) : node.idx === effectiveIndex ? (
+                      <Zap size={16} className="text-blue-600 fill-blue-600" />
+                  ) : (
+                      <Briefcase size={14} className="text-slate-700" />
+                  )}
+                </div>
               </div>
 
-              {/* Rótulo de Plataforma */}
-              <div className={`mt-5 whitespace-nowrap text-[10px] font-black px-4 py-1.5 rounded-lg border-2 shadow-2xl transition-all
-              ${node.idx === effectiveIndex ? 'bg-blue-600 text-white border-blue-400 -translate-y-2' : 'bg-white/95 text-slate-800 border-slate-200'}`}>
+              {/* Rótulo Corporativo */}
+              <div className={`mt-6 whitespace-nowrap text-[9px] font-black px-3 py-1.5 rounded-lg border transition-all tracking-tighter
+              ${node.idx === effectiveIndex ? 'bg-blue-600 text-white border-blue-400 -translate-y-1 shadow-lg' : 'bg-slate-900/90 text-slate-400 border-slate-800'}`}>
                 {ETAPA_LABELS[node.etapa]}
               </div>
             </div>
@@ -261,31 +324,25 @@ export function MapaJornadaComercial({ etapaAtual, resultadoComercial }: MapaJor
         })}
       </div>
 
-      {/* FOOTER DO MAPA */}
-      <div className="px-8 flex items-center justify-center gap-2">
-            <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-            <p className="text-[11px] font-bold text-slate-600 uppercase tracking-widest leading-none">Status: Adventure in Progress</p>
+      {/* FOOTER - STATUS LOG */}
+      <div className="flex items-center justify-between px-6">
+          <div className="flex items-center gap-3">
+              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Sincronizado: Business Intelligence Core</p>
+          </div>
+          <p className="text-[10px] font-medium text-slate-400 italic">"A jornada para o fechamento é construída etapa por etapa."</p>
       </div>
 
       <style dangerouslySetInnerHTML={{ __html: `
-        @keyframes parallax {
-          from { background-position: 0px bottom; }
-          to { background-position: -2000px bottom; }
-        }
-        @keyframes heroFloat {
-          0%, 100% { transform: translateY(-55px) rotate(0deg); }
-          50% { transform: translateY(-70px) rotate(2deg); }
-        }
-        @keyframes bounceScale {
-          0%, 100% { transform: scale(1); opacity: 0.4; }
-          50% { transform: scale(1.3); opacity: 0.2; }
-        }
         @keyframes shimmer {
-          0% { background-position: 0% 50%; }
-          100% { background-position: 200% 50%; }
+          0% { background-position: 200% 0; }
+          100% { background-position: -200% 0; }
         }
-        .selective-font {
-          font-family: 'Inter', system-ui, sans-serif;
+        @keyframes flow-dash {
+          to { stroke-dashoffset: -200; }
+        }
+        .animate-flow-dash {
+          animation: flow-dash 10s linear infinite;
         }
       `}} />
     </div>

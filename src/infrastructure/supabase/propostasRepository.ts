@@ -551,4 +551,14 @@ export const propostasRepository = {
     if (error) { console.error('deletarMudancaEtapa:', error); return false }
     return true
   },
+  async listarTodasMudancasPendentes(): Promise<(MudancaEtapaRow & { proposta: PropostaSupabase })[]> {
+    const { data, error } = await supabase
+      .from('mudancas_etapa')
+      .select('*, proposta:propostas(*)')
+      .eq('status', 'pendente')
+      .order('created_at', { ascending: false })
+    
+    if (error) { console.error('listarTodasMudancasPendentes:', error); return [] }
+    return (data || []) as (MudancaEtapaRow & { proposta: PropostaSupabase })[]
+  },
 }

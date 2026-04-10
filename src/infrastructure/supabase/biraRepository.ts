@@ -113,5 +113,17 @@ export const biraRepository = {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'bira_tarefas' }, callback)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'bira_comentarios' }, callback)
       .subscribe();
+  },
+
+  async listarMembrosComercial(): Promise<{ id: string; nome: string }[]> {
+    const { data, error } = await supabase
+      .from('perfis')
+      .select('id, nome')
+      .eq('ativo', true)
+      .eq('departamento', 'Comercial')
+      .order('nome');
+
+    if (error) throw error;
+    return data || [];
   }
 };

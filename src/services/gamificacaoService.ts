@@ -51,5 +51,43 @@ export const gamificacaoService = {
     } catch (err) {
       console.error('[Gamificação] Erro ao registrar pontos automáticos:', err);
     }
+  /**
+   * Remove a pontuação se a etapa for desfeita.
+   */
+  async reverterAtividadePorEtapa(vendedor: string, etapa: EtapaFunil): Promise<void> {
+    const tipoAtividade = MAPA_ETAPA_ATIVIDADE[etapa];
+    if (!tipoAtividade) return;
+    await this.reverterAtividadeDireta(vendedor, tipoAtividade);
+  },
+
+  /**
+   * Localiza e remove o registro mais recente de uma atividade para o vendedor.
+   */
+  async reverterAtividadeDireta(vendedor: string, tipoAtividade: string): Promise<void> {
+    try {
+      // Busca o ID do registro mais recente deste tipo para este vendedor
+      const { data, error: searchError } = await supabase
+        .from('vendedor_atividades')
+        .select('id')
+        .eq('vendedor_nome', vendedor)
+        .eq('tipo', tipoAtividade)
+        .order('criado_em', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (searchError) throw searchError;
+      
+      if (data) {
+        const { error: deleteError } = await supabase
+          .from('vendedor_atividades')
+          .delete()
+          .eq('id', data.id);
+        
+        if (deleteError) throw deleteError;
+        console.log(`[Gamificação] Ponto revertido: ${vendedor} (${tipoAtividade})`);
+      }
+    } catch (err) {
+      console.error('[Gamificação] Erro ao reverter pontos:', err);
+    }
   }
 };
