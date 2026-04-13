@@ -1,16 +1,46 @@
-﻿node_modules/
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
 dist/
-.vite/
-.vercel/
+dist-installer/
+build/
+out/
+*.exe
+*.msi
+
+# Electron
+Desktop/apps/
+Desktop/dist-installer/
+Desktop/node_modules/
 
 # Environment
 .env
 .env.local
-.env*.local
+.env.*.local
 
-# Logs / OS
-*.log
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
 .DS_Store
+Thumbs.db
 
-# Local runtime helper (do not commit binaries)
-scripts/node.exe
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Config
+.vercel/
+biasihub-config/
+.claude/
+Desktop/publish-token.bat

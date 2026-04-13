@@ -1,0 +1,253 @@
+﻿@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --glass-bg: rgba(255, 255, 255, 0.7);
+    --glass-border: rgba(255, 255, 255, 0.3);
+    --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
+  }
+
+  body {
+    @apply antialiased text-slate-900 min-h-screen bg-slate-50;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    overflow-x: hidden;
+  }
+
+  #root {
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+}
+
+@layer components {
+  .glass-card {
+    @apply backdrop-blur-md bg-white/70 border border-white/40 shadow-xl shadow-slate-200/50;
+  }
+
+  .mesh-bg {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: -1;
+    background-color: #f8fafc;
+    background-image: 
+      radial-gradient(at 0% 0%, hsla(253,16%,7%,1) 0, transparent 50%), 
+      radial-gradient(at 50% 0%, hsla(225,39%,30%,1) 0, transparent 50%), 
+      radial-gradient(at 100% 0%, hsla(339,49%,30%,1) 0, transparent 50%);
+    opacity: 0.15;
+    filter: blur(80px);
+    animation: mesh-move 20s ease infinite alternate;
+  }
+
+  @keyframes mesh-move {
+    0% { transform: scale(1) translate(0, 0); }
+    100% { transform: scale(1.1) translate(2%, 2%); }
+  }
+
+  .premium-gradient-text {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-slate-900 via-slate-700 to-slate-900;
+  }
+
+  .biasi-theme {
+    overflow-x: hidden;
+    color: #eaf1ff;
+  }
+
+  .biasi-theme main {
+    overflow-x: hidden;
+  }
+
+  .biasi-theme main .bg-white {
+    background: linear-gradient(160deg, rgba(20, 43, 92, 0.92), rgba(14, 33, 74, 0.88)) !important;
+    border-color: rgba(78, 114, 186, 0.7) !important;
+    color: #eaf1ff !important;
+  }
+
+  .biasi-theme main [class*='bg-white/'] {
+    background: linear-gradient(160deg, rgba(20, 43, 92, 0.9), rgba(14, 33, 74, 0.86)) !important;
+    border-color: rgba(78, 114, 186, 0.62) !important;
+    color: #eaf1ff !important;
+  }
+
+  .biasi-theme main .bg-slate-50,
+  .biasi-theme main .bg-slate-100,
+  .biasi-theme main .bg-gray-50,
+  .biasi-theme main .bg-gray-100 {
+    background-color: rgba(10, 24, 58, 0.72) !important;
+  }
+
+  .biasi-theme main [class*='bg-slate-50/'],
+  .biasi-theme main [class*='bg-slate-100/'],
+  .biasi-theme main [class*='bg-gray-50/'],
+  .biasi-theme main [class*='bg-gray-100/'] {
+    background-color: rgba(12, 26, 62, 0.76) !important;
+  }
+
+  .biasi-theme main [class*='bg-blue-50'],
+  .biasi-theme main [class*='bg-sky-50'],
+  .biasi-theme main [class*='bg-cyan-50'] {
+    background-color: rgba(28, 66, 148, 0.26) !important;
+    border-color: rgba(97, 142, 236, 0.38) !important;
+  }
+
+  .biasi-theme main [class*='bg-indigo-50'],
+  .biasi-theme main [class*='bg-purple-50'] {
+    background-color: rgba(76, 63, 170, 0.24) !important;
+    border-color: rgba(137, 126, 238, 0.38) !important;
+  }
+
+  .biasi-theme main [class*='bg-emerald-50'],
+  .biasi-theme main [class*='bg-green-50'] {
+    background-color: rgba(22, 101, 52, 0.24) !important;
+    border-color: rgba(82, 208, 146, 0.36) !important;
+  }
+
+  .biasi-theme main [class*='bg-amber-50'],
+  .biasi-theme main [class*='bg-yellow-50'],
+  .biasi-theme main [class*='bg-orange-50'] {
+    background-color: rgba(120, 73, 15, 0.24) !important;
+    border-color: rgba(245, 191, 82, 0.38) !important;
+  }
+
+  .biasi-theme main [class*='bg-red-50'],
+  .biasi-theme main [class*='bg-rose-50'] {
+    background-color: rgba(127, 29, 29, 0.25) !important;
+    border-color: rgba(244, 114, 142, 0.36) !important;
+  }
+
+  .biasi-theme main .text-slate-900,
+  .biasi-theme main .text-slate-800,
+  .biasi-theme main .text-slate-700,
+  .biasi-theme main .text-slate-600,
+  .biasi-theme main .text-slate-300,
+  .biasi-theme main .text-gray-900,
+  .biasi-theme main .text-gray-800,
+  .biasi-theme main .text-gray-700,
+  .biasi-theme main .text-gray-600 {
+    color: #f2f7ff !important;
+  }
+
+  .biasi-theme main .text-slate-500,
+  .biasi-theme main .text-slate-400,
+  .biasi-theme main .text-gray-500,
+  .biasi-theme main .text-gray-400 {
+    color: #c8d8ff !important;
+  }
+
+  .biasi-theme main .text-blue-700,
+  .biasi-theme main .text-blue-600,
+  .biasi-theme main .text-sky-700,
+  .biasi-theme main .text-sky-600 {
+    color: #9bc0ff !important;
+  }
+
+  .biasi-theme main .text-indigo-700,
+  .biasi-theme main .text-indigo-600,
+  .biasi-theme main .text-purple-700,
+  .biasi-theme main .text-purple-600 {
+    color: #b8b8ff !important;
+  }
+
+  .biasi-theme main .text-emerald-700,
+  .biasi-theme main .text-emerald-600,
+  .biasi-theme main .text-green-700,
+  .biasi-theme main .text-green-600 {
+    color: #79e3b9 !important;
+  }
+
+  .biasi-theme main .text-amber-700,
+  .biasi-theme main .text-amber-600,
+  .biasi-theme main .text-yellow-700,
+  .biasi-theme main .text-yellow-600,
+  .biasi-theme main .text-orange-700,
+  .biasi-theme main .text-orange-600 {
+    color: #ffd47a !important;
+  }
+
+  .biasi-theme main .text-red-700,
+  .biasi-theme main .text-red-600,
+  .biasi-theme main .text-rose-700,
+  .biasi-theme main .text-rose-600 {
+    color: #ff9fb3 !important;
+  }
+
+  .biasi-theme main [class*='text-[#233772]'],
+  .biasi-theme main [class*='text-[#172754]'],
+  .biasi-theme main [class*='text-[#0f1c3f]'],
+  .biasi-theme main [class*='text-[#0F1C3F]'],
+  .biasi-theme main [class*='text-[#0A173D]'],
+  .biasi-theme main [class*='text-[#4B5D89]'],
+  .biasi-theme main [class*='text-[#5C73A8]'],
+  .biasi-theme main [class*='text-[#6A7FAA]'],
+  .biasi-theme main [class*='text-[#7A8BAF]'],
+  .biasi-theme main [class*='text-[#B3B3B3]'] {
+    color: #e8f0ff !important;
+  }
+
+  .biasi-theme main [style*='background-color:#fff'],
+  .biasi-theme main [style*='background-color: #fff'],
+  .biasi-theme main [style*='background-color:#ffffff'],
+  .biasi-theme main [style*='background-color: #ffffff'],
+  .biasi-theme main [style*='background-color:white'],
+  .biasi-theme main [style*='background-color: white'] {
+    background-color: rgba(20, 43, 92, 0.92) !important;
+    border-color: rgba(78, 114, 186, 0.62) !important;
+    color: #eaf1ff !important;
+  }
+
+  .biasi-theme main [style*='color:#233772'],
+  .biasi-theme main [style*='color: #233772'],
+  .biasi-theme main [style*='color:#172754'],
+  .biasi-theme main [style*='color: #172754'],
+  .biasi-theme main [style*='color:#0A173D'],
+  .biasi-theme main [style*='color: #0A173D'],
+  .biasi-theme main [style*='color:#0F1C3F'],
+  .biasi-theme main [style*='color: #0F1C3F'],
+  .biasi-theme main [style*='color:#4B5D89'],
+  .biasi-theme main [style*='color: #4B5D89'],
+  .biasi-theme main [style*='color:#5C73A8'],
+  .biasi-theme main [style*='color: #5C73A8'],
+  .biasi-theme main [style*='color:#6A7FAA'],
+  .biasi-theme main [style*='color: #6A7FAA'],
+  .biasi-theme main [style*='color:#7A8BAF'],
+  .biasi-theme main [style*='color: #7A8BAF'],
+  .biasi-theme main [style*='color:#B3B3B3'],
+  .biasi-theme main [style*='color: #B3B3B3'] {
+    color: #e8f0ff !important;
+  }
+
+  .biasi-theme main .border-slate-100,
+  .biasi-theme main .border-slate-200,
+  .biasi-theme main .border-gray-100,
+  .biasi-theme main .border-gray-200 {
+    border-color: rgba(78, 114, 186, 0.55) !important;
+  }
+
+  .biasi-theme main .shadow,
+  .biasi-theme main .shadow-sm,
+  .biasi-theme main .shadow-md {
+    box-shadow: 0 14px 34px rgba(2, 10, 26, 0.38) !important;
+  }
+}
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-slate-200 rounded-full hover:bg-slate-300 transition-colors;
+}
+
+* {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+

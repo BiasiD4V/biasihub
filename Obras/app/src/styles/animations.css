@@ -1,0 +1,187 @@
+/* ═══════════════════════════════════════════════════════════════════ */
+/* ANIMAÇÕES E TRANSIÇÕES GLOBAIS - ERP BIASI                         */
+/* ═══════════════════════════════════════════════════════════════════ */
+
+/* Transições suaves em todo o projeto */
+* {
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+button, a, [role="button"] {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Animação de pulso para elementos interativos */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Animação de fade-in */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+/* Animação de slide-in from left */
+@keyframes slideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-slide-in-left {
+  animation: slideInLeft 0.3s ease-out;
+}
+
+/* Animação de bounce suave */
+@keyframes softBounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-2px);
+  }
+}
+
+.animate-soft-bounce {
+  animation: softBounce 0.4s ease-in-out;
+}
+
+/* Animação de scale */
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-scale-in {
+  animation: scaleIn 0.2s ease-out;
+}
+
+/* Efeito de shimmer para loaders */
+@keyframes shimmer {
+  0% {
+    background-position: -1000px 0;
+  }
+  100% {
+    background-position: 1000px 0;
+  }
+}
+
+.animate-shimmer {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 1000px 100%;
+  animation: shimmer 2s infinite;
+}
+
+/* Transição suave para modals e overlays */
+.modal-enter {
+  animation: fadeIn 0.2s ease-out;
+}
+
+.modal-exit {
+  animation: fadeIn 0.2s ease-out reverse;
+}
+
+/* Hover effect para cards */
+.card-hover {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.1);
+}
+
+/* Transição para mudanças de cor */
+.color-transition {
+  transition: color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease;
+}
+
+/* Smooth transitions para transform */
+.smooth-transform {
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Reduz animações para usuários que preferem movimento reduzido */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ═════════════════════════════════════════════════════════════════════ */
+/* STYLES ESPECÍFICOS PARA O ERP BIASI                                  */
+/* ═════════════════════════════════════════════════════════════════════ */
+
+/* Sombras padrão da Biasi */
+.shadow-biasi-sm {
+  box-shadow: 0 1px 3px rgba(35, 55, 114, 0.05);
+}
+
+.shadow-biasi-md {
+  box-shadow: 0 4px 12px rgba(35, 55, 114, 0.1);
+}
+
+.shadow-biasi-lg {
+  box-shadow: 0 8px 24px rgba(35, 55, 114, 0.12);
+}
+
+/* Bordas padrão */
+.border-biasi {
+  border-radius: 0.75rem;
+  border: 1px solid #e2e8f0;
+}
+
+/* Transição suave em inputs */
+input,
+textarea,
+select {
+  transition: all 0.2s ease;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  box-shadow: 0 0 0 3px rgba(35, 55, 114, 0.1);
+  border-color: #233772;
+}
+
+/* Estilo para código e snippets */
+code,
+pre {
+  font-family: 'Courier New', monospace;
+}

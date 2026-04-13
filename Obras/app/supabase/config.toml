@@ -1,0 +1,14 @@
+# Configuração Supabase — ERP Biasi Engenharia
+
+[auth]
+site_url = "https://biasiobras.vercel.app"
+additional_redirect_urls = ["https://biasiobras.vercel.app", "https://biasiobras.vercel.app/**", "http://localhost:3002"]
+
+[functions.manage-user]
+verify_jwt = false
+
+[functions.sienge-sync]
+verify_jwt = false
+
+[functions.send-email]
+verify_jwt = false

@@ -1,0 +1,285 @@
+import { supabase } from './client';
+
+export interface Solicitacao {
+  id: string;
+  nome: string;
+  email: string;
+  status: 'pendente' | 'aprovado' | 'negado';
+  cargo_id: string | null;
+  analisado_por: string | null;
+  analisado_em: string | null;
+  observacao: string | null;
+  criado_em: string;
+  cargo?: { nome: string; papel: string } | null;
+}
+
+export interface Cargo {
+  id: string;
+  nome: string;
+  papel: string;
+  descricao: string | null;
+  ativo: boolean;
+  criado_em: string;
+}
+
+export interface ModuloAcesso {
+  id: string;
+  modulo_key: string;
+  papeis: string[];
+  disponivel: boolean;
+  atualizado_por: string | null;
+  atualizado_em: string | null;
+}
+
+type ModuloAcessoRow = {
+  id: string;
+  modulo_key: string;
+  papeis?: string[] | null;
+  papeis_permitidos?: string[] | null;
+  disponivel: boolean;
+  atualizado_por: string | null;
+  atualizado_em: string | null;
+};
+
+function normalizarModulo(row: ModuloAcessoRow): ModuloAcesso {
+  return {
+    id: row.id,
+    modulo_key: row.modulo_key,
+    papeis: (row.papeis ?? row.papeis_permitidos ?? []).filter(Boolean),
+    disponivel: row.disponivel,
+    atualizado_por: row.atualizado_por,
+    atualizado_em: row.atualizado_em,
+  };
+}
+
+export const acessoRepository = {
+  async listarSolicitacoes(status?: string): Promise<Solicitacao[]> {
+    let query = supabase
+      .from('solicitacoes_acesso')
+      .select('*, cargo:cargos(nome, papel)')
+      .order('criado_em', { ascending: false });
+
+    if (status) {
+      query = query.eq('status', status);
+    }
+
+    const { data, error } = await query;
+    if (error) {
+      console.error('Erro ao listar solicitações:', error);
+      return [];
+    }
+    return (data ?? []) as Solicitacao[];
+  },
+
+  async aprovarSolicitacao(
+    id: string,
+    cargoId: string,
+    adminId: string
+  ): Promise<{ sucesso: boolean; erro?: string; senhaTemp?: string }> {
+    // 1. Busca dados da solicitação e do cargo
+    const { data: sol } = await supabase
+      .from('solicitacoes_acesso')
+      .select('nome, email')
+      .eq('id', id)
+      .single();
+
+    const { data: cargo } = await supabase
+      .from('cargos')
+      .select('papel')
+      .eq('id', cargoId)
+      .single();
+
+    if (!sol || !cargo) return { sucesso: false, erro: 'Dados da solicitação não encontrados.' };
+
+    // 2. Gera senha temporária segura (ex: "Biasi@A3x7")
+    const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+    const rand = Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+    const senhaTemp = `Biasi@${rand}`;
+
+    // 3. Cria usuário no Auth via Electron bridge (service role)
+    const bridge = (window as any).electronBridge;
+    if (bridge?.criarUsuario) {
+      const res = await bridge.criarUsuario({
+        email: sol.email,
+        nome: sol.nome,
+        papel: cargo.papel,
+        senhaTemp,
+      });
+      if (!res.sucesso) return { sucesso: false, erro: res.erro };
+    } else {
+      return { sucesso: false, erro: 'Electron bridge não disponível.' };
+    }
+
+    // 4. Marca solicitação como aprovada
+    const { error } = await supabase
+      .from('solicitacoes_acesso')
+      .update({
+        status: 'aprovado',
+        cargo_id: cargoId,
+        analisado_por: adminId,
+        analisado_em: new Date().toISOString(),
+      })
+      .eq('id', id);
+
+    if (error) return { sucesso: false, erro: error.message };
+    return { sucesso: true, senhaTemp };
+  },
+
+  async negarSolicitacao(id: string, adminId: string, observacao?: string): Promise<{ sucesso: boolean; erro?: string }> {
+    const { error } = await supabase
+      .from('solicitacoes_acesso')
+      .update({
+        status: 'negado',
+        analisado_por: adminId,
+        analisado_em: new Date().toISOString(),
+        observacao: observacao ?? null,
+      })
+      .eq('id', id);
+
+    if (error) return { sucesso: false, erro: error.message };
+    return { sucesso: true };
+  },
+
+  async contarPendentes(): Promise<number> {
+    const { count, error } = await supabase
+      .from('solicitacoes_acesso')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'pendente');
+
+    if (error) return 0;
+    return count ?? 0;
+  },
+
+  async listarCargos(): Promise<Cargo[]> {
+    const { data, error } = await supabase
+      .from('cargos')
+      .select('*')
+      .eq('ativo', true)
+      .order('nome', { ascending: true });
+
+    if (error) {
+      console.error('Erro ao listar cargos:', error);
+      return [];
+    }
+    return (data ?? []) as Cargo[];
+  },
+
+  async listarTodosCargos(): Promise<Cargo[]> {
+    const { data, error } = await supabase
+      .from('cargos')
+      .select('*')
+      .order('nome', { ascending: true });
+
+    if (error) {
+      console.error('Erro ao listar cargos:', error);
+      return [];
+    }
+    return (data ?? []) as Cargo[];
+  },
+
+  async criarCargo(nome: string, papel: string, descricao: string): Promise<{ sucesso: boolean; erro?: string; cargo?: Cargo }> {
+    const { data, error } = await supabase
+      .from('cargos')
+      .insert({ nome, papel, descricao, ativo: true })
+      .select()
+      .single();
+
+    if (error) return { sucesso: false, erro: error.message };
+    return { sucesso: true, cargo: data as Cargo };
+  },
+
+  async desativarCargo(id: string): Promise<{ sucesso: boolean; erro?: string }> {
+    const { error } = await supabase
+      .from('cargos')
+      .update({ ativo: false })
+      .eq('id', id);
+
+    if (error) return { sucesso: false, erro: error.message };
+    return { sucesso: true };
+  },
+
+  async listarModulos(): Promise<ModuloAcesso[]> {
+    const { data, error } = await supabase
+      .from('modulo_acesso')
+      .select('*')
+      .order('modulo_key', { ascending: true });
+
+    if (error) {
+      console.error('Erro ao listar módulos:', error);
+      return [];
+    }
+    return ((data ?? []) as ModuloAcessoRow[]).map(normalizarModulo);
+  },
+
+  async salvarModulo(
+    moduloKey: string,
+    papeis: string[],
+    disponivel: boolean,
+    adminId: string
+  ): Promise<{ sucesso: boolean; erro?: string }> {
+    const payloadBase = {
+      modulo_key: moduloKey,
+      disponivel,
+      atualizado_por: adminId,
+      atualizado_em: new Date().toISOString(),
+    };
+
+    const { error } = await supabase
+      .from('modulo_acesso')
+      .upsert(
+        {
+          ...payloadBase,
+          papeis,
+        },
+        { onConflict: 'modulo_key' }
+      );
+
+    if (!error) return { sucesso: true };
+
+    // Compatibilidade com schema legado (coluna papeis_permitidos).
+    if (String(error.message).toLowerCase().includes('papeis')) {
+      const { error: legacyError } = await supabase
+        .from('modulo_acesso')
+        .upsert(
+          {
+            ...payloadBase,
+            papeis_permitidos: papeis,
+          },
+          { onConflict: 'modulo_key' }
+        );
+
+      if (legacyError) return { sucesso: false, erro: legacyError.message };
+      return { sucesso: true };
+    }
+
+    return { sucesso: false, erro: error.message };
+  },
+
+  async deletarSolicitacao(id: string): Promise<{ sucesso: boolean; erro?: string }> {
+    const { error } = await supabase
+      .from('solicitacoes_acesso')
+      .delete()
+      .eq('id', id);
+
+    if (error) return { sucesso: false, erro: error.message };
+    return { sucesso: true };
+  },
+
+  async criarSolicitacao(nome: string, email: string): Promise<{ sucesso: boolean; erro?: string }> {
+    const { error } = await supabase
+      .from('solicitacoes_acesso')
+      .insert({
+        nome: nome.trim(),
+        email: email.trim().toLowerCase(),
+        status: 'pendente',
+      });
+
+    if (error) {
+      if (error.code === '23505') {
+        return { sucesso: false, erro: 'Já existe uma solicitação com este e-mail.' };
+      }
+      return { sucesso: false, erro: error.message };
+    }
+    return { sucesso: true };
+  },
+};
