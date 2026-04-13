@@ -530,20 +530,7 @@ function setupProtocol() {
     const appName = host.replace('.local', ''); // hub, almoxarifado, comercial
     const pathname = decodeURIComponent(url.pathname);
 
-    // 🚀 REDIRECIONAMENTO AUTOMÁTICO MODO DEV
-    // Se não estiver empacotado, redireciona qualquer request 'app://' para o localhost correspondente
-    if (!app.isPackaged) {
-      const devPorts = {
-        hub: 5174,
-        comercial: 5173,
-        almoxarifado: 5175
-      };
-      const port = devPorts[appName];
-      if (port) {
-        const targetUrl = `http://localhost:${port}${pathname}${url.search}`;
-        return net.fetch(targetUrl);
-      }
-    }
+    // Desktop deve funcionar em modo app local (app://) sem depender de servidor web.
 
     // Rota da API de solicitações (POST)
     if (appName === 'almoxarifado' && pathname === '/api/solicitar') {
@@ -612,13 +599,8 @@ function createWindow() {
     backgroundColor: '#f8fafc',
   });
 
-  // Carrega o Hub como tela inicial
-  if (!app.isPackaged) {
-    win.loadURL('http://localhost:5174');
-    win.webContents.openDevTools();
-  } else {
-    win.loadURL('app://hub.local/');
-  }
+  // Carrega sempre o Hub local via protocolo app:// (sem localhost).
+  win.loadURL('app://hub.local/');
 
   // Abre links externos no browser padrão do sistema
   win.webContents.setWindowOpenHandler(({ url }) => {

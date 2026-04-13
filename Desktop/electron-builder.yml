@@ -3,7 +3,7 @@ productName: BiasíHub
 copyright: "Copyright © 2025 Biasi Engenharia"
 
 directories:
-  output: BUILD_FINAL_NEW
+  output: dist-installer
   buildResources: resources
 
 files:
