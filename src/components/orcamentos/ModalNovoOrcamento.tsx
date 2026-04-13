@@ -6,7 +6,7 @@ import { useAuth } from '../../context/AuthContext';
 import { clientesRepository, type ClienteSupabase } from '../../infrastructure/supabase/clientesRepository';
 import { propostasRepository } from '../../infrastructure/supabase/propostasRepository';
 import { responsaveisComerciaisRepository, type ResponsavelComercial } from '../../infrastructure/supabase/responsaveisComerciaisRepository';
-import { supabase } from '../../infrastructure/supabase/client';
+import { biraRepository } from '../../infrastructure/supabase/biraRepository';
 import { gamificacaoService } from '../../services/gamificacaoService';
 import { Search, Loader2, X } from 'lucide-react';
 
@@ -45,17 +45,29 @@ export function ModalNovoOrcamento({ aberto, onFechar, onCriado }: ModalNovoOrca
   const [membrosComercial, setMembrosComercial] = useState<{ id: string; nome: string }[]>([]);
 
   useEffect(() => {
+    let ativo = true;
+
     responsaveisComerciaisRepository.listarTodos()
-      .then((r) => setResponsaveis(r.filter((x) => x.ativo)))
+      .then((r) => {
+        if (!ativo) return;
+        setResponsaveis(r.filter((x) => x.ativo));
+      })
       .catch(() => { });
 
-    supabase
-      .from('usuarios')
-      .select('id, nome')
-      .eq('papel', 'comercial')
-      .eq('ativo', true)
-      .order('nome')
-      .then(({ data }) => { setMembrosComercial(data ?? []); });
+    biraRepository
+      .listarMembrosComercial()
+      .then((membros) => {
+        if (!ativo) return;
+        setMembrosComercial(membros);
+      })
+      .catch(() => {
+        if (!ativo) return;
+        setMembrosComercial([]);
+      });
+
+    return () => {
+      ativo = false;
+    };
   }, []);
 
   // ── Clientes do Supabase ──

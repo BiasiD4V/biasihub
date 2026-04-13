@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { Modal } from '../ui/Modal';
 import { useAuth } from '../../context/AuthContext';
 import { useNovoOrcamento } from '../../context/NovoOrcamentoContext';
@@ -102,7 +102,7 @@ export function ModalNovaPendencia({ aberto, onFechar, orcamentoId, onRegistrada
         {/* Descrição */}
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1.5">
-            Descrição do pendência <span className="text-red-500">*</span>
+            Descrição da pendência <span className="text-red-500">*</span>
           </label>
           <textarea
             value={form.descricao}
@@ -168,3 +168,4 @@ export function ModalNovaPendencia({ aberto, onFechar, orcamentoId, onRegistrada
     </Modal>
   );
 }
+

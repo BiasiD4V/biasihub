@@ -1,30 +1,31 @@
+﻿import { useEffect, useMemo, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
-  LayoutDashboard,
-  Users,
-  Truck,
-  Package,
-  Layers,
-  FileText,
-  ClipboardList,
   CheckSquare,
-  Settings,
-  LogOut,
-  Hammer,
-  ListChecks,
-  Smartphone,
-  FileSpreadsheet,
-  Sparkles,
-  MessageCircle,
-  KanbanSquare,
-  HardHat,
+  ClipboardList,
   Download,
+  FileSpreadsheet,
+  FileText,
   Gift,
+  Hammer,
+  HardHat,
   Home,
+  KanbanSquare,
+  Layers,
+  LayoutDashboard,
+  LogOut,
+  MessageCircle,
+  Package,
+  Settings,
+  Smartphone,
+  Sparkles,
   Trophy,
+  Truck,
+  Users,
+  BarChart3,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { useState, useEffect } from 'react';
+import { supabase } from '../../infrastructure/supabase/client';
 
 interface ItemMenu {
   rotulo: string;
@@ -35,6 +36,13 @@ interface ItemMenu {
 interface SecaoMenu {
   titulo: string;
   itens: ItemMenu[];
+}
+
+interface SidebarProps {
+  onNavigate?: () => void;
+  onAbrirPaulo?: () => void;
+  onAbrirChat?: () => void;
+  unreadCount?: number;
 }
 
 const MENU: SecaoMenu[] = [
@@ -48,33 +56,33 @@ const MENU: SecaoMenu[] = [
       { rotulo: 'Clientes', para: '/clientes', icone: Users },
       { rotulo: 'Fornecedores', para: '/fornecedores', icone: Truck },
       { rotulo: 'Insumos', para: '/insumos', icone: Package },
-      { rotulo: 'Composições', para: '/composicoes', icone: Layers },
+      { rotulo: 'Composicoes', para: '/composicoes', icone: Layers },
       { rotulo: 'Templates', para: '/templates', icone: FileText },
-      { rotulo: 'Mão de Obra', para: '/mao-de-obra', icone: Hammer },
-      { rotulo: 'Incluso / Excluso', para: '/incluso-excluso', icone: ListChecks },
+      { rotulo: 'Mao de obra', para: '/mao-de-obra', icone: Hammer },
+      { rotulo: 'Incluso / Excluso', para: '/incluso-excluso', icone: CheckSquare },
     ],
   },
   {
-    titulo: 'Operação',
+    titulo: 'Operacao',
     itens: [
-      { rotulo: 'Orçamentos', para: '/orcamentos', icone: ClipboardList },
-      { rotulo: 'Planilhas Orç.', para: '/planilha-orcamentaria', icone: FileSpreadsheet },
-      { rotulo: 'Aprovações', para: '/aprovacoes', icone: CheckSquare },
-      { rotulo: 'Indicações', para: '/indicacoes', icone: Gift },
+      { rotulo: 'Orcamentos', para: '/orcamentos', icone: ClipboardList },
+      { rotulo: 'Planilha Orc.', para: '/planilha-orcamentaria', icone: FileSpreadsheet },
+      { rotulo: 'Aprovacoes', para: '/aprovacoes', icone: CheckSquare },
+      { rotulo: 'Indicacoes', para: '/indicacoes', icone: Gift },
     ],
   },
   {
-    titulo: 'Gestão',
+    titulo: 'Gestao',
     itens: [
-      { rotulo: '🏆 Arena', para: '/arena', icone: Trophy },
+      { rotulo: 'Arena', para: '/arena', icone: Trophy },
       { rotulo: 'Bira', para: '/bira', icone: KanbanSquare },
     ],
   },
   {
     titulo: 'Sistema',
     itens: [
-      { rotulo: 'Configurações', para: '/configuracoes', icone: Settings },
-      { rotulo: 'Meus Dispositivos', para: '/meus-dispositivos', icone: Smartphone },
+      { rotulo: 'Configuracoes', para: '/configuracoes', icone: Settings },
+      { rotulo: 'Meus dispositivos', para: '/meus-dispositivos', icone: Smartphone },
     ],
   },
 ];
@@ -82,44 +90,88 @@ const MENU: SecaoMenu[] = [
 const MENU_GESTAO: SecaoMenu[] = [
   {
     titulo: 'Obras',
-    itens: [
-      { rotulo: 'Diário de Obra', para: '/rdo', icone: HardHat },
-    ],
+    itens: [{ rotulo: 'Diario de obra', para: '/rdo', icone: HardHat }],
   },
 ];
 
 const MENU_ADMIN: SecaoMenu[] = [
   {
-    titulo: 'Administração',
-    itens: [
-      { rotulo: 'Membros', para: '/membros', icone: Users },
-    ],
+    titulo: 'Administracao',
+    itens: [{ rotulo: 'Membros', para: '/membros', icone: Users }],
   },
 ];
 
-const classAtivo =
-  'flex items-center gap-3 px-3 py-2 rounded-lg text-sm bg-[#FFC82D] text-[#233772] font-bold';
-const classInativo =
-  'flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-[rgba(255,255,255,0.75)] hover:bg-[rgba(255,200,45,0.1)] hover:text-[#FFC82D] transition-colors';
+const IS_ELECTRON = navigator.userAgent.includes('Electron');
+const HUB_URL = IS_ELECTRON ? 'app://hub.local/' : 'https://biasihub-portal.vercel.app/';
 
-interface SidebarProps {
-  onNavigate?: () => void;
-  onAbrirPaulo?: () => void;
-  onAbrirChat?: () => void;
-  unreadCount?: number;
+function renderSecao(secao: SecaoMenu, onNavigate?: () => void) {
+  return (
+    <div key={secao.titulo} className="space-y-1.5 mb-4">
+      <p className="px-4 text-[9px] font-black uppercase tracking-[0.34em] text-[#8EA2D4]">{secao.titulo}</p>
+      <ul className="space-y-1">
+        {secao.itens.map((item) => {
+          const Icone = item.icone;
+          return (
+            <li key={item.para}>
+              <NavLink
+                to={item.para}
+                onClick={onNavigate}
+                className={({ isActive }) =>
+                  `group relative flex items-center gap-3 rounded-2xl px-4 py-3 transition-all duration-300 overflow-hidden ${
+                    isActive
+                      ? 'bg-white/10 text-white shadow-2xl border-2 border-white/20'
+                      : 'text-slate-200 hover:text-white hover:bg-white/5'
+                  }`
+                }
+              >
+                {({ isActive }) => (
+                  <>
+                    {isActive && <span className="absolute inset-0 bg-[#FFC82D]/10 blur-xl pointer-events-none" />}
+                    <div className="relative z-10 flex items-center gap-3 w-full">
+                      <Icone size={16} className="transition-all duration-300 group-hover:scale-110 group-hover:text-[#FFC82D]" />
+                      <span className="flex-1 text-[11px] font-black uppercase tracking-[0.16em]">{item.rotulo}</span>
+                      {isActive && <span className="absolute -right-4 w-1 h-6 bg-[#FFC82D] rounded-full shadow-[0_0_12px_rgba(255,200,45,0.9)]" />}
+                    </div>
+                  </>
+                )}
+              </NavLink>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
 }
 
-export function SidebarAutenticada({ onNavigate, onAbrirPaulo, onAbrirChat, unreadCount = 0 }: SidebarProps) {
+export function SidebarAutenticada({
+  onNavigate,
+  onAbrirPaulo,
+  onAbrirChat,
+  unreadCount = 0,
+}: SidebarProps) {
   const { usuario, logout } = useAuth();
   const [installPrompt, setInstallPrompt] = useState<any>(() => (window as any).__pwaInstallPrompt ?? null);
-  const [jaInstalado, setJaInstalado] = useState(() => window.matchMedia('(display-mode: standalone)').matches);
+  const [jaInstalado, setJaInstalado] = useState(() =>
+    window.matchMedia('(display-mode: standalone)').matches
+  );
+
+  const isGestao = useMemo(
+    () => usuario?.papel === 'gestor' || usuario?.papel === 'admin' || usuario?.papel === 'dono',
+    [usuario?.papel]
+  );
+  const isAdmin = useMemo(
+    () => usuario?.papel === 'admin' || usuario?.papel === 'gestor' || usuario?.papel === 'dono',
+    [usuario?.papel]
+  );
 
   useEffect(() => {
-    // Caso o evento já tenha sido capturado antes do React montar
     if ((window as any).__pwaInstallPrompt) setInstallPrompt((window as any).__pwaInstallPrompt);
 
     const onReady = () => setInstallPrompt((window as any).__pwaInstallPrompt);
-    const onInstalled = () => { setJaInstalado(true); setInstallPrompt(null); };
+    const onInstalled = () => {
+      setJaInstalado(true);
+      setInstallPrompt(null);
+    };
 
     window.addEventListener('pwaInstallReady', onReady);
     window.addEventListener('pwaInstalled', onInstalled);
@@ -137,162 +189,137 @@ export function SidebarAutenticada({ onNavigate, onAbrirPaulo, onAbrirChat, unre
     setInstallPrompt(null);
   }
 
+  const iniciais = usuario?.nome
+    ? usuario.nome
+        .split(' ')
+        .slice(0, 2)
+        .map((n) => n[0])
+        .join('')
+        .toUpperCase()
+    : 'U';
+
+  async function voltarAoHub() {
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (session?.access_token) {
+        const hash = [
+          `access_token=${session.access_token}`,
+          `refresh_token=${session.refresh_token}`,
+          'token_type=bearer',
+          `expires_in=${session.expires_in ?? 3600}`,
+        ].join('&');
+        window.location.href = `${HUB_URL}#${hash}`;
+        return;
+      }
+    } catch {
+      // fallback
+    }
+
+    if (window.location.hash.includes('access_token=')) {
+      window.location.href = `${HUB_URL}${window.location.hash}`;
+      return;
+    }
+
+    window.location.href = HUB_URL;
+  }
+
   return (
-    <aside className="h-full w-[85vw] sm:w-64 bg-[#233772] flex flex-col">
-      {/* Logo */}
-      <div className="flex items-center justify-center px-5 py-5 border-b border-[rgba(255,255,255,0.1)]">
-        <img src="/logo-branco.svg" alt="Biasi Engenharia" className="h-9 w-auto" />
-      </div>
+    <aside className="relative h-full w-[85vw] sm:w-64 lg:w-64 overflow-hidden border-r-2 border-white/10 bg-slate-900/40 backdrop-blur-3xl">
+      <div className="pointer-events-none absolute top-0 left-0 w-32 h-32 bg-[#FFC82D]/12 rounded-full blur-3xl" />
+      <div className="pointer-events-none absolute bottom-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-3xl" />
 
-      {/* Navegação */}
-      <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-6">
-        {MENU.map((secao) => (
-          <div key={secao.titulo}>
-            <p className="text-xs font-semibold text-[rgba(255,200,45,0.6)] uppercase tracking-wider px-3 mb-2">
-              {secao.titulo}
-            </p>
-            <ul className="space-y-0.5">
-              {secao.itens.map((item) => {
-                const Icone = item.icone;
-                return (
-                  <li key={item.para}>
-                    <NavLink
-                      to={item.para}
-                      onClick={onNavigate}
-                      className={({ isActive }) => (isActive ? classAtivo : classInativo)}
-                    >
-                      <Icone size={17} />
-                      {item.rotulo}
-                    </NavLink>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        ))}
-
-        {/* Menu obras — visível apenas para gestor, admin e dono */}
-        {(usuario?.papel === 'gestor' || usuario?.papel === 'admin' || usuario?.papel === 'dono') && MENU_GESTAO.map((secao) => (
-          <div key={secao.titulo}>
-            <p className="text-xs font-semibold text-[rgba(255,200,45,0.6)] uppercase tracking-wider px-3 mb-2">
-              {secao.titulo}
-            </p>
-            <ul className="space-y-0.5">
-              {secao.itens.map((item) => {
-                const Icone = item.icone;
-                return (
-                  <li key={item.para}>
-                    <NavLink
-                      to={item.para}
-                      onClick={onNavigate}
-                      className={({ isActive }) => (isActive ? classAtivo : classInativo)}
-                    >
-                      <Icone size={17} />
-                      {item.rotulo}
-                    </NavLink>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        ))}
-
-        {/* Menu admin e gestor */}
-        {(usuario?.papel === 'admin' || usuario?.papel === 'gestor' || usuario?.papel === 'dono') && MENU_ADMIN.map((secao) => (
-          <div key={secao.titulo}>
-            <p className="text-xs font-semibold text-[rgba(255,200,45,0.6)] uppercase tracking-wider px-3 mb-2">
-              {secao.titulo}
-            </p>
-            <ul className="space-y-0.5">
-              {secao.itens.map((item) => {
-                const Icone = item.icone;
-                return (
-                  <li key={item.para}>
-                    <NavLink
-                      to={item.para}
-                      onClick={onNavigate}
-                      className={({ isActive }) => (isActive ? classAtivo : classInativo)}
-                    >
-                      <Icone size={17} />
-                      {item.rotulo}
-                    </NavLink>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        ))}
-      </nav>
-
-      {/* Botão Voltar ao Hub */}
-      <div className="px-3 pb-2">
-        <button
-          onClick={() => { window.location.href = navigator.userAgent.includes('Electron') ? 'app://hub.local' : 'https://biasihub-portal.vercel.app' }}
-          className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-semibold transition-all"
-          style={{ backgroundColor: 'rgba(255,200,45,0.12)', color: '#FFC82D' }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.backgroundColor = '#FFC82D'; (e.currentTarget as HTMLElement).style.color = '#1e293b' }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.backgroundColor = 'rgba(255,200,45,0.12)'; (e.currentTarget as HTMLElement).style.color = '#FFC82D' }}
-        >
-          <Home size={16} />
-          Voltar ao Hub
-        </button>
-      </div>
-
-      {/* Botão instalar PWA */}
-      {!jaInstalado && installPrompt && (
-        <div className="px-3 pb-2">
-          <button
-            onClick={instalarApp}
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium bg-blue-600 hover:bg-blue-500 text-white transition-colors"
-          >
-            <Download size={14} />
-            Instalar App no dispositivo
-          </button>
-        </div>
-      )}
-
-      {/* Rodapé com usuário */}
-      <div className="border-t border-[rgba(255,255,255,0.1)] px-4 py-4">
-        <div className="flex items-center gap-3 mb-3">
-          <div className="bg-blue-600 rounded-full w-8 h-8 flex items-center justify-center flex-shrink-0">
-            <span className="text-white text-xs font-bold">
-              {usuario?.nome.charAt(0) ?? 'U'}
-            </span>
-          </div>
-          <div className="min-w-0">
-            <p className="text-sm font-medium text-white truncate">{usuario?.nome ?? '—'}</p>
-            <p className="text-xs text-slate-400 capitalize">{usuario?.papel ?? ''}</p>
+      <div className="relative z-10 flex h-full flex-col">
+        <div className="px-8 py-10 relative z-10 border-b border-white/10">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-white text-slate-900 rounded-2xl flex items-center justify-center border-2 border-white/20 shadow-[0_0_20px_rgba(255,255,255,0.1)]">
+              <BarChart3 size={24} />
+            </div>
+            <div>
+              <h1 className="text-white font-black text-xl tracking-tighter leading-none uppercase">
+                Biasi<span className="text-[#FFC82D]">Hub</span>
+              </h1>
+              <p className="text-slate-300 text-[9px] uppercase font-black tracking-[0.4em] mt-1.5 opacity-90">Comercial</p>
+            </div>
           </div>
         </div>
-        <div className="grid grid-cols-3 gap-1">
+
+        <nav className="flex-1 px-4 space-y-2 overflow-y-auto relative z-10 mt-4">
+          <p className="px-4 pb-4 text-[9px] font-black text-white/55 uppercase tracking-[0.3em]">Protocolos de Rede</p>
+          {MENU.map((secao) => renderSecao(secao, onNavigate))}
+          {isGestao && MENU_GESTAO.map((secao) => renderSecao(secao, onNavigate))}
+          {isAdmin && MENU_ADMIN.map((secao) => renderSecao(secao, onNavigate))}
+        </nav>
+
+        <div className="mt-auto px-4 pb-8 pt-6 border-t-2 border-white/5 space-y-4 relative z-10 bg-slate-900/20 backdrop-blur-md">
           <button
-            onClick={() => { onAbrirPaulo?.(); onNavigate?.(); }}
-            className="flex flex-col items-center gap-1 px-2 py-2 rounded-lg text-xs text-indigo-300 hover:bg-indigo-900/40 hover:text-indigo-200 transition-colors"
-            title="Abrir Paulo AJUDA"
+            onClick={() => {
+              void voltarAoHub();
+            }}
+            className="w-full flex h-11 items-center justify-center gap-2 rounded-xl border border-[#FFC82D]/40 bg-[#FFC82D]/12 px-4 text-xs font-black uppercase tracking-[0.2em] text-[#FFC82D] transition-colors hover:bg-[#FFC82D] hover:text-[#233772]"
           >
-            <Sparkles size={15} />
-            Paulo
+            <Home size={14} />
+            Voltar ao Hub
           </button>
-          <button
-            onClick={() => { onAbrirChat?.(); onNavigate?.(); }}
-            className="relative flex flex-col items-center gap-1 px-2 py-2 rounded-lg text-xs text-sky-300 hover:bg-sky-900/40 hover:text-sky-200 transition-colors"
-            title="Abrir Chat"
-          >
-            <MessageCircle size={15} />
-            Chat
-            {unreadCount > 0 && (
-              <span className="absolute top-1 right-1 min-w-4 h-4 px-1 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center leading-none">
-                {unreadCount > 99 ? '99+' : unreadCount}
-              </span>
-            )}
-          </button>
-          <button
-            onClick={logout}
-            className="flex flex-col items-center gap-1 px-2 py-2 rounded-lg text-xs text-slate-400 hover:bg-slate-800 hover:text-white transition-colors"
-          >
-            <LogOut size={15} />
-            Sair
-          </button>
+
+          {!jaInstalado && installPrompt && (
+            <button
+              onClick={instalarApp}
+              className="flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-[#4A69A8] bg-[#1A2F63] px-3 text-[11px] font-semibold text-[#DCE8FF] transition-colors hover:bg-[#243E7D]"
+            >
+              <Download size={14} />
+              Instalar app
+            </button>
+          )}
+
+          <div className="flex items-center gap-4 p-4 rounded-[24px] bg-white/5 border-2 border-white/5 transition-all duration-300">
+            <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-indigo-600 via-sky-500 to-emerald-400 flex items-center justify-center border-2 border-white/20 flex-shrink-0">
+              <span className="text-white text-xs font-black tracking-tighter">{iniciais}</span>
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-white text-[11px] font-black uppercase tracking-widest truncate">{usuario?.nome?.split(' ')[0] ?? 'Usuario'}</p>
+              <p className="text-[#FFC82D] text-[9px] uppercase font-black tracking-[0.3em] truncate mt-0.5">{usuario?.papel ?? ''}</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-2">
+            <button
+              onClick={() => {
+                onAbrirPaulo?.();
+                onNavigate?.();
+              }}
+              className="flex flex-col items-center gap-1 rounded-xl px-2 py-2 text-[10px] font-bold uppercase tracking-[0.12em] text-indigo-200 transition-colors hover:bg-indigo-500/20 hover:text-white"
+            >
+              <Sparkles size={14} />
+              Paulo
+            </button>
+
+            <button
+              onClick={() => {
+                onAbrirChat?.();
+                onNavigate?.();
+              }}
+              className="relative flex flex-col items-center gap-1 rounded-xl px-2 py-2 text-[10px] font-bold uppercase tracking-[0.12em] text-sky-200 transition-colors hover:bg-sky-500/20 hover:text-white"
+            >
+              <MessageCircle size={14} />
+              Chat
+              {unreadCount > 0 && (
+                <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-black text-white">
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
+            </button>
+
+            <button
+              onClick={logout}
+              className="flex flex-col items-center gap-1 rounded-xl px-2 py-2 text-[10px] font-bold uppercase tracking-[0.12em] text-rose-200 transition-colors hover:bg-rose-500/20 hover:text-white"
+            >
+              <LogOut size={14} />
+              Sair
+            </button>
+          </div>
         </div>
       </div>
     </aside>

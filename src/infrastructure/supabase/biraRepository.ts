@@ -7,7 +7,7 @@ export interface BiraTarefa {
   descricao: string | null;
   status: 'ideia' | 'a_fazer' | 'em_andamento' | 'em_analise' | 'concluido';
   prioridade: 'Highest' | 'High' | 'Medium' | 'Low' | 'Lowest';
-  tipo: 'epic' | 'feature' | 'tarefa' | 'historia' | 'bug' | 'recurso' | 'subtask';
+  tipo: 'epic' | 'feature' | 'tarefa' | 'bug' | 'recurso';
   responsavel_id: string | null;
   responsavel_nome: string | null;
   criador_id: string | null;
@@ -116,14 +116,77 @@ export const biraRepository = {
   },
 
   async listarMembrosComercial(): Promise<{ id: string; nome: string }[]> {
-    const { data, error } = await supabase
-      .from('perfis')
-      .select('id, nome')
-      .eq('ativo', true)
-      .eq('departamento', 'Comercial')
-      .order('nome');
+    const membros = new Map<string, string>();
 
-    if (error) throw error;
-    return data || [];
+    const addRows = (rows: Array<any> | null | undefined) => {
+      (rows || []).forEach((r) => {
+        const id = String(r?.id || '').trim();
+        const nome = String(r?.nome || '').trim();
+        if (!id || !nome) return;
+        if (!membros.has(id)) membros.set(id, nome);
+      });
+    };
+
+    try {
+      const { data, error } = await supabase
+        .from('perfis')
+        .select('id, nome')
+        .eq('ativo', true)
+        .ilike('departamento', '%comercial%')
+        .order('nome');
+      if (!error) addRows(data as Array<any>);
+    } catch {
+      // silencioso
+    }
+
+    if (membros.size === 0) {
+      try {
+        const { data, error } = await supabase
+          .from('perfis')
+          .select('id, nome')
+          .eq('ativo', true)
+          .ilike('papel', '%comercial%')
+          .order('nome');
+        if (!error) addRows(data as Array<any>);
+      } catch {
+        // silencioso
+      }
+    }
+
+    if (membros.size === 0) {
+      try {
+        const { data, error } = await supabase
+          .from('responsaveis_comerciais')
+          .select('id, nome')
+          .eq('ativo', true)
+          .order('nome');
+        if (!error) addRows(data as Array<any>);
+      } catch {
+        // silencioso
+      }
+    }
+
+    if (membros.size === 0) {
+      try {
+        const { data, error } = await supabase
+          .from('usuarios')
+          .select('id, nome, papel')
+          .eq('ativo', true)
+          .order('nome');
+
+        if (!error && data) {
+          const comerciais = (data as Array<any>).filter((u) =>
+            String(u?.papel || '').toLowerCase().includes('comercial')
+          );
+          addRows(comerciais.length > 0 ? comerciais : (data as Array<any>));
+        }
+      } catch {
+        // silencioso
+      }
+    }
+
+    return Array.from(membros.entries())
+      .map(([id, nome]) => ({ id, nome }))
+      .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
   }
 };

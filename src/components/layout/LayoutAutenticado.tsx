@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+﻿import { useEffect, useRef, useState } from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
 import { SidebarAutenticada } from './SidebarAutenticada';
 import { PauloAjuda } from './PauloAjuda';
@@ -21,14 +21,27 @@ export function LayoutAutenticado() {
   const [mensagensNaoLidas, setMensagensNaoLidas] = useState(0);
   const [toastNotif, setToastNotif] = useState<{ nome: string; conteudo: string; canal?: string } | null>(null);
   const [callNotif, setCallNotif] = useState<{ nome: string; url: string; tipo: 'voz' | 'video' } | null>(null);
+  const [biraNotif, setBiraNotif] = useState<{ codigo: string; titulo: string; acao: 'nova' | 'atribuida' } | null>(null);
   const chatAbertoRef = useRef(chatAberto);
+  const canaisDoUsuarioRef = useRef<Set<string>>(new Set());
   const ultimoCountRef = useRef(0);
   const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const callTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const biraTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const ringtoneRef = useRef<{ stop: () => void } | null>(null);
 
   useEffect(() => {
     chatAbertoRef.current = chatAberto;
+  }, [chatAberto]);
+
+  useEffect(() => {
+    if (!usuario?.id) return;
+    setMensagensNaoLidas(0);
+  }, [usuario?.id]);
+
+  useEffect(() => {
+    if (!chatAberto) return;
+    setMensagensNaoLidas(0);
   }, [chatAberto]);
 
   // Request browser notification permission on mount
@@ -54,7 +67,7 @@ export function LayoutAutenticado() {
       const gain = ctx.createGain();
       gain.connect(ctx.destination);
 
-      // Nota 1 — sweep up
+      // Nota 1 - sweep up
       const o1 = ctx.createOscillator();
       o1.type = 'sine';
       o1.frequency.setValueAtTime(560, t);
@@ -63,7 +76,7 @@ export function LayoutAutenticado() {
       o1.start(t);
       o1.stop(t + 0.12);
 
-      // Nota 2 — higher   
+      // Nota 2 - higher   
       const o2 = ctx.createOscillator();
       o2.type = 'sine';
       o2.frequency.setValueAtTime(880, t + 0.15);
@@ -98,7 +111,7 @@ export function LayoutAutenticado() {
         const gain = ctx.createGain();
         gain.connect(ctx.destination);
 
-        // Ring tone — two-tone pattern like a phone
+        // Ring tone - two-tone pattern like a phone
         const freqs = [440, 480];
         freqs.forEach(f => {
           const osc = ctx.createOscillator();
@@ -139,30 +152,71 @@ export function LayoutAutenticado() {
     if (callTimeoutRef.current) { clearTimeout(callTimeoutRef.current); callTimeoutRef.current = null; }
   }
 
-  const contarNaoLidas = useCallback(async () => {
-    if (!usuario?.id) return;
-    try {
-      const { count } = await supabase
-        .from('chat_mensagens')
-        .select('*', { count: 'exact', head: true })
-        .eq('canal', 'dm')
-        .eq('destinatario_id', usuario.id)
-        .neq('remetente_id', usuario.id)
-        .or('tipo.is.null,tipo.neq.reacao')
-        .eq('lido', false);
-      setMensagensNaoLidas(count ?? 0);
-    } catch {
-      // silently fail
+  function notificarBira(payload: { codigo?: string | null; titulo?: string | null; acao: 'nova' | 'atribuida' }) {
+    const codigo = (payload.codigo || 'BIRA').trim();
+    const titulo = (payload.titulo || 'Tarefa atribuida').trim();
+    setBiraNotif({ codigo, titulo, acao: payload.acao });
+    if (biraTimeoutRef.current) clearTimeout(biraTimeoutRef.current);
+    biraTimeoutRef.current = setTimeout(() => setBiraNotif(null), 5000);
+    tocarSomNotificacao();
+
+    if ('Notification' in window && Notification.permission === 'granted') {
+      try {
+        const n = new Notification('Bira - Nova atribuicao', {
+          body: `${codigo}: ${titulo}`,
+          icon: '/logo-biasi.png',
+          tag: `bira-${codigo}`,
+        });
+        n.onclick = () => {
+          window.focus();
+          window.location.pathname = '/bira';
+          n.close();
+        };
+        setTimeout(() => n.close(), 6000);
+      } catch {
+        // ignore
+      }
     }
-  }, [usuario?.id]);
+  }
 
   useEffect(() => {
     if (!usuario?.id) return;
+    const userId = usuario.id;
 
-    contarNaoLidas();
+    let active = true;
+
+    async function carregarCanaisDoUsuario() {
+      const { data } = await supabase
+        .from('chat_membros')
+        .select('canal_id')
+        .eq('usuario_id', userId);
+
+      canaisDoUsuarioRef.current = new Set(
+        (data ?? []).map((row: any) => row.canal_id).filter(Boolean)
+      );
+    }
+
+    function mensagemContaParaBadge(nova: {
+      canal: string;
+      remetente_id: string;
+      destinatario_id: string | null;
+      tipo?: string | null;
+      canal_id?: string | null;
+    }): boolean {
+      if (!nova || nova.remetente_id === userId || nova.tipo === 'reacao') return false;
+      if (chatAbertoRef.current) return false;
+
+      const ehDmParaMim = nova.canal === 'dm' && nova.destinatario_id === userId;
+      const ehCanalV2 = !!nova.canal_id && canaisDoUsuarioRef.current.has(nova.canal_id);
+      const ehGeralLegado = !nova.canal_id && nova.canal === 'geral';
+
+      return ehDmParaMim || ehCanalV2 || ehGeralLegado;
+    }
+
+    carregarCanaisDoUsuario();
 
     const channel = supabase
-      .channel(`chat-unread-${usuario.id}`)
+      .channel(`chat-unread-${userId}`)
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'chat_mensagens' },
@@ -175,12 +229,13 @@ export function LayoutAutenticado() {
             conteudo: string;
             arquivo_nome: string | null;
             tipo?: string | null;
+            canal_id?: string | null;
           };
 
-          if (nova.remetente_id === usuario.id) return;
-          if (nova.tipo === 'reacao') return;
+          if (!mensagemContaParaBadge(nova)) return;
 
-          const ehMensagemGeral = nova.canal === 'geral';
+          const ehCanalV2 = !!nova.canal_id && canaisDoUsuarioRef.current.has(nova.canal_id);
+          const ehMensagemGeral = nova.canal === 'geral' || (nova.canal === 'canal' && ehCanalV2);
           const ehDmParaMim = nova.canal === 'dm' && nova.destinatario_id === usuario.id;
 
           if (ehMensagemGeral || ehDmParaMim) {
@@ -199,13 +254,10 @@ export function LayoutAutenticado() {
               if (callTimeoutRef.current) clearTimeout(callTimeoutRef.current);
               callTimeoutRef.current = setTimeout(() => fecharCallNotif(), 30000);
             } else {
-              if (!chatAbertoRef.current && ehDmParaMim) {
-                contarNaoLidas();
+              if (active) {
+                setMensagensNaoLidas((prev) => Math.min(prev + 1, 99));
               }
-              if (ehMensagemGeral) {
-                tocarSomNotificacao();
-              }
-              const preview = nova.conteudo?.trim() || nova.arquivo_nome || '📎 arquivo';
+              const preview = nova.conteudo?.trim() || nova.arquivo_nome || 'arquivo anexado';
               if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
               setToastNotif({ nome: nova.remetente_nome, conteudo: preview, canal: nova.canal });
               toastTimeoutRef.current = setTimeout(() => setToastNotif(null), 4000);
@@ -229,20 +281,59 @@ export function LayoutAutenticado() {
       )
       .on(
         'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'chat_mensagens' },
-        () => { contarNaoLidas(); }
+        { event: '*', schema: 'public', table: 'chat_membros' },
+        (payload) => {
+          const row = (payload.new ?? payload.old) as { usuario_id?: string } | undefined;
+          if (row?.usuario_id === userId) {
+            carregarCanaisDoUsuario();
+          }
+        }
       )
       .subscribe();
 
     return () => {
+      active = false;
       supabase.removeChannel(channel);
       if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
       if (callTimeoutRef.current) clearTimeout(callTimeoutRef.current);
       ringtoneRef.current?.stop();
     };
-  }, [usuario?.id, contarNaoLidas]);
+  }, [usuario?.id]);
 
-  // ── Presença global (registra online para todos os usuários autenticados) ──
+  // Notificacao de tarefa atribuida no Bira
+  useEffect(() => {
+    if (!usuario?.id) return;
+    const userId = usuario.id;
+
+    const biraChannel = supabase
+      .channel(`bira-atribuicoes-${userId}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'bira_tarefas', filter: `responsavel_id=eq.${userId}` },
+        (payload) => {
+          const row = payload.new as { codigo?: string | null; titulo?: string | null };
+          notificarBira({ codigo: row.codigo, titulo: row.titulo, acao: 'nova' });
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'bira_tarefas', filter: `responsavel_id=eq.${userId}` },
+        (payload) => {
+          const row = payload.new as { codigo?: string | null; titulo?: string | null; responsavel_id?: string | null };
+          const oldRow = (payload.old || {}) as { responsavel_id?: string | null };
+          if (oldRow.responsavel_id === userId) return;
+          notificarBira({ codigo: row.codigo, titulo: row.titulo, acao: 'atribuida' });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(biraChannel);
+      if (biraTimeoutRef.current) clearTimeout(biraTimeoutRef.current);
+    };
+  }, [usuario?.id]);
+
+  // â”€â”€ Presença global (registra online para todos os usuários autenticados) â”€â”€
   useEffect(() => {
     if (!usuario?.id) return;
 
@@ -399,12 +490,16 @@ export function LayoutAutenticado() {
   }
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
+    <div className="biasi-shell-bg biasi-theme relative flex min-h-screen overflow-hidden">
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute -left-20 top-0 h-96 w-96 rounded-full bg-[#2E63D5]/20 blur-[110px]" />
+        <div className="absolute bottom-0 right-0 h-80 w-80 rounded-full bg-[#FFC82D]/10 blur-[120px]" />
+      </div>
       {/* Top bar mobile */}
-      <div className="fixed top-0 left-0 right-0 h-12 bg-slate-900 z-30 lg:hidden flex items-center px-3 gap-3 shadow-lg">
+      <div className="fixed left-0 right-0 top-0 z-30 flex h-12 items-center gap-3 border-b border-[#32579D] bg-[#102556]/90 px-3 shadow-lg backdrop-blur lg:hidden">
         <button
           onClick={() => setSidebarAberta(true)}
-          className="relative text-white p-1.5 rounded-lg hover:bg-slate-800"
+          className="relative rounded-lg p-1.5 text-white hover:bg-white/10"
           aria-label="Abrir menu"
         >
           <Menu size={20} />
@@ -414,7 +509,7 @@ export function LayoutAutenticado() {
             </span>
           )}
         </button>
-        <img src="/logo-biasi-branco.png" alt="Biasi" className="h-6 w-auto" />
+        <img src="/logo-branco.svg" alt="Biasi" className="h-6 w-auto" />
       </div>
 
       {sidebarAberta && (
@@ -428,7 +523,7 @@ export function LayoutAutenticado() {
         <button
           type="button"
           onClick={() => setSidebarOcultaDesktop(false)}
-          className="hidden lg:flex fixed top-4 left-3 z-40 items-center justify-center rounded-full bg-slate-900 text-white w-9 h-9 shadow-lg hover:bg-slate-800 transition-colors relative"
+          className="relative hidden h-9 w-9 items-center justify-center rounded-full border border-[#4469B1] bg-[#132a5f] text-white shadow-lg transition-colors hover:bg-[#1A356E] lg:flex fixed top-4 left-3 z-40"
           aria-label="Mostrar menu lateral"
           title="Mostrar menu"
         >
@@ -451,7 +546,7 @@ export function LayoutAutenticado() {
         <button
           type="button"
           onClick={() => setSidebarOcultaDesktop(true)}
-          className="hidden lg:flex absolute top-4 -right-3 z-[60] items-center justify-center h-8 w-8 rounded-full border border-slate-700 bg-slate-900 text-slate-200 shadow-md hover:bg-slate-800 hover:text-white transition-colors"
+          className="absolute right-3 top-4 z-[60] hidden h-8 w-8 items-center justify-center rounded-full border border-[#4469B1] bg-[#132a5f] text-[#DCE8FF] shadow-md transition-colors hover:bg-[#1A356E] hover:text-white lg:flex"
           aria-label="Ocultar menu lateral"
           title="Ocultar menu"
         >
@@ -461,7 +556,7 @@ export function LayoutAutenticado() {
         <button
           type="button"
           onClick={fecharSidebar}
-          className="lg:hidden absolute top-4 right-3 z-[60] text-slate-400 hover:text-white p-2 rounded-lg hover:bg-slate-800 transition-colors"
+          className="absolute right-3 top-4 z-[60] rounded-lg p-2 text-[#DCE8FF] transition-colors hover:bg-white/10 hover:text-white lg:hidden"
           aria-label="Fechar menu"
         >
           <X size={22} />
@@ -475,7 +570,7 @@ export function LayoutAutenticado() {
       </div>
 
       {/* Conteúdo principal */}
-      <main className={`flex-1 flex flex-col min-h-screen min-w-0 pt-12 lg:pt-0 overflow-x-hidden ${sidebarOcultaDesktop ? 'lg:ml-0' : 'lg:ml-64'}`}>
+      <main className={`relative z-10 flex min-h-screen min-w-0 flex-1 flex-col overflow-x-hidden pt-12 lg:pt-0 ${sidebarOcultaDesktop ? 'lg:pl-0' : 'lg:pl-64'}`}>
         {/* Banner de atualização (Desktop: redireciona para Hub) */}
         <UpdateChecker />
         <Outlet />
@@ -507,6 +602,32 @@ export function LayoutAutenticado() {
         </div>
       )}
 
+      {biraNotif && (
+        <div
+          className="fixed bottom-40 right-4 z-[210] flex items-center gap-3 bg-gradient-to-r from-indigo-700 to-blue-700 text-white pl-3 pr-2 py-2.5 rounded-2xl shadow-2xl border border-indigo-400/40 cursor-pointer max-w-[320px]"
+          style={{ animation: 'slideInRight 0.2s ease-out' }}
+          onClick={() => { window.location.pathname = '/bira'; setBiraNotif(null); if (biraTimeoutRef.current) clearTimeout(biraTimeoutRef.current); }}
+        >
+          <div className="bg-white/20 rounded-full w-8 h-8 flex items-center justify-center flex-shrink-0">
+            <span className="text-xs font-black">B</span>
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-semibold leading-tight truncate">
+              {biraNotif.acao === 'nova' ? 'Nova tarefa no Bira' : 'Tarefa atribuida para voce'}
+            </p>
+            <p className="text-[11px] text-white/90 leading-tight truncate mt-0.5">
+              {biraNotif.codigo}: {biraNotif.titulo}
+            </p>
+          </div>
+          <button
+            className="p-1 text-white/80 hover:text-white flex-shrink-0 rounded-lg hover:bg-white/15"
+            onClick={(e) => { e.stopPropagation(); setBiraNotif(null); if (biraTimeoutRef.current) clearTimeout(biraTimeoutRef.current); }}
+          >
+            <X size={13} />
+          </button>
+        </div>
+      )}
+
       {/* UpdateChecker movido para dentro de <main> */}
 
       {/* Incoming call notification */}
@@ -525,7 +646,7 @@ export function LayoutAutenticado() {
               </div>
               <p className="font-semibold text-base">{callNotif.nome}</p>
               <p className="text-sm text-slate-400 mt-0.5">
-                {callNotif.tipo === 'video' ? '📹 Videochamada recebida' : '📞 Chamada de voz recebida'}
+                {callNotif.tipo === 'video' ? 'Videochamada recebida' : 'Chamada de voz recebida'}
               </p>
             </div>
             <div className="flex gap-3 px-5 pb-5">
@@ -565,3 +686,7 @@ export function LayoutAutenticado() {
     </div>
   );
 }
+
+
+
+

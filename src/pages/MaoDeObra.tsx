@@ -70,26 +70,26 @@ function LinhaProf({
 }) {
   if (!editando) {
     return (
-      <tr className="border-b border-slate-100 hover:bg-slate-50/60 transition-colors">
-        <td className="px-3 py-2 text-slate-700 text-xs">{p.profissao}</td>
-        <td className="px-3 py-2 text-center text-slate-500 text-xs">
+      <tr className="border-b border-[#3f63a9] hover:bg-[#16346f]/70 transition-colors">
+        <td className="px-3 py-2 text-[#f6f9ff] text-xs font-medium">{p.profissao}</td>
+        <td className="px-3 py-2 text-center text-[#c9d8ff] text-xs">
           H
         </td>
-        <td className="px-3 py-2 text-right font-mono text-xs text-slate-700">
+        <td className="px-3 py-2 text-right font-mono text-xs text-[#f6f9ff]">
           {p.coef != null ? p.coef.toFixed(4) : '—'}
         </td>
-        <td className="px-3 py-2 text-center text-xs text-slate-500">—</td>
+        <td className="px-3 py-2 text-center text-xs text-[#c9d8ff]">—</td>
       </tr>
     );
   }
   return (
-    <tr className="border-b border-blue-100 bg-blue-50/30">
+    <tr className="border-b border-[#5074be] bg-[#143269]/78">
       <td className="px-2 py-1.5">
         {/* Dropdown com tipos do Config → Mão de Obra */}
         <select
           value={p.profissao}
           onChange={(e) => onChange({ ...p, profissao: e.target.value })}
-          className="w-full border border-slate-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
+          className="w-full border border-[#5e7ec5] rounded px-2 py-1 text-xs text-[#f6f9ff] focus:outline-none focus:ring-1 focus:ring-[#76a4ff] bg-[#0f2a60]"
         >
           <option value="">Selecionar...</option>
           {tiposMO.filter((t) => t.ativo).map((t) => (
@@ -102,7 +102,7 @@ function LinhaProf({
         </select>
       </td>
       <td className="px-2 py-1.5">
-        <span className="inline-flex items-center justify-center w-10 py-1 rounded border border-slate-200 bg-slate-50 text-xs text-slate-600">
+        <span className="inline-flex items-center justify-center w-10 py-1 rounded border border-[#5474bb] bg-[#102b61] text-xs text-[#dce8ff]">
           H
         </span>
       </td>
@@ -112,12 +112,12 @@ function LinhaProf({
           step="0.0001"
           value={p.coef ?? ''}
           onChange={(e) => onChange({ ...p, unid: 'H', coef: e.target.value ? parseFloat(e.target.value) : null })}
-          className="w-24 border border-slate-200 rounded px-2 py-1 text-xs text-right focus:outline-none focus:ring-1 focus:ring-blue-500"
+          className="w-24 border border-[#5e7ec5] rounded px-2 py-1 text-xs text-right text-[#f6f9ff] focus:outline-none focus:ring-1 focus:ring-[#76a4ff] bg-[#0f2a60]"
         />
       </td>
       <td className="px-2 py-1.5 text-center">
         <div className="flex items-center gap-1">
-          <button onClick={onRemove} className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded">
+          <button onClick={onRemove} className="p-1 text-[#ffb1bd] hover:text-[#ffd0d8] hover:bg-[#5f2234]/60 rounded">
             <Trash2 size={12} />
           </button>
         </div>
@@ -215,16 +215,16 @@ function CardComposicao({
   const dados = editando ? rascunho : comp;
 
   return (
-    <div className={`bg-white rounded-lg border ${editando ? 'border-blue-300 ring-2 ring-blue-100' : 'border-slate-200'} shadow-sm overflow-hidden`}>
+    <div className={`bg-[#102a5f]/95 rounded-lg border ${editando ? 'border-[#6c94e8] ring-2 ring-[#5e89df]/30' : 'border-[#3f62a8]'} shadow-sm overflow-hidden`}>
       {/* ── Header da atividade ── */}
-      <div className="flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-slate-50 to-white">
+      <div className="flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-[#15356f] to-[#102a5f]">
         <button
           onClick={() => !editando && setAberto(!aberto)}
           className="flex-1 flex items-center gap-3 text-left"
         >
           {aberto
-            ? <ChevronDown size={16} className="text-slate-400 flex-shrink-0" />
-            : <ChevronRight size={16} className="text-slate-400 flex-shrink-0" />
+            ? <ChevronDown size={16} className="text-[#9fc1ff] flex-shrink-0" />
+            : <ChevronRight size={16} className="text-[#9fc1ff] flex-shrink-0" />
           }
           <div className="min-w-0 flex-1">
             {editando ? (
@@ -232,11 +232,11 @@ function CardComposicao({
                 type="text"
                 value={rascunho.atividade}
                 onChange={(e) => setRascunho({ ...rascunho, atividade: e.target.value })}
-                className="w-full border border-slate-200 rounded px-2 py-1 text-sm font-semibold focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-full border border-[#5f80c7] rounded px-2 py-1 text-sm font-semibold text-[#f6f9ff] bg-[#0f2a60] focus:outline-none focus:ring-1 focus:ring-[#76a4ff]"
                 onClick={(e) => e.stopPropagation()}
               />
             ) : (
-              <h4 className="font-semibold text-sm text-slate-800 truncate">
+              <h4 className="font-semibold text-sm text-[#f6f9ff] truncate">
                 {comp.atividade}
               </h4>
             )}
@@ -244,22 +244,22 @@ function CardComposicao({
         </button>
 
         {/* Meta-dados inline */}
-        <div className="flex items-center gap-4 text-xs text-slate-500 flex-shrink-0">
+        <div className="flex items-center gap-4 text-xs text-[#c9d8ff] flex-shrink-0">
           {editando ? (
             <>
               <label className="flex items-center gap-1">
-                <span className="text-slate-400">Jornada:</span>
+                <span className="text-[#b9ceff]">Jornada:</span>
                 <input type="number" value={rascunho.jornada} onChange={(e) => setRascunho({ ...rascunho, jornada: parseInt(e.target.value) || 8 })}
-                  className="w-12 border border-slate-200 rounded px-1 py-0.5 text-xs text-center focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="w-12 border border-[#5f80c7] rounded px-1 py-0.5 text-xs text-center text-[#f6f9ff] bg-[#0f2a60] focus:outline-none focus:ring-1 focus:ring-[#76a4ff]"
                   onClick={(e) => e.stopPropagation()} />
                 <span>h</span>
               </label>
               <label className="flex items-center gap-1">
-                <span className="text-slate-400">Unid QTD:</span>
+                <span className="text-[#b9ceff]">Unid QTD:</span>
                 <select
                   value={rascunho.unid}
                   onChange={(e) => setRascunho({ ...rascunho, unid: e.target.value })}
-                  className="w-20 border border-slate-200 rounded px-1 py-0.5 text-xs text-center focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
+                  className="w-20 border border-[#5f80c7] rounded px-1 py-0.5 text-xs text-center text-[#f6f9ff] focus:outline-none focus:ring-1 focus:ring-[#76a4ff] bg-[#0f2a60]"
                   onClick={(e) => e.stopPropagation()}
                 >
                   {unidades.map((u) => (
@@ -283,22 +283,22 @@ function CardComposicao({
         <div className="flex items-center gap-1 flex-shrink-0">
           {editando ? (
             <>
-              <button onClick={cancelar} disabled={salvando} className="p-1.5 text-slate-500 hover:bg-slate-100 rounded-lg disabled:opacity-50" title="Cancelar">
+              <button onClick={cancelar} disabled={salvando} className="p-1.5 text-[#c3d5ff] hover:bg-[#26467d] rounded-lg disabled:opacity-50" title="Cancelar">
                 <X size={14} />
               </button>
-              <button onClick={salvar} disabled={salvando} className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg disabled:opacity-50 flex items-center gap-1" title="Salvar">
+              <button onClick={salvar} disabled={salvando} className="p-1.5 text-[#9cf3c6] hover:bg-[#1e6948]/60 rounded-lg disabled:opacity-50 flex items-center gap-1" title="Salvar">
                 {salvando ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
               </button>
             </>
           ) : (
             <>
-              <button onClick={iniciarEdicao} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg" title="Editar">
+              <button onClick={iniciarEdicao} className="p-1.5 text-[#9bc0ff] hover:bg-[#1d3f78] rounded-lg" title="Editar">
                 <Edit2 size={14} />
               </button>
               <button
                 onClick={remover}
                 disabled={removendo}
-                className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg disabled:opacity-50"
+                className="p-1.5 text-[#ffb1bd] hover:bg-[#5f2234]/60 rounded-lg disabled:opacity-50"
                 title="Remover"
               >
                 {removendo ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
@@ -310,21 +310,21 @@ function CardComposicao({
 
       {/* Erro inline */}
       {erro && (
-        <div className="px-4 py-2 bg-red-50 border-t border-red-100 text-xs text-red-600 flex items-center gap-2">
+        <div className="px-4 py-2 bg-[#60273a]/70 border-t border-[#b54a67] text-xs text-[#ffc9d6] flex items-center gap-2">
           <AlertCircle size={12} /> {erro}
         </div>
       )}
 
       {/* ── Tabela de profissionais ── */}
       {aberto && (
-        <div className="border-t border-slate-100">
+        <div className="border-t border-[#3f62a8]">
           <table className="w-full text-xs">
             <thead>
-              <tr className="bg-slate-50 border-b border-slate-200">
-                <th className="px-3 py-2 text-left font-semibold text-slate-600 uppercase tracking-wider">#  PROFISSIONAL</th>
-                <th className="px-3 py-2 text-right font-semibold text-slate-600 uppercase tracking-wider w-24">HORA</th>
-                <th className="px-3 py-2 text-right font-semibold text-slate-600 uppercase tracking-wider w-28">COEF. (Hh/UN)</th>
-                <th className="px-3 py-2 text-center font-semibold text-slate-600 uppercase tracking-wider w-20">AÇÕES</th>
+              <tr className="bg-[#143269] border-b border-[#4467ae]">
+                <th className="px-3 py-2 text-left font-semibold text-[#d8e5ff] uppercase tracking-wider">#  PROFISSIONAL</th>
+                <th className="px-3 py-2 text-right font-semibold text-[#d8e5ff] uppercase tracking-wider w-24">HORA</th>
+                <th className="px-3 py-2 text-right font-semibold text-[#d8e5ff] uppercase tracking-wider w-28">COEF. (Hh/UN)</th>
+                <th className="px-3 py-2 text-center font-semibold text-[#d8e5ff] uppercase tracking-wider w-20">AÇÕES</th>
               </tr>
             </thead>
             <tbody>
@@ -341,7 +341,7 @@ function CardComposicao({
 
               {dados.profissionais.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="px-3 py-4 text-center text-slate-400 italic text-xs">
+                  <td colSpan={4} className="px-3 py-4 text-center text-[#c2d4ff] italic text-xs">
                     Sem dados de MO / QTD pendente
                   </td>
                 </tr>
@@ -349,11 +349,11 @@ function CardComposicao({
 
               {/* Linha Adicionar (modo edição) */}
               {editando && (
-                <tr className="border-t border-dashed border-blue-200">
+                <tr className="border-t border-dashed border-[#5f80c7]">
                   <td colSpan={4} className="px-3 py-2">
                     <button
                       onClick={addProf}
-                      className="flex items-center gap-1.5 text-blue-600 hover:text-blue-700 text-xs font-medium"
+                      className="flex items-center gap-1.5 text-[#8fb3ff] hover:text-[#c8dcff] text-xs font-medium"
                     >
                       <Plus size={12} /> Adicionar profissional
                     </button>
@@ -362,9 +362,9 @@ function CardComposicao({
               )}
 
               {/* Linha TOTAL */}
-              <tr className="bg-slate-100 font-semibold border-t border-slate-200">
-                <td className="px-3 py-2.5 text-right text-slate-700 text-xs uppercase" colSpan={2}>TOTAL COEF.</td>
-                <td className="px-3 py-2.5 text-right font-mono text-xs text-slate-800">
+              <tr className="bg-[#1a3a78]/82 font-semibold border-t border-[#4c71ba]">
+                <td className="px-3 py-2.5 text-right text-[#d8e5ff] text-xs uppercase" colSpan={2}>TOTAL COEF.</td>
+                <td className="px-3 py-2.5 text-right font-mono text-xs text-[#f8fbff]">
                   {totalCoef ? totalCoef.toFixed(4) : '—'}
                 </td>
                 <td className="px-3 py-2.5" />
@@ -520,8 +520,8 @@ export function MaoDeObra() {
   if (carregando) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="flex flex-col items-center gap-3 text-slate-500">
-          <Loader2 size={32} className="animate-spin text-blue-500" />
+        <div className="flex flex-col items-center gap-3 text-[#d0deff]">
+          <Loader2 size={32} className="animate-spin text-[#8fb3ff]" />
           <p className="text-sm">Carregando composições...</p>
         </div>
       </div>
@@ -532,10 +532,10 @@ export function MaoDeObra() {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="flex flex-col items-center gap-3 text-center max-w-sm">
-          <AlertCircle size={32} className="text-red-400" />
-          <p className="text-sm font-semibold text-slate-700">Erro ao carregar dados</p>
-          <p className="text-xs text-slate-500">{erroCarregar}</p>
-          <button onClick={carregar} className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">
+          <AlertCircle size={32} className="text-[#ffb1bd]" />
+          <p className="text-sm font-semibold text-[#f8fbff]">Erro ao carregar dados</p>
+          <p className="text-xs text-[#c9d8ff]">{erroCarregar}</p>
+          <button onClick={carregar} className="px-4 py-2 bg-[#2f66d5] text-white text-sm rounded-lg hover:bg-[#3a74eb]">
             Tentar novamente
           </button>
         </div>
@@ -544,22 +544,22 @@ export function MaoDeObra() {
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="mao-de-obra-page flex flex-col h-full">
       {/* ── Header ── */}
-      <div className="px-8 py-5 border-b border-slate-200 bg-white">
+      <div className="px-8 py-5 border-b border-[#3e63ab] bg-[#132f68]/95">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-3">
-              <Hammer size={24} className="text-blue-600" />
+            <h1 className="text-2xl font-bold text-[#f8fbff] flex items-center gap-3">
+              <Hammer size={24} className="text-[#8fb3ff]" />
               Composições de Mão de Obra
             </h1>
-            <p className="text-sm text-slate-500 mt-1">
+            <p className="text-sm text-[#c9d8ff] mt-1">
               Composição Unitária | Coef. = Hh ÷ Qtd | Jornada padrão: 8h
             </p>
           </div>
           <button
             onClick={() => setAdicionando(true)}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2.5 rounded-lg transition-colors shadow-sm"
+            className="flex items-center gap-2 bg-[#2f66d5] hover:bg-[#3a74eb] text-white text-sm font-medium px-4 py-2.5 rounded-lg transition-colors shadow-sm"
           >
             <Plus size={16} />
             Nova Composição
@@ -568,34 +568,34 @@ export function MaoDeObra() {
 
         {/* KPIs */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-          <div className="bg-slate-50 rounded-xl p-3 border border-slate-200">
-            <p className="text-xs text-slate-500">Atividades</p>
-            <p className="text-xl font-bold text-slate-800">{totalAtv}</p>
+          <div className="bg-[#102a5f] rounded-xl p-3 border border-[#466db8]">
+            <p className="text-xs text-[#c9d8ff]">Atividades</p>
+            <p className="text-xl font-bold text-[#f8fbff]">{totalAtv}</p>
           </div>
-          <div className="bg-slate-50 rounded-xl p-3 border border-slate-200">
-            <p className="text-xs text-slate-500">Profissionais</p>
-            <p className="text-xl font-bold text-slate-800">{totalProfs}</p>
+          <div className="bg-[#102a5f] rounded-xl p-3 border border-[#466db8]">
+            <p className="text-xs text-[#c9d8ff]">Profissionais</p>
+            <p className="text-xl font-bold text-[#f8fbff]">{totalProfs}</p>
           </div>
         </div>
 
         {/* Busca + Filtro */}
         <div className="flex gap-3">
           <div className="relative flex-1">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#b7ccff]" />
             <input
               type="text"
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
               placeholder="Buscar atividade, obra ou profissional..."
-              className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full pl-10 pr-4 py-2 border border-[#5d80c8] bg-[#0f2a60] text-[#f8fbff] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#7ea7ff]"
             />
           </div>
           <div className="relative">
-            <Filter size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <Filter size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#b7ccff]" />
             <select
               value={filtroObra}
               onChange={(e) => setFiltroObra(e.target.value)}
-              className="pl-10 pr-8 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none"
+              className="pl-10 pr-8 py-2 border border-[#5d80c8] rounded-lg text-sm bg-[#0f2a60] text-[#f8fbff] focus:outline-none focus:ring-2 focus:ring-[#7ea7ff] appearance-none"
             >
               <option value="">Todas as obras</option>
               {obrasUnicas.map((ob) => (
@@ -607,33 +607,33 @@ export function MaoDeObra() {
       </div>
 
       {/* ── Conteúdo ── */}
-      <div className="flex-1 overflow-y-auto p-6 bg-slate-50">
+      <div className="flex-1 overflow-y-auto p-6 bg-[#0a1d49]">
         {/* Nova composição */}
         {adicionando && (
-          <div className="bg-green-50 border border-green-200 rounded-xl p-5 mb-6">
-            <h3 className="font-semibold text-slate-800 mb-3 text-sm">Nova Composição de Mão de Obra</h3>
+          <div className="bg-[#17386f] border border-[#5e82cd] rounded-xl p-5 mb-6">
+            <h3 className="font-semibold text-[#f8fbff] mb-3 text-sm">Nova Composição de Mão de Obra</h3>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-4">
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Obra</label>
+                <label className="block text-xs font-medium text-[#d0deff] mb-1">Obra</label>
                 <input type="text" value={novo.obra} onChange={(e) => setNovo({ ...novo, obra: e.target.value })}
                   list="obras-list" placeholder="Ex: Dellabruna - Galpão"
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+                  className="w-full border border-[#5d80c8] bg-[#0f2a60] text-[#f8fbff] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7ea7ff]" />
                 <datalist id="obras-list">
                   {obrasUnicas.map((ob) => <option key={ob} value={ob} />)}
                 </datalist>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Atividade</label>
+                <label className="block text-xs font-medium text-[#d0deff] mb-1">Atividade</label>
                 <input type="text" value={novo.atividade} onChange={(e) => setNovo({ ...novo, atividade: e.target.value })}
                   placeholder="Ex: [1.1] ELETROCALHA"
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+                  className="w-full border border-[#5d80c8] bg-[#0f2a60] text-[#f8fbff] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#7ea7ff]" />
               </div>
             </div>
             <div className="flex gap-2 justify-end">
-              <button onClick={() => setAdicionando(false)} disabled={salvandoNovo} className="px-4 py-2 rounded-lg border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-50">
+              <button onClick={() => setAdicionando(false)} disabled={salvandoNovo} className="px-4 py-2 rounded-lg border border-[#5d80c8] text-sm text-[#d3e1ff] hover:bg-[#21427f] disabled:opacity-50">
                 Cancelar
               </button>
-              <button onClick={addComposicao} disabled={salvandoNovo} className="px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm font-medium disabled:opacity-50 flex items-center gap-2">
+              <button onClick={addComposicao} disabled={salvandoNovo} className="px-4 py-2 rounded-lg bg-[#2f66d5] hover:bg-[#3a74eb] text-white text-sm font-medium disabled:opacity-50 flex items-center gap-2">
                 {salvandoNovo && <Loader2 size={14} className="animate-spin" />}
                 Adicionar
               </button>
@@ -644,11 +644,11 @@ export function MaoDeObra() {
         {/* Lista agrupada por obra */}
         {filtradas.length === 0 && !adicionando ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
-            <div className="w-16 h-16 rounded-2xl bg-blue-50 flex items-center justify-center mb-4">
-              <Hammer size={32} className="text-blue-400" />
+            <div className="w-16 h-16 rounded-2xl bg-[#16346f] flex items-center justify-center mb-4">
+              <Hammer size={32} className="text-[#8fb3ff]" />
             </div>
-            <h3 className="text-lg font-semibold text-slate-700">Nenhuma composição encontrada</h3>
-            <p className="text-sm text-slate-400 mt-1 max-w-sm">
+            <h3 className="text-lg font-semibold text-[#f8fbff]">Nenhuma composição encontrada</h3>
+            <p className="text-sm text-[#c9d8ff] mt-1 max-w-sm">
               {busca || filtroObra
                 ? 'Tente ajustar os filtros de busca.'
                 : 'Clique em "Nova Composição" para começar a cadastrar.'}
@@ -661,10 +661,10 @@ export function MaoDeObra() {
                 {/* Header da obra */}
                 <div className="flex items-center gap-2 mb-3">
                   <div className="w-1.5 h-5 bg-blue-600 rounded-full" />
-                  <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wide">
+                  <h2 className="text-sm font-bold text-[#f8fbff] uppercase tracking-wide">
                     {obra}
                   </h2>
-                  <span className="text-xs text-slate-400 ml-auto">
+                  <span className="text-xs text-[#c9d8ff] ml-auto">
                     {comps.length} atividade{comps.length !== 1 ? 's' : ''}
                   </span>
                 </div>
@@ -689,9 +689,11 @@ export function MaoDeObra() {
       </div>
 
       {/* Footer */}
-      <div className="px-8 py-3 border-t border-slate-200 bg-white text-xs text-slate-400">
+      <div className="px-8 py-3 border-t border-[#3e63ab] bg-[#132f68]/95 text-xs text-[#c9d8ff]">
         Fonte: APP Diário de Obra — Biasi Engenharia | Composição unitária por atividade
       </div>
     </div>
   );
 }
+
+

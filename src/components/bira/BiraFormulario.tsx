@@ -25,6 +25,8 @@ function SearchSelect<T extends { id: string; titulo?: string; nome?: string; co
   disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const [openUpwards, setOpenUpwards] = useState(false);
+  const [panelMaxHeight, setPanelMaxHeight] = useState(280);
   const [search, setSearch] = useState('');
   const ref = useRef<HTMLDivElement>(null);
 
@@ -40,12 +42,32 @@ function SearchSelect<T extends { id: string; titulo?: string; nome?: string; co
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
+  useEffect(() => {
+    if (!open || !ref.current) return;
+    const rect = ref.current.getBoundingClientRect();
+    const viewportMargin = 20;
+    const minPanelHeight = 170;
+    const spaceBelow = Math.max(0, window.innerHeight - rect.bottom - viewportMargin);
+    const spaceAbove = Math.max(0, rect.top - viewportMargin);
+    const shouldOpenUpwards = spaceBelow < minPanelHeight && spaceAbove > spaceBelow;
+    const available = shouldOpenUpwards ? spaceAbove : spaceBelow;
+    const clampedPanelHeight = Math.max(minPanelHeight, Math.min(320, available));
+
+    setOpenUpwards(shouldOpenUpwards);
+    setPanelMaxHeight(Math.max(minPanelHeight, clampedPanelHeight));
+  }, [open]);
+
+  function toggleOpen() {
+    if (disabled) return;
+    setOpen((o) => !o);
+  }
+
   return (
     <div ref={ref} className="relative space-y-1.5 flex-1">
       <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">{label}</label>
       <div 
         className={`relative group cursor-pointer ${disabled ? 'opacity-50 pointer-events-none' : ''}`}
-        onClick={() => setOpen(!open)}
+        onClick={toggleOpen}
       >
         <div className={`absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-hover:text-blue-500 transition-colors`}>
           <Icon size={14} />
@@ -59,8 +81,13 @@ function SearchSelect<T extends { id: string; titulo?: string; nome?: string; co
       </div>
 
       {open && (
-        <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-2xl border border-slate-100 z-[70] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
-          <div className="p-3 border-b border-slate-50">
+        <div
+          className={`absolute left-0 right-0 bg-white rounded-2xl shadow-2xl border border-slate-100 z-[70] overflow-hidden animate-in fade-in duration-200 ${
+            openUpwards ? 'bottom-full mb-2 slide-in-from-bottom-2' : 'top-full mt-2 slide-in-from-top-2'
+          }`}
+          style={{ maxHeight: `${panelMaxHeight}px` }}
+        >
+          <div className="p-3 border-b border-slate-50 shrink-0">
             <input 
               autoFocus
               type="text" 
@@ -71,7 +98,10 @@ function SearchSelect<T extends { id: string; titulo?: string; nome?: string; co
               onClick={e => e.stopPropagation()}
             />
           </div>
-          <div className="max-h-60 overflow-y-auto p-2 space-y-1 no-scrollbar">
+          <div
+            className="overflow-y-auto p-2 space-y-1 no-scrollbar"
+            style={{ maxHeight: `${Math.max(96, panelMaxHeight - 66)}px` }}
+          >
             <button
                onClick={() => { onSelect(null); setOpen(false); }}
                className="w-full text-left px-4 py-2.5 text-xs text-slate-400 hover:bg-slate-50 rounded-xl transition-colors italic"
@@ -188,6 +218,18 @@ export function IssuePanel({
     setSendingComment(false);
   }
 
+  async function handleDelete() {
+    if (window.confirm(`Deseja realmente excluir a tarefa ${issue.codigo}?`)) {
+      try {
+        await biraRepository.deletar(issue.id);
+        onClose();
+      } catch (err) {
+        console.error(err);
+        alert('Erro ao excluir tarefa.');
+      }
+    }
+  }
+
   return (
     <div className="fixed inset-0 z-[60] flex items-stretch">
       <div className="flex-1 bg-slate-900/10 backdrop-blur-sm animate-in fade-in duration-300" onClick={onClose} />
@@ -197,10 +239,18 @@ export function IssuePanel({
             <div className="p-2 rounded-xl bg-blue-50 text-blue-600"><TypeIcon size={18} /></div>
             <div className="flex items-center gap-2">
               <span className="text-xs font-mono font-bold text-blue-600 tracking-wider bg-blue-50 px-2 py-0.5 rounded-lg">{issue.codigo}</span>
-              {issue.parent_id && <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border border-slate-200 px-1.5 py-0.5 rounded-md">Subtask</span>}
             </div>
           </div>
-          <button onClick={onClose} className="p-2 rounded-xl hover:bg-slate-100/80 text-slate-400 hover:text-slate-600 transition-all"><X size={20} /></button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleDelete}
+              className="p-2 rounded-xl text-slate-300 hover:text-rose-500 hover:bg-rose-50 transition-all"
+              title="Excluir Tarefa"
+            >
+              <RefreshCw size={18} className="hover:rotate-180 transition-transform" />
+            </button>
+            <button onClick={onClose} className="p-2 rounded-xl hover:bg-slate-100/80 text-slate-400 hover:text-slate-600 transition-all"><X size={20} /></button>
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto px-6 py-6 space-y-8 no-scrollbar">
@@ -324,9 +374,41 @@ export function CreateIssueModal({ onClose, onCreate }: { onClose: () => void; o
   const [comercial, setComercial] = useState<{ id: string; nome: string }[]>([]);
 
   useEffect(() => {
-    biraRepository.listarTodas().then(setTodasTarefas).catch(console.error);
-    biraRepository.listarMembrosComercial().then(setComercial).catch(console.error);
-  }, []);
+    let ativo = true;
+
+    async function carregarDados() {
+      try {
+        const [tarefas, membrosComercial] = await Promise.all([
+          biraRepository.listarTodas(),
+          biraRepository.listarMembrosComercial(),
+        ]);
+
+        if (!ativo) return;
+        setTodasTarefas(tarefas);
+
+        if (membrosComercial.length > 0) {
+          setComercial(membrosComercial);
+        } else if (usuario?.id && usuario?.nome) {
+          setComercial([{ id: usuario.id, nome: usuario.nome }]);
+        } else {
+          setComercial([]);
+        }
+      } catch (err) {
+        console.error(err);
+        if (!ativo) return;
+        if (usuario?.id && usuario?.nome) {
+          setComercial([{ id: usuario.id, nome: usuario.nome }]);
+        } else {
+          setComercial([]);
+        }
+      }
+    }
+
+    carregarDados();
+    return () => {
+      ativo = false;
+    };
+  }, [usuario?.id, usuario?.nome]);
 
   async function handleCreate() {
     if (!summary.trim() || !usuario) { setError('Falha na autenticação'); return; }
@@ -335,34 +417,8 @@ export function CreateIssueModal({ onClose, onCreate }: { onClose: () => void; o
     try {
       const parentFound = parentId ? todasTarefas.find(t => t.id === parentId) : null;
 
-      // ── Regras de Hierarquia ───────────────────────────────────────────
-      if (typeId === 'epic' && parentFound) {
-          setError('Um Epic não pode ter um pai.');
-          setCreating(false); return;
-      } 
-      else if (typeId === 'subtask') {
-        if (!parentFound) {
-          setError('Subtasks exigem um pai (Tarefa, História ou Bug).');
-          setCreating(false); return;
-        }
-        const tiposFilhoValidos = ['tarefa', 'historia', 'bug', 'feature', 'recurso'];
-        if (!tiposFilhoValidos.includes(parentFound.tipo)) {
-          setError('Uma Subtask deve ter como pai uma Tarefa, Bug ou História.');
-          setCreating(false); return;
-        }
-      }
-      else if (typeId !== 'epic') {
-        if (!parentFound) {
-          setError(`${typeId.toUpperCase()} exige um Epic como pai.`);
-          setCreating(false); return;
-        }
-        if (parentFound.tipo !== 'epic') {
-          setError(`Esta tarefa deve ter um Epic como pai.`);
-          setCreating(false); return;
-        }
-      }
-
-      const data = await biraRepository.criar({
+      // ── Regras de Hierarquia Singularity ───────────────────────────────────────────
+      const dadosParaCriar: any = {
         titulo: summary.trim(),
         tipo: typeId as any,
         prioridade: priorityId as any,
@@ -373,7 +429,32 @@ export function CreateIssueModal({ onClose, onCreate }: { onClose: () => void; o
         parent_id: parentId,
         responsavel_id: assigneeId,
         responsavel_nome: assigneeNome,
-      });
+      };
+
+      if (typeId === 'epic') {
+        if (parentFound) {
+          setError('Um Epic é o nível máximo e não pode ter um pai.');
+          setCreating(false); return;
+        }
+      } 
+      else if (typeId === 'feature') {
+        if (!parentFound || parentFound.tipo !== 'epic') {
+          setError('Uma Feature exige um EPIC como pai.');
+          setCreating(false); return;
+        }
+      }
+      else if (typeId === 'tarefa') {
+        if (!parentFound || parentFound.tipo !== 'feature') {
+          setError('Uma Tarefa exige uma FEATURE como pai.');
+          setCreating(false); return;
+        }
+      }
+      else if (typeId === 'bug' || typeId === 'recurso') {
+         // Bugs e Recursos não precisam de pai.
+         dadosParaCriar.parent_id = null;
+      }
+
+      const data = await biraRepository.criar(dadosParaCriar);
       onCreate(data.id);
     } catch (err) {
       console.error(err);
@@ -384,13 +465,14 @@ export function CreateIssueModal({ onClose, onCreate }: { onClose: () => void; o
 
   // Filtragem de pais sugeridos baseada no tipo selecionado
   const suggestedParents = todasTarefas.filter(t => {
-     if (typeId === 'subtask') return ['tarefa', 'historia', 'bug', 'feature', 'recurso'].includes(t.tipo);
-     return t.tipo === 'epic';
+     if (typeId === 'feature') return t.tipo === 'epic';
+     if (typeId === 'tarefa') return t.tipo === 'feature';
+     return false; // Epic, Bug e Recurso não buscam pais
   });
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md animate-in fade-in duration-200" onClick={onClose}>
-      <div className="bg-white rounded-[32px] shadow-2xl w-full max-w-xl border border-white/40 animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-2 sm:p-4 overflow-y-auto bg-slate-900/40 backdrop-blur-md animate-in fade-in duration-200" onClick={onClose}>
+      <div className="my-2 sm:my-0 bg-white rounded-[32px] shadow-2xl w-full max-w-xl border border-white/40 animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
         <div className="px-8 pt-8 pb-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
              <div className="p-2.5 bg-blue-600 rounded-2xl shadow-lg shadow-blue-600/30 text-white"><Plus size={20} /></div>
@@ -406,7 +488,7 @@ export function CreateIssueModal({ onClose, onCreate }: { onClose: () => void; o
               return (
                 <button key={t.id} onClick={() => {
                   setTypeId(t.id);
-                  setParentId(null); // Limpa o pai ao trocar o tipo para forçar re-seleção válida
+                  setParentId(null); 
                 }}
                   className={`flex items-center gap-2 px-4 py-2 rounded-2xl text-xs font-bold transition-all ${typeId === t.id ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30 ring-2 ring-blue-600 ring-offset-2' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>
                   <Icon size={14} /> {t.name}
@@ -434,12 +516,16 @@ export function CreateIssueModal({ onClose, onCreate }: { onClose: () => void; o
               <div className="grid grid-cols-1 gap-4">
                 <SearchSelect 
                   label="Tarefa Pai"
-                  placeholder="Selecione um pai..."
+                  placeholder={
+                    typeId === 'feature' ? "Selecione um Epic..." : 
+                    typeId === 'tarefa' ? "Selecione uma Feature..." : 
+                    "Independente"
+                  }
                   items={suggestedParents}
                   value={parentId || ''}
                   onSelect={(item) => setParentId(item?.id || null)}
                   icon={Search}
-                  disabled={typeId === 'epic'}
+                  disabled={['epic', 'bug', 'recurso'].includes(typeId)}
                 />
                 <SearchSelect 
                   label="Responsável (Comercial)"

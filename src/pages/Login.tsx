@@ -1,6 +1,6 @@
 import { useState, useEffect, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, X } from 'lucide-react';
+import { Eye, EyeOff, X, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 const ADMIN_EMAIL = 'guilherme@biasiengenharia.com.br';
@@ -21,16 +21,6 @@ export function Login() {
   const [emailNovo, setEmailNovo] = useState('');
   const [solicitacaoEnviada, setSolicitacaoEnviada] = useState(false);
 
-  function handleSolicitarAcesso(e: FormEvent) {
-    e.preventDefault();
-    const subject = encodeURIComponent('Solicitação de acesso — OrcaBiasi');
-    const body = encodeURIComponent(
-      `Olá,\n\nO usuário abaixo está solicitando acesso ao OrcaBiasi:\n\nNome: ${nomeNovo}\nE-mail: ${emailNovo}\n\nPor favor, crie a conta e envie as credenciais.\n\nAtt.`
-    );
-    window.location.href = `mailto:${ADMIN_EMAIL}?subject=${subject}&body=${body}`;
-    setSolicitacaoEnviada(true);
-  }
-
   useEffect(() => {
     if (isAuthenticated) {
       navigate('/dashboard', { replace: true });
@@ -45,180 +35,208 @@ export function Login() {
     e.preventDefault();
     setErro('');
     setCarregando(true);
+
     const resultado = await login(email, senha, rememberMe);
+
     setCarregando(false);
     if (resultado.sucesso) {
       navigate('/dashboard', { replace: true });
-    } else {
-      setErro(resultado.erro ?? 'Erro ao entrar.');
+      return;
     }
+
+    setErro(resultado.erro ?? 'Credenciais invalidas.');
+  }
+
+  function handleSolicitarAcesso(e: FormEvent) {
+    e.preventDefault();
+
+    const subject = encodeURIComponent('Solicitacao de acesso - Comercial BiasiHub');
+    const body = encodeURIComponent(
+      `Ola,%0A%0AO usuario abaixo esta solicitando acesso:%0A%0ANome: ${nomeNovo}%0AE-mail: ${emailNovo}%0A%0APor favor, analisar e liberar o acesso.`
+    );
+
+    window.location.href = `mailto:${ADMIN_EMAIL}?subject=${subject}&body=${body}`;
+    setSolicitacaoEnviada(true);
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-sm">
-        {/* Logo */}
-        <div className="flex flex-col items-center mb-8">
-          <img src="/logo-biasi.png" alt="Biasi Engenharia" className="h-20 w-auto" />
-        </div>
-
-        {/* Card */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8">
-          <div className="mb-6">
-            <h1 className="text-2xl font-bold text-slate-800">Entrar</h1>
-            <p className="text-sm text-slate-500 mt-1">Sistema de orçamentação</p>
-          </div>
-
-          {erro && (
-            <div className="mb-5 bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-lg">
-              {erro}
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                E-mail
-              </label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="seu@email.com.br"
-                autoComplete="email"
-                className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                Senha
-              </label>
-              <div className="relative">
-                <input
-                  type={mostrarSenha ? 'text' : 'password'}
-                  value={senha}
-                  onChange={(e) => setSenha(e.target.value)}
-                  placeholder="••••••••"
-                  autoComplete="current-password"
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2.5 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow"
-                />
-                <button
-                  type="button"
-                  onClick={() => setMostrarSenha((v) => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                >
-                  {mostrarSenha ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2.5">
-              <input
-                type="checkbox"
-                id="remember-me"
-                checked={rememberMe}
-                onChange={(e) => setRememberMe(e.target.checked)}
-                className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-2 focus:ring-blue-500 cursor-pointer"
-              />
-              <label htmlFor="remember-me" className="text-sm text-slate-600 cursor-pointer font-medium">
-                Lembrar de mim neste computador
-              </label>
-            </div>
-
-            <button
-              type="submit"
-              disabled={carregando}
-              className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-medium py-2.5 rounded-lg text-sm transition-colors flex items-center justify-center gap-2 mt-2"
-            >
-              {carregando ? (
-                <>
-                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Entrando...
-                </>
-              ) : (
-                'Entrar'
-              )}
-            </button>
-          </form>
-        </div>
-
-        <p className="text-center text-sm text-slate-500 mt-6">
-          Não tem conta?{' '}
-          <button
-            onClick={() => { setModalCriar(true); setSolicitacaoEnviada(false); setNomeNovo(''); setEmailNovo(''); }}
-            className="text-blue-600 font-medium hover:underline"
-          >
-            Criar
-          </button>
-        </p>
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#08122f] p-6">
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute -left-32 -top-24 h-96 w-96 rounded-full bg-[#1B47A1]/45 blur-[120px]" />
+        <div className="absolute -bottom-24 -right-28 h-80 w-80 rounded-full bg-[#FFC82D]/20 blur-[120px]" />
       </div>
 
-      {/* Modal solicitar acesso */}
+      <div className="relative z-10 grid w-full max-w-6xl overflow-hidden rounded-[34px] border border-[#3A5FA9] shadow-[0_32px_80px_rgba(0,0,0,0.45)] lg:grid-cols-2">
+        <div className="flex flex-col justify-between bg-[#233772] p-10 lg:p-14">
+          <div>
+            <img src="/logo-branco.svg" alt="Biasi" className="h-10 w-auto" />
+            <div className="mt-11 inline-flex items-center rounded-full border border-[#FFD76E]/40 bg-[#FFC82D]/10 px-4 py-1.5">
+              <span className="text-[10px] font-black uppercase tracking-[0.24em] text-[#FFD76E]">Comercial</span>
+            </div>
+            <h1 className="mt-7 max-w-md text-5xl font-black leading-[1.02] text-white">
+              Operacao comercial com foco em fechamento.
+            </h1>
+            <p className="mt-6 max-w-md text-base leading-relaxed text-[#DCE7FF]">
+              Acesse propostas, orcamentos, funil e BI com o mesmo padrao visual do Hub principal.
+            </p>
+          </div>
+
+          <div className="border-t border-[#3D5EA8] pt-10">
+            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#FFD76E]">
+              Biasi Engenharia - Terminal Comercial
+            </p>
+          </div>
+        </div>
+
+        <div className="bg-white p-8 sm:p-12 lg:p-14">
+          <div className="mx-auto max-w-md">
+            <h2 className="text-4xl font-black leading-none text-[#233772]">Bem-vindo</h2>
+            <p className="mt-2 text-sm text-[#4B5D89]">Entre com suas credenciais para continuar.</p>
+
+            {erro && (
+              <div className="mt-6 rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-semibold text-red-700">
+                {erro}
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit} className="mt-8 space-y-5">
+              <div>
+                <label className="mb-2 block text-[11px] font-black uppercase tracking-[0.18em] text-[#4B5D89]">
+                  E-mail
+                </label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="seu@biasiengenharia.com.br"
+                  autoComplete="email"
+                  className="h-12 w-full rounded-xl border border-[#C8D5F2] bg-white px-4 text-[#233772] focus:outline-none focus:ring-2 focus:ring-[#233772]/20"
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-[11px] font-black uppercase tracking-[0.18em] text-[#4B5D89]">
+                  Senha
+                </label>
+                <div className="relative">
+                  <input
+                    type={mostrarSenha ? 'text' : 'password'}
+                    value={senha}
+                    onChange={(e) => setSenha(e.target.value)}
+                    placeholder="��������"
+                    autoComplete="current-password"
+                    className="h-12 w-full rounded-xl border border-[#C8D5F2] bg-white px-4 pr-12 text-[#233772] focus:outline-none focus:ring-2 focus:ring-[#233772]/20"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setMostrarSenha((v) => !v)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#4B5D89] hover:text-[#233772]"
+                  >
+                    {mostrarSenha ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+              </div>
+
+              <label className="flex items-center gap-2 text-sm text-[#4B5D89]">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="h-4 w-4 rounded border-[#C8D5F2] text-[#233772]"
+                />
+                Lembrar de mim
+              </label>
+
+              <button
+                type="submit"
+                disabled={carregando}
+                className="h-12 w-full rounded-xl bg-[#233772] text-[#FFC82D] font-black uppercase tracking-[0.2em] transition hover:bg-[#1D2E5F] disabled:opacity-60"
+              >
+                {carregando ? 'Entrando...' : 'Entrar'}
+              </button>
+            </form>
+
+            <p className="mt-8 text-center text-sm text-[#4B5D89]">
+              Nao tem conta?{' '}
+              <button
+                onClick={() => {
+                  setModalCriar(true);
+                  setSolicitacaoEnviada(false);
+                }}
+                className="font-black text-[#233772] hover:text-[#1D2E5F]"
+              >
+                Solicitar acesso
+              </button>
+            </p>
+          </div>
+        </div>
+      </div>
+
       {modalCriar && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-lg w-full max-w-sm p-8 relative">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
+          <div
+            className="absolute inset-0 bg-[#0B1230]/70 backdrop-blur-sm"
+            onClick={() => setModalCriar(false)}
+          />
+
+          <div className="relative w-full max-w-md rounded-3xl bg-white p-8 shadow-2xl">
             <button
               onClick={() => setModalCriar(false)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"
+              className="absolute right-5 top-5 text-[#4B5D89] hover:text-[#233772]"
             >
-              <X size={18} />
+              <X size={20} />
             </button>
 
+            <h3 className="text-2xl font-black text-[#233772]">Solicitar acesso</h3>
+            <p className="mt-2 text-sm text-[#4B5D89]">
+              Sua solicitacao sera enviada para o administrador do Comercial.
+            </p>
+
             {solicitacaoEnviada ? (
-              <div className="text-center py-4">
-                <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <svg className="w-6 h-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
+              <div className="py-8 text-center">
+                <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#233772] text-[#FFC82D]">
+                  <ShieldCheck size={22} />
                 </div>
-                <h2 className="text-lg font-bold text-slate-800 mb-2">Solicitação enviada!</h2>
-                <p className="text-sm text-slate-500">Um administrador vai criar sua conta e entrar em contato.</p>
+                <p className="font-semibold text-[#233772]">Solicitacao enviada com sucesso.</p>
                 <button
                   onClick={() => setModalCriar(false)}
-                  className="mt-6 w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 rounded-lg text-sm transition-colors"
+                  className="mt-6 h-11 w-full rounded-xl bg-[#233772] text-[#FFC82D] font-black uppercase tracking-[0.15em]"
                 >
                   Fechar
                 </button>
               </div>
             ) : (
-              <>
-                <div className="mb-6">
-                  <h2 className="text-xl font-bold text-slate-800">Solicitar acesso</h2>
-                  <p className="text-sm text-slate-500 mt-1">Preencha seus dados e um administrador criará sua conta.</p>
+              <form onSubmit={handleSolicitarAcesso} className="mt-6 space-y-4">
+                <div>
+                  <label className="mb-2 block text-[11px] font-black uppercase tracking-[0.16em] text-[#4B5D89]">
+                    Nome
+                  </label>
+                  <input
+                    type="text"
+                    value={nomeNovo}
+                    onChange={(e) => setNomeNovo(e.target.value)}
+                    required
+                    className="h-11 w-full rounded-xl border border-[#C8D5F2] px-4 text-[#233772] focus:outline-none focus:ring-2 focus:ring-[#233772]/20"
+                  />
                 </div>
 
-                <form onSubmit={handleSolicitarAcesso} className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1.5">Nome</label>
-                    <input
-                      type="text"
-                      value={nomeNovo}
-                      onChange={(e) => setNomeNovo(e.target.value)}
-                      placeholder="Seu nome completo"
-                      required
-                      className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1.5">E-mail</label>
-                    <input
-                      type="email"
-                      value={emailNovo}
-                      onChange={(e) => setEmailNovo(e.target.value)}
-                      placeholder="seu@email.com.br"
-                      required
-                      className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow"
-                    />
-                  </div>
-                  <button
-                    type="submit"
-                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 rounded-lg text-sm transition-colors mt-2"
-                  >
-                    Enviar solicitação
-                  </button>
-                </form>
-              </>
+                <div>
+                  <label className="mb-2 block text-[11px] font-black uppercase tracking-[0.16em] text-[#4B5D89]">
+                    E-mail
+                  </label>
+                  <input
+                    type="email"
+                    value={emailNovo}
+                    onChange={(e) => setEmailNovo(e.target.value)}
+                    required
+                    className="h-11 w-full rounded-xl border border-[#C8D5F2] px-4 text-[#233772] focus:outline-none focus:ring-2 focus:ring-[#233772]/20"
+                  />
+                </div>
+
+                <button className="h-11 w-full rounded-xl bg-[#233772] text-[#FFC82D] font-black uppercase tracking-[0.16em]">
+                  Enviar solicitacao
+                </button>
+              </form>
             )}
           </div>
         </div>

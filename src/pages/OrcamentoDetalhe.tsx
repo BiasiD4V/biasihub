@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Calendar, User, Building, Clock, CheckCircle, XCircle, FolderOpen, Trash2 } from 'lucide-react';
 import { useNovoOrcamento } from '../context/NovoOrcamentoContext';
@@ -34,24 +34,18 @@ import { RESULTADO_CORES } from '../domain/value-objects/ResultadoComercial';
 const ETAPA_DEFAULT: EtapaFunil = 'entrada_oportunidade';
 const RESULTADO_DEFAULT: ResultadoComercial = 'em_andamento';
 
-/* === localStorage helpers para persistência quando tabelas Supabase não existem === */
-function lsKey(propostaId: string, tipo: 'mudancas' | 'followups' | 'pendencias') {
-  return `biasi_${tipo}_${propostaId}`;
+/* === cache local desativado: dados de detalhe ficam centralizados no banco === */
+function lsGetMudancas(_propostaId: string): MudancaEtapa[] {
+  return [];
 }
-function lsGetMudancas(propostaId: string): MudancaEtapa[] {
-  try { return JSON.parse(localStorage.getItem(lsKey(propostaId, 'mudancas')) || '[]'); } catch { return []; }
+function lsSaveMudancas(_propostaId: string, _items: MudancaEtapa[]) {
+  // noop: persistencia exclusiva no Supabase
 }
-function lsSaveMudancas(propostaId: string, items: MudancaEtapa[]) {
-  try { localStorage.setItem(lsKey(propostaId, 'mudancas'), JSON.stringify(items)); } catch { /* */ }
+function lsGetFollowUps(_propostaId: string): FollowUp[] {
+  return [];
 }
-function lsGetFollowUps(propostaId: string): FollowUp[] {
-  try { return JSON.parse(localStorage.getItem(lsKey(propostaId, 'followups')) || '[]'); } catch { return []; }
-}
-function lsSaveFollowUps(propostaId: string, items: FollowUp[]) {
-  try { localStorage.setItem(lsKey(propostaId, 'followups'), JSON.stringify(items)); } catch { /* */ }
-}
-function lsGetPendencias(propostaId: string): Pendencia[] {
-  try { return JSON.parse(localStorage.getItem(lsKey(propostaId, 'pendencias')) || '[]'); } catch { return []; }
+function lsSaveFollowUps(_propostaId: string, _items: FollowUp[]) {
+  // noop: persistencia exclusiva no Supabase
 }
 
 function assinaturaMudanca(m: MudancaEtapa): string {
@@ -158,16 +152,16 @@ function rowParaFollowUp(r: FollowUpRow): FollowUp {
   };
 }
 
-/* Helper: converte PropostaSupabase → OrcamentoCard (parcial) */
+/* Helper: converte PropostaSupabase â†’ OrcamentoCard (parcial) */
 function propostaParaOrc(p: PropostaSupabase): OrcamentoCard {
   const etapa = etapaSegura(p.etapa_funil);
   const resultado = resultadoSeguro(p.resultado_comercial);
   return {
     id: p.id,
     numero: p.numero_composto,
-    titulo: [p.cliente, p.obra].filter(Boolean).join(' — ') || p.numero_composto,
+    titulo: [p.cliente, p.obra].filter(Boolean).join(' - ') || p.numero_composto,
     clienteId: '',
-    clienteNome: p.cliente || '—',
+    clienteNome: p.cliente || '-',
     tiposObraIds: [],
     tiposObraNomes: p.tipo ? [p.tipo] : [],
     disciplinaIds: [],
@@ -261,12 +255,12 @@ export function OrcamentoDetalhe() {
       if (!cancelado) {
         setLocalMudancas(lsGetMudancas(id));
         setLocalFollowUps(lsGetFollowUps(id));
-        setLocalPendencias(lsGetPendencias(id));
+        setLocalPendencias([]);
         setCarregando(false);
       }
     });
 
-    // ── Supabase Realtime ───────────────────────────────────────────
+    // â”€â”€ Supabase Realtime â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const channel = supabase
       .channel(`orcamento-${id}`)
       .on('postgres_changes', { 
@@ -289,6 +283,17 @@ export function OrcamentoDetalhe() {
             setLocalMudancas(m);
             lsSaveMudancas(id, m);
           });
+        }
+      })
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'pendencias',
+      }, () => {
+        if (!cancelado) {
+          propostasRepository.listarPendencias(id).then((pends) => {
+            setLocalPendencias(pends);
+          }).catch(() => {});
         }
       })
       .subscribe();
@@ -615,7 +620,7 @@ export function OrcamentoDetalhe() {
             }`}>
               <span className={`w-2 h-2 rounded-full flex-shrink-0 ${cfg.dot}`} />
               <span className={`text-xs font-semibold ${cfg.text}`}>Prioridade {cfg.label}</span>
-              <span className="text-slate-300 text-xs">•</span>
+                    <span className="text-slate-300 text-xs">•</span>
               <AlertasOrcamento orc={orc} />
             </div>
           );
@@ -793,10 +798,12 @@ export function OrcamentoDetalhe() {
               orcamentoId: id, descricao: pend.descricao, status: pend.status,
               responsavel: pend.responsavel, prazo: pend.prazo,
             });
-            if (salvo) setLocalPendencias((prev) => [salvo, ...prev]);
+            if (!salvo) throw new Error('Falha ao salvar pendencia no Supabase');
+            setLocalPendencias((prev) => [salvo, ...prev]);
           } : undefined}
         />
       )}
     </div>
   );
 }
+

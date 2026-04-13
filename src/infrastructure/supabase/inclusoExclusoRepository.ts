@@ -1,4 +1,4 @@
-import { supabase } from './client'
+﻿import { supabase } from './client'
 
 export type SituacaoEscopo = 'Fechado' | 'Fechado com premissa' | 'Pendente' | 'Precisa validar'
 export type RiscoEscopo = 'Baixo' | 'Médio' | 'Alto'
@@ -35,74 +35,46 @@ export const SITUACOES_ESCOPO: SituacaoEscopo[] = ['Fechado', 'Fechado com premi
 export const RISCOS_ESCOPO: RiscoEscopo[] = ['Baixo', 'Médio', 'Alto']
 export const RESPONSAVEIS_ESCOPO = ['Paulo', 'Ryan', 'Luan', 'Giovanni', 'Jennifer']
 
-const LS_KEY = 'biasi_incluso_excluso'
-
-function lsGet(): InclusoExclusoSupabase[] {
-  try { return JSON.parse(localStorage.getItem(LS_KEY) || '[]') } catch { return [] }
-}
-function lsSet(items: InclusoExclusoSupabase[]) {
-  localStorage.setItem(LS_KEY, JSON.stringify(items))
-}
-
 export const inclusoExclusoRepository = {
   async listarTodos(): Promise<InclusoExclusoSupabase[]> {
-    try {
-      const { data, error } = await supabase
-        .from('incluso_excluso')
-        .select('*')
-        .order('obra', { ascending: true })
-      if (error) throw error
-      if (data && data.length > 0) return data
-    } catch { /* fallback */ }
-    return lsGet()
+    const { data, error } = await supabase
+      .from('incluso_excluso')
+      .select('*')
+      .order('obra', { ascending: true })
+
+    if (error) throw error
+    return data || []
   },
 
   async criar(item: Omit<InclusoExclusoSupabase, 'id' | 'criado_em' | 'atualizado_em'>): Promise<InclusoExclusoSupabase> {
-    try {
-      const { data, error } = await supabase
-        .from('incluso_excluso')
-        .insert(item)
-        .select()
-        .single()
-      if (error) throw error
-      return data
-    } catch { /* fallback localStorage */ }
-    const now = new Date().toISOString()
-    const novo: InclusoExclusoSupabase = { ...item, id: crypto.randomUUID(), criado_em: now, atualizado_em: now }
-    const all = lsGet()
-    all.push(novo)
-    lsSet(all)
-    return novo
+    const { data, error } = await supabase
+      .from('incluso_excluso')
+      .insert(item)
+      .select()
+      .single()
+
+    if (error) throw error
+    return data
   },
 
   async atualizar(id: string, item: Partial<InclusoExclusoSupabase>): Promise<InclusoExclusoSupabase> {
-    try {
-      const { data, error } = await supabase
-        .from('incluso_excluso')
-        .update({ ...item, atualizado_em: new Date().toISOString() })
-        .eq('id', id)
-        .select()
-        .single()
-      if (error) throw error
-      return data
-    } catch { /* fallback localStorage */ }
-    const all = lsGet()
-    const idx = all.findIndex(x => x.id === id)
-    if (idx >= 0) {
-      all[idx] = { ...all[idx], ...item, atualizado_em: new Date().toISOString() }
-      lsSet(all)
-      return all[idx]
-    }
-    throw new Error('Item não encontrado')
+    const { data, error } = await supabase
+      .from('incluso_excluso')
+      .update({ ...item, atualizado_em: new Date().toISOString() })
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (error) throw error
+    return data
   },
 
   async excluir(id: string): Promise<void> {
-    try {
-      const { error } = await supabase.from('incluso_excluso').delete().eq('id', id)
-      if (error) throw error
-      return
-    } catch { /* fallback localStorage */ }
-    const all = lsGet().filter(x => x.id !== id)
-    lsSet(all)
+    const { error } = await supabase
+      .from('incluso_excluso')
+      .delete()
+      .eq('id', id)
+
+    if (error) throw error
   },
 }

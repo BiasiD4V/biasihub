@@ -1,13 +1,103 @@
-import React from 'react';
-import { CheckCheck, CornerUpLeft, ExternalLink, MessageCircle, Paperclip, Phone, Search, Smile, Trash2, Video, X } from 'lucide-react';
-import type { Membro, Mensagem, ReacaoAgregada } from './chatTypes';
+﻿import React from 'react';
+import { 
+  Search, X, MessageCircle, Trash2, ExternalLink, Video, 
+  Phone, Paperclip, CornerUpLeft, Smile, CheckCheck 
+} from 'lucide-react';
+import type { Mensagem, ReacaoAgregada, Membro } from './chatTypes';
 
+const QUICK_REACTIONS = [
+  '\u{1F44D}',
+  '\u{2764}\u{FE0F}',
+  '\u{1F602}',
+  '\u{1F62E}',
+  '\u{1F622}',
+  '\u{1F525}',
+];
 const CALL_WINDOW_NAME = 'biasi-hub-call';
-const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '🙏'];
 
-const URL_REGEX = /https?:\/\/[^\s<]+[^\s<.,;:!?)}\]'"]/g;
+function formatAudioTime(segundos: number): string {
+  const total = Number.isFinite(segundos) ? Math.max(0, Math.floor(segundos)) : 0;
+  const min = Math.floor(total / 60);
+  const sec = total % 60;
+  return `${min}:${sec.toString().padStart(2, '0')}`;
+}
 
-export interface ChatMessagesListProps {
+function AudioMensagem({ src, isMine }: { src: string; isMine: boolean }) {
+  const audioRef = React.useRef<HTMLAudioElement | null>(null);
+  const [tocando, setTocando] = React.useState(false);
+  const [duracao, setDuracao] = React.useState(0);
+  const [tempoAtual, setTempoAtual] = React.useState(0);
+
+  React.useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    const onLoaded = () => setDuracao(audio.duration || 0);
+    const onTime = () => setTempoAtual(audio.currentTime || 0);
+    const onEnded = () => setTocando(false);
+    const onPause = () => setTocando(false);
+    const onPlay = () => setTocando(true);
+
+    audio.addEventListener('loadedmetadata', onLoaded);
+    audio.addEventListener('timeupdate', onTime);
+    audio.addEventListener('ended', onEnded);
+    audio.addEventListener('pause', onPause);
+    audio.addEventListener('play', onPlay);
+
+    return () => {
+      audio.removeEventListener('loadedmetadata', onLoaded);
+      audio.removeEventListener('timeupdate', onTime);
+      audio.removeEventListener('ended', onEnded);
+      audio.removeEventListener('pause', onPause);
+      audio.removeEventListener('play', onPlay);
+    };
+  }, [src]);
+
+  function togglePlay() {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (audio.paused) audio.play().catch(() => {});
+    else audio.pause();
+  }
+
+  function seek(valor: number) {
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.currentTime = valor;
+    setTempoAtual(valor);
+  }
+
+  return (
+    <div className={`rounded-2xl p-3 w-[250px] max-w-full border ${isMine ? 'bg-white/10 border-white/10' : 'bg-slate-700/70 border-slate-600/70'}`}>
+      <audio ref={audioRef} src={src} preload="metadata" />
+      <div className="flex items-center gap-3">
+        <button
+          onClick={togglePlay}
+          className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black transition-colors ${
+            isMine ? 'bg-white/20 text-white hover:bg-white/30' : 'bg-slate-900 text-white hover:bg-slate-800'
+          }`}
+          title={tocando ? 'Pausar' : 'Reproduzir'}
+        >
+          {tocando ? '||' : '>'}
+        </button>
+        <input
+          type="range"
+          min={0}
+          max={duracao || 1}
+          step={0.1}
+          value={Math.min(tempoAtual, duracao || 1)}
+          onChange={(e) => seek(Number(e.target.value))}
+          className="flex-1 accent-indigo-500"
+        />
+        <span className={`text-[10px] font-black tabular-nums ${isMine ? 'text-white/80' : 'text-slate-200'}`}>
+          {formatAudioTime(tempoAtual)} / {formatAudioTime(duracao)}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+interface ChatMessagesListProps {
   mensagens: Mensagem[];
   mensagensFiltradas: Mensagem[];
   reacoesPorMsg: Record<string, ReacaoAgregada[]>;
@@ -27,39 +117,9 @@ export interface ChatMessagesListProps {
   onToggleReacao: (msgId: string, emoji: string) => void;
   onDeletarMensagem: (msgId: string) => void;
   getAvatarColor: (name: string) => string;
-  formatDateSeparator: (dateStr: string) => string;
+  formatDateSeparator: (date: string) => string;
   shouldShowDateSeparator: (msgs: Mensagem[], idx: number) => boolean;
   isConsecutive: (msgs: Mensagem[], idx: number) => boolean;
-}
-
-function renderConteudoComLinks(text: string, isMine: boolean) {
-  if (!text) return null;
-  const parts = text.split(URL_REGEX);
-  const matches = text.match(URL_REGEX);
-  if (!matches) return <span>{text}</span>;
-
-  const elements: React.ReactNode[] = [];
-
-  parts.forEach((part, i) => {
-    if (part) elements.push(<span key={`t${i}`}>{part}</span>);
-
-    if (matches[i]) {
-      elements.push(
-        <a
-          key={`u${i}`}
-          href={matches[i]}
-          target="_blank"
-          rel="noopener noreferrer"
-          className={`inline-flex items-center gap-0.5 underline underline-offset-2 break-all ${isMine ? 'text-blue-200 hover:text-white' : 'text-blue-600 hover:text-blue-700'}`}
-        >
-          {matches[i].length > 40 ? `${matches[i].slice(0, 40)}...` : matches[i]}
-          <ExternalLink size={10} className="inline flex-shrink-0" />
-        </a>,
-      );
-    }
-  });
-
-  return <>{elements}</>;
 }
 
 export function ChatMessagesList({
@@ -86,44 +146,66 @@ export function ChatMessagesList({
   shouldShowDateSeparator,
   isConsecutive,
 }: ChatMessagesListProps) {
+
+  const renderConteudoComLinks = (conteudo: string, isMine: boolean) => {
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    const parts = conteudo.split(urlRegex);
+    return parts.map((part, i) => {
+      if (part.match(urlRegex)) {
+        return (
+          <a
+            key={i}
+            href={part}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`underline break-all ${isMine ? 'text-sky-300 hover:text-white' : 'text-indigo-600 hover:text-indigo-800'}`}
+          >
+            {part}
+          </a>
+        );
+      }
+      return part;
+    });
+  };
+
   return (
     <>
       {buscaMsgAberta && (
-        <div className="px-3 pt-2 pb-1 bg-white border-b border-slate-100 flex items-center gap-2">
-          <Search size={13} className="text-slate-400 flex-shrink-0" />
+        <div className="px-6 py-4 bg-slate-900 border-b border-slate-700 flex items-center gap-4 animate-in fade-in slide-in-from-top-4 duration-300">
+          <Search size={16} className="text-slate-300 flex-shrink-0" />
           <input
             autoFocus
             type="text"
             value={buscaMensagem}
             onChange={(e) => onSetBuscaMensagem(e.target.value)}
-            placeholder="Buscar nas mensagens..."
-            className="flex-1 text-sm bg-transparent focus:outline-none placeholder:text-slate-400"
+            placeholder="Rastrear Dados..."
+            className="flex-1 text-xs font-black text-slate-100 bg-transparent focus:outline-none placeholder:text-slate-400 placeholder:uppercase placeholder:tracking-widest"
           />
-          {buscaMensagem && (
-            <span className="text-[10px] text-slate-400 flex-shrink-0">
-              {mensagensFiltradas.length} resultado{mensagensFiltradas.length !== 1 ? 's' : ''}
-            </span>
-          )}
-          <button onClick={() => { onSetBuscaMsgAberta(false); onSetBuscaMensagem(''); }} className="p-1 text-slate-400 hover:text-slate-600 rounded">
-            <X size={13} />
+          <button onClick={() => { onSetBuscaMsgAberta(false); onSetBuscaMensagem(''); }} className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-slate-700 text-slate-300 transition-all">
+            <X size={16} />
           </button>
         </div>
       )}
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-0.5 bg-gradient-to-b from-slate-50/50 to-white">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 py-4 space-y-4 custom-scrollbar bg-transparent">
         {carregando ? (
-          <div className="flex flex-col items-center justify-center py-12 gap-3">
-            <div className="w-8 h-8 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
-            <p className="text-sm text-slate-400">Carregando mensagens...</p>
+          <div className="flex flex-col items-center justify-center py-20 gap-4">
+             <div className="relative">
+                <div className="w-12 h-12 border-4 border-slate-900/5 rounded-2xl animate-spin border-t-indigo-600" />
+                <div className="absolute inset-0 flex items-center justify-center">
+                   <div className="w-2 h-2 bg-indigo-600 rounded-full animate-pulse" />
+                </div>
+             </div>
+             <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.3em]">Sincronizando Rede...</p>
           </div>
         ) : mensagens.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 gap-3">
-            <div className="bg-slate-100 rounded-full p-4">
-              <MessageCircle size={28} className="text-slate-300" />
+          <div className="flex flex-col items-center justify-center py-20 gap-6 opacity-90">
+            <div className="w-20 h-20 rounded-[32px] bg-slate-900/5 flex items-center justify-center text-slate-300">
+              <MessageCircle size={40} />
             </div>
             <div className="text-center">
-              <p className="text-sm font-medium text-slate-500">Nenhuma mensagem ainda</p>
-              <p className="text-xs text-slate-400 mt-0.5">Envie a primeira mensagem!</p>
+              <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.3em] mb-2 text-center">Protocolo Silencioso</p>
+              <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest leading-relaxed">Nenhuma transmissao detectada ainda.</p>
             </div>
           </div>
         ) : (
@@ -135,190 +217,172 @@ export function ChatMessagesList({
             const msgReacoes = reacoesPorMsg[msg.id] || [];
 
             return (
-              <div key={msg.id}>
+              <div key={msg.id} className="animate-in fade-in slide-in-from-bottom-2 duration-500">
                 {showDate && (
-                  <div className="flex items-center gap-3 py-3">
-                    <div className="flex-1 h-px bg-slate-200" />
-                    <span className="text-[10px] font-medium text-slate-400 bg-white px-2">
+                  <div className="flex items-center gap-4 py-6">
+                    <div className="flex-1 h-px bg-slate-700/70" />
+                    <span className="text-[9px] font-black text-slate-300 uppercase tracking-[0.3em] bg-transparent">
                       {formatDateSeparator(msg.criado_em)}
                     </span>
-                    <div className="flex-1 h-px bg-slate-200" />
+                    <div className="flex-1 h-px bg-slate-700/70" />
                   </div>
                 )}
 
-                <div className={`flex ${isMine ? 'justify-end' : 'justify-start'} ${consecutive ? 'mt-0.5' : 'mt-3'} group`}>
+                <div className={`flex ${isMine ? 'justify-end' : 'justify-start'} group items-end gap-3`}>
                   {!isMine && !consecutive && (
-                    <div className={`bg-gradient-to-br ${getAvatarColor(msg.remetente_nome)} rounded-full w-7 h-7 flex items-center justify-center flex-shrink-0 mr-2 mt-5 shadow-sm`}>
-                      <span className="text-white text-[10px] font-bold">{msg.remetente_nome.charAt(0).toUpperCase()}</span>
+                    <div className={`bg-gradient-to-br ${getAvatarColor(msg.remetente_nome)} rounded-2xl w-10 h-10 flex items-center justify-center flex-shrink-0 shadow-lg mb-1 group-hover:scale-105 transition-transform`}>
+                      <span className="text-white text-xs font-black">{msg.remetente_nome.charAt(0).toUpperCase()}</span>
                     </div>
                   )}
-                  {!isMine && consecutive && <div className="w-7 mr-2 flex-shrink-0" />}
+                  {!isMine && consecutive && <div className="w-10 flex-shrink-0" />}
 
-                  <div className={`max-w-[75%] ${isMine ? 'order-2' : ''}`}>
+                  <div className={`max-w-[85%] flex flex-col ${isMine ? 'items-end' : 'items-start'}`}>
                     {!isMine && !consecutive && (
-                      <p className="text-[10px] font-semibold text-slate-500 mb-1 ml-1">{msg.remetente_nome}</p>
+                      <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest mb-1.5 ml-1">{msg.remetente_nome}</p>
                     )}
 
-                    {isDeleted ? (
-                      <div className={`px-3.5 py-2 text-[13px] leading-relaxed rounded-2xl border border-dashed ${isMine ? 'bg-slate-100 border-slate-300 text-slate-400' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>
-                        <span className="italic flex items-center gap-1.5">
-                          <Trash2 size={11} className="opacity-50" />
-                          Mensagem apagada
-                        </span>
-                      </div>
-                    ) : (
-                      <div className={`px-3.5 py-2 text-[13px] leading-relaxed shadow-sm ${isMine ? `bg-gradient-to-br from-blue-600 to-blue-700 text-white ${consecutive ? 'rounded-2xl rounded-tr-md' : 'rounded-2xl rounded-br-md'}` : `bg-white text-slate-800 border border-slate-100 ${consecutive ? 'rounded-2xl rounded-tl-md' : 'rounded-2xl rounded-bl-md'}`}`}>
-                        {msg.resposta_conteudo && (
-                          <div className={`text-[10px] mb-2 px-2.5 py-1.5 rounded-lg border-l-2 ${isMine ? 'bg-blue-500/30 border-blue-300 text-blue-100' : 'bg-slate-50 border-slate-300 text-slate-500'}`}>
-                            <p className="font-bold truncate">{msg.resposta_remetente_nome}</p>
-                            <p className="truncate opacity-80">{msg.resposta_conteudo}</p>
-                          </div>
-                        )}
+                    <div className="relative group/bubble max-w-full">
+                      {isDeleted ? (
+                        <div className="px-5 py-3 rounded-[24px] bg-slate-800 border border-dashed border-slate-600 text-slate-300 text-[11px] font-black uppercase tracking-widest italic flex items-center gap-2">
+                           <Trash2 size={12} className="opacity-40" />
+                           Mensagem Deletada
+                        </div>
+                      ) : (
+                        <div className={`px-5 py-4 min-w-[60px] relative overflow-hidden transition-all duration-300 ${
+                          isMine 
+                            ? `bg-slate-900 text-white rounded-[28px] rounded-br-[8px] shadow-xl shadow-slate-900/20` 
+                            : `bg-slate-800 text-slate-100 border border-slate-700 rounded-[28px] rounded-bl-[8px] shadow-lg shadow-black/20`
+                        }`}>
+                          {/* Gloss Effect for mine */}
+                          {isMine && <div className="absolute top-0 right-0 w-full h-full bg-gradient-to-br from-white/10 to-transparent pointer-events-none" />}
 
-                        {msg.arquivo_url && (
-                          msg.arquivo_tipo?.startsWith('image/')
-                            ? (
-                              <img
-                                src={msg.arquivo_url}
-                                alt={msg.arquivo_nome ?? 'imagem'}
-                                className="max-w-full rounded-lg mb-1.5 max-h-48 object-cover cursor-pointer hover:opacity-90 transition-opacity"
-                                onClick={() => window.open(msg.arquivo_url!, '_blank')}
-                              />
-                            ) : msg.arquivo_tipo?.startsWith('audio/')
-                            ? (
-                              <audio
-                                src={msg.arquivo_url}
-                                controls
-                                className="max-w-full rounded-lg"
-                                style={{ height: '36px', minWidth: '180px' }}
-                              />
-                            ) : msg.arquivo_tipo === 'link/call'
-                            ? (
-                              <a
-                                href={msg.arquivo_url!}
-                                target={CALL_WINDOW_NAME}
-                                rel="noopener noreferrer"
-                                className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors ${isMine ? 'bg-white/20 text-white hover:bg-white/30' : 'bg-green-50 text-green-700 hover:bg-green-100 border border-green-200'}`}
-                              >
-                                <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
-                                {msg.conteudo?.includes('video') || msg.conteudo?.includes('videochamada') ? <Video size={12} /> : <Phone size={12} />}
-                                Entrar na chamada
-                              </a>
-                            ) : msg.arquivo_tipo === 'link/call-ended'
-                            ? (
-                              <div className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg ${isMine ? 'bg-white/10 text-white/60' : 'bg-slate-100 text-slate-500 border border-slate-200'}`}>
-                                {msg.conteudo?.includes('video') || msg.conteudo?.includes('videochamada') ? <Video size={12} /> : <Phone size={12} />}
-                                {msg.arquivo_nome || 'Chamada encerrada'}
-                              </div>
-                            ) : (
-                              <a
-                                href={msg.arquivo_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className={`flex items-center gap-1.5 text-xs ${isMine ? 'text-blue-200 hover:text-white' : 'text-blue-600 hover:text-blue-700'} transition-colors`}
-                              >
-                                <Paperclip size={11} />
-                                <span className="underline underline-offset-2">{msg.arquivo_nome}</span>
-                              </a>
-                            )
-                        )}
+                          {msg.resposta_conteudo && (
+                            <div className={`text-[10px] font-black uppercase tracking-widest mb-3 px-3 py-2 rounded-xl border-l-4 ${isMine ? 'bg-white/5 border-white/20 text-white/60' : 'bg-slate-900 border-indigo-400/60 text-slate-300'}`}>
+                              <p className="mb-0.5 truncate">{msg.resposta_remetente_nome}</p>
+                              <p className="truncate opacity-50 line-clamp-1">{msg.resposta_conteudo}</p>
+                            </div>
+                          )}
 
-                        {msg.conteudo && renderConteudoComLinks(msg.conteudo, isMine)}
-                      </div>
-                    )}
+                          {msg.arquivo_url && (
+                             <div className="mb-2 max-w-full overflow-hidden">
+                                {msg.arquivo_tipo?.startsWith('image/') ? (
+                                  <div className="relative group/img overflow-hidden rounded-2xl bg-black/5">
+                                    <img
+                                      src={msg.arquivo_url}
+                                      alt={msg.arquivo_nome ?? 'Midia'}
+                                      className="max-w-full rounded-2xl object-cover cursor-pointer hover:scale-105 transition-transform duration-500 max-h-[300px]"
+                                      onClick={() => window.open(msg.arquivo_url!, '_blank')}
+                                    />
+                                    <div className="absolute inset-0 bg-black/20 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                                       <ExternalLink size={24} className="text-white drop-shadow-lg" />
+                                    </div>
+                                  </div>
+                                ) : msg.arquivo_tipo?.startsWith('audio/') ? (
+                                  <AudioMensagem src={msg.arquivo_url} isMine={isMine} />
+                                ) : msg.arquivo_tipo === 'link/call' ? (
+                                  <a href={msg.arquivo_url!} target={CALL_WINDOW_NAME} className={`flex items-center gap-3 px-5 py-3 rounded-2xl font-black uppercase tracking-widest text-[10px] transition-all ${isMine ? 'bg-indigo-500 text-white hover:bg-indigo-400' : 'bg-slate-900 text-white hover:bg-slate-800'}`}>
+                                     <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
+                                     {msg.conteudo?.includes('video') ? <Video size={14} /> : <Phone size={14} />}
+                                     Ingressar na Sala
+                                  </a>
+                                ) : (
+                                  <a href={msg.arquivo_url} target="_blank" rel="noopener noreferrer" className={`flex items-center gap-2 p-3 rounded-2xl border ${isMine ? 'bg-white/10 border-white/10 text-white hover:bg-white/20' : 'bg-slate-700 border-slate-600 text-indigo-300 hover:bg-slate-600 transition-all'}`}>
+                                     <Paperclip size={14} />
+                                     <span className="text-[10px] font-black uppercase tracking-widest truncate">{msg.arquivo_nome}</span>
+                                  </a>
+                                )}
+                             </div>
+                          )}
 
+                          {msg.conteudo && (
+                            <div className={`text-sm tracking-tight leading-relaxed font-black ${isMine ? 'text-white/95' : 'text-slate-100'}`}>
+                              {renderConteudoComLinks(msg.conteudo, isMine)}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Actions Over Bubble */}
+                      {!isDeleted && (
+                         <div className={`absolute top-0 ${isMine ? '-left-12' : '-right-12'} opacity-0 group-hover/bubble:opacity-100 transition-all duration-300 flex flex-col gap-1 items-center py-1 scale-95 group-hover/bubble:scale-100`}>
+                            <button onClick={() => onSetRespostaParaMsg(msg)} className="w-8 h-8 rounded-xl bg-slate-800 shadow-lg border border-slate-600 flex items-center justify-center text-slate-300 hover:text-indigo-300 hover:scale-110 transition-all">
+                               <CornerUpLeft size={14} />
+                            </button>
+                            <button onClick={() => onSetReacaoPickerAberto(reacaoPickerAberto === msg.id ? null : msg.id)} className="w-8 h-8 rounded-xl bg-slate-800 shadow-lg border border-slate-600 flex items-center justify-center text-slate-300 hover:text-amber-300 hover:scale-110 transition-all">
+                               <Smile size={14} />
+                            </button>
+                            {isMine && (
+                               <button onClick={() => { if (confirm('Purgar esta transmissao?')) onDeletarMensagem(msg.id); }} className="w-8 h-8 rounded-xl bg-slate-800 shadow-lg border border-slate-600 flex items-center justify-center text-slate-300 hover:text-rose-300 hover:scale-110 transition-all">
+                                  <Trash2 size={14} />
+                               </button>
+                            )}
+                         </div>
+                      )}
+                    </div>
+
+                    {/* Reactions - High Tech */}
                     {msgReacoes.length > 0 && (
-                      <div className={`flex flex-wrap gap-1 mt-1 ${isMine ? 'justify-end' : 'justify-start'}`}>
+                      <div className={`flex flex-wrap gap-1.5 mt-2 ${isMine ? 'justify-end' : 'justify-start'}`}>
                         {msgReacoes.map((r) => {
                           const jaReagi = r.userIds.includes(usuarioId ?? '');
                           return (
                             <button
                               key={r.emoji}
                               onClick={() => onToggleReacao(msg.id, r.emoji)}
-                              title={r.usuarios.join(', ')}
-                              className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-xs border transition-all hover:scale-105 ${jaReagi ? 'bg-blue-50 border-blue-300 text-blue-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                              className={`flex items-center gap-1.5 px-2 py-1 rounded-xl text-[10px] font-black border-2 transition-all hover:scale-105 ${jaReagi ? 'bg-indigo-600 border-indigo-400 text-white shadow-lg shadow-indigo-600/20' : 'bg-slate-800 border-slate-600 text-slate-200 hover:bg-slate-700'}`}
                             >
                               <span>{r.emoji}</span>
-                              <span className="text-[10px] font-medium">{r.userIds.length}</span>
+                              <span className="opacity-70">{r.userIds.length}</span>
                             </button>
                           );
                         })}
                       </div>
                     )}
 
-                    {!isDeleted && (
-                      <div className={`flex items-center gap-1 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity ${isMine ? 'justify-end mr-1' : 'ml-1'}`}>
-                        <div className="relative">
-                          <button
-                            onClick={() => onSetReacaoPickerAberto(reacaoPickerAberto === msg.id ? null : msg.id)}
-                            className="p-0.5 text-slate-300 hover:text-amber-500 transition-colors"
-                            title="Reagir"
-                          >
-                            <Smile size={10} />
-                          </button>
-                          {reacaoPickerAberto === msg.id && (
-                            <div className={`absolute ${isMine ? 'right-0' : 'left-0'} bottom-full mb-1 flex items-center gap-0.5 bg-white border border-slate-200 rounded-full shadow-lg px-1.5 py-1 z-50`}>
-                              {QUICK_REACTIONS.map((emoji) => (
-                                <button
-                                  key={emoji}
-                                  onClick={() => onToggleReacao(msg.id, emoji)}
-                                  className="w-6 h-6 flex items-center justify-center text-sm hover:bg-slate-100 rounded-full transition-colors active:scale-90"
-                                >
-                                  {emoji}
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-
-                        <button
-                          onClick={() => onSetRespostaParaMsg(msg)}
-                          className="p-0.5 text-slate-300 hover:text-blue-500 transition-colors"
-                          title="Responder"
-                        >
-                          <CornerUpLeft size={10} />
-                        </button>
-
-                        {isMine && (
-                          <button
-                            onClick={() => { if (confirm('Apagar esta mensagem?')) onDeletarMensagem(msg.id); }}
-                            className="p-0.5 text-slate-300 hover:text-red-500 transition-colors"
-                            title="Apagar"
-                          >
-                            <Trash2 size={10} />
-                          </button>
-                        )}
-
-                        <p className="text-[10px] text-slate-400">
-                          {new Date(msg.criado_em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                        </p>
-
-                        {isMine && dmAtivo && msg.id === ultimaMinhaMensagemId && msg.lido && (
-                          <>
-                            <CheckCheck size={11} className="text-blue-400" />
-                            <span className="text-[9px] text-blue-400 font-medium">Lido</span>
-                          </>
-                        )}
-                      </div>
-                    )}
+                    <div className={`flex items-center gap-2 mt-1.5 ${isMine ? 'justify-end mr-2' : 'ml-2'}`}>
+                       <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest opacity-90">
+                         {new Date(msg.criado_em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                       </p>
+                       {isMine && dmAtivo && msg.id === ultimaMinhaMensagemId && msg.lido && (
+                         <div className="flex items-center gap-1">
+                            <CheckCheck size={12} className="text-indigo-600" />
+                            <span className="text-[9px] font-black text-indigo-600 uppercase tracking-widest">Transmitido</span>
+                         </div>
+                       )}
+                    </div>
                   </div>
                 </div>
+
+                {/* Reaction Picker Modal */}
+                {reacaoPickerAberto === msg.id && (
+                  <div className={`flex justify-center my-3 animate-in zoom-in-95 duration-200`}>
+                     <div className="bg-slate-800 border border-slate-600 rounded-[32px] p-2 flex items-center gap-2 shadow-2xl">
+                        {QUICK_REACTIONS.map((emoji) => (
+                           <button
+                             key={emoji}
+                             onClick={() => onToggleReacao(msg.id, emoji)}
+                             className="w-10 h-10 flex items-center justify-center text-xl hover:bg-slate-700 rounded-2xl transition-all active:scale-90"
+                           >
+                              {emoji}
+                           </button>
+                        ))}
+                     </div>
+                  </div>
+                )}
               </div>
             );
           })
         )}
 
         {quemDigitando && (
-          <div className="flex items-center gap-2 px-1 py-2 mt-2">
-            <div className="bg-white border border-slate-100 rounded-2xl rounded-bl-md px-3.5 py-2 shadow-sm">
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-slate-500 font-medium">{quemDigitando}</span>
-                <span className="flex gap-0.5 items-center">
-                  <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                  <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                  <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                </span>
-              </div>
+          <div className="flex items-center gap-4 px-1 py-4 mt-4 animate-in fade-in slide-in-from-left-4 duration-500">
+            <div className="bg-slate-800 border border-slate-600 rounded-[28px] rounded-bl-[8px] px-5 py-3 shadow-lg flex items-center gap-3">
+               <span className="text-[10px] font-black text-indigo-300 uppercase tracking-[0.2em]">{quemDigitando}</span>
+               <div className="flex gap-1 items-center">
+                  <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce" style={{ animationDelay: '0s' }} />
+                  <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
+                  <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }} />
+               </div>
             </div>
           </div>
         )}
@@ -326,3 +390,4 @@ export function ChatMessagesList({
     </>
   );
 }
+

@@ -78,14 +78,14 @@ function CorporateSkyline() {
         <rect x="700" y="120" width="70" height="280" fill="#0f172a" />
 
         {/* Janelas iluminadas (animadas aleatoriamente) */}
-        {[...Array(40)].map((_, i) => (
+        {Array.from({ length: 40 }).map((_, i) => (
           <rect 
             key={i}
-            x={55 + (Math.random() * 700)} 
-            y={100 + (Math.random() * 250)} 
+            x={55 + (Math.random() * 700)}
+            y={100 + (Math.random() * 250)}
             width="4" 
             height="4" 
-            fill={Math.random() > 0.5 ? "#fbbf24" : "#38bdf8"}
+            fill={Math.random() > 0.5 ? '#fbbf24' : '#38bdf8'}
             className="animate-pulse"
             style={{ animationDelay: `${Math.random() * 5}s` }}
           />
@@ -234,7 +234,7 @@ export function MapaJornadaComercial({ etapaAtual, resultadoComercial, performer
           <CorporateCharacter isMoving={isMoving} />
           
           {/* Nome do Colaborador */}
-          <div className="absolute -top-14 left-1/2 -translate-x-1/2 bg-slate-900 border border-slate-700 text-white text-[9px] font-black px-3 py-1.5 rounded-xl shadow-2xl whitespace-nowrap">
+          <div className="absolute -top-9 whitespace-nowrap bg-slate-900/90 text-slate-400 text-[9px] font-semibold px-3 py-1 rounded-full border border-slate-700 shadow-md">
             {performer || 'EXECUTIVO EM MISSÃO'} 💼
           </div>
         </div>
@@ -259,12 +259,15 @@ export function MapaJornadaComercial({ etapaAtual, resultadoComercial, performer
 
                 {/* Janelas Matriz */}
                 <div className="flex-1 p-3 grid grid-cols-3 gap-2">
-                   {[...Array(12)].map((_, i) => (
+                   {Array.from({ length: 12 }).map((_, i) => {
+                     const isLit = Math.random() > 0.3;
+                     return (
                       <div 
                         key={i} 
-                        className={`rounded-sm transition-colors duration-500 ${isGanho ? (Math.random() > 0.3 ? 'bg-blue-400 shadow-[0_0_5px_#60a5fa]' : 'bg-slate-800') : (Math.random() > 0.7 ? 'bg-slate-700' : 'bg-slate-950')}`} 
+                        className={`rounded-sm transition-colors duration-500 ${isGanho ? (isLit ? 'bg-blue-400 shadow-[0_0_5px_#60a5fa]' : 'bg-slate-800') : (isLit ? 'bg-slate-700' : 'bg-slate-950')}`} 
                       />
-                   ))}
+                     );
+                   })}
                 </div>
                 
                 {/* Entrada / Lobby */}
@@ -316,7 +319,7 @@ export function MapaJornadaComercial({ etapaAtual, resultadoComercial, performer
 
               {/* Rótulo Corporativo */}
               <div className={`mt-6 whitespace-nowrap text-[9px] font-black px-3 py-1.5 rounded-lg border transition-all tracking-tighter
-              ${node.idx === effectiveIndex ? 'bg-blue-600 text-white border-blue-400 -translate-y-1 shadow-lg' : 'bg-slate-900/90 text-slate-400 border-slate-800'}`}>
+              ${node.idx === effectiveIndex ? 'bg-blue-600 text-white border-blue-500 -translate-y-1 shadow-lg shadow-blue-500/30' : 'bg-slate-900/90 text-slate-400 border-slate-800'}`}>
                 {ETAPA_LABELS[node.etapa]}
               </div>
             </div>

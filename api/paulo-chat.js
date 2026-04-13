@@ -1,8 +1,7 @@
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://vzaabtzcilyoknksvhrc.supabase.co';
+﻿const SUPABASE_URL = process.env.SUPABASE_URL || 'https://vzaabtzcilyoknksvhrc.supabase.co';
 const PAULO_TRAINING_TABLE = process.env.PAULO_TRAINING_TABLE || 'paulo_feedback_termos';
 const PAULO_TRAINING_ENABLED = process.env.PAULO_TRAINING_ENABLED !== 'false';
 const PAULO_CONHECIMENTO_TABLE = 'paulo_conhecimento';
-
 const CONTEXTO_ROTA = {
   '/dashboard': 'Dashboard BI com KPIs e filtros comerciais.',
   '/dashboard-antigo': 'Dashboard antigo para comparacao historica.',
@@ -459,7 +458,7 @@ const TERMOS_ROTA = {
     '+180 dias sem preco': 'Indica itens sem atualizacao de preco ha mais de 180 dias (prioridade alta).',
     'status': 'Status indica se o preco esta recente ou defasado pelo tempo sem atualizacao.',
     'atualiz.': 'Atualiz. indica a data da ultima atualizacao do preco.',
-    'un.': 'Un. e a unidade de medida do insumo (PÇ, m, m2 etc.).',
+    'un.': 'Un. e a unidade de medida do insumo (PÃ‡, m, m2 etc.).',
     'custo': 'Custo e o valor unitario do insumo.',
     'todos os fornecedores': 'Filtro para restringir lista a um fornecedor especifico.',
     'todas unidades': 'Filtro para restringir por unidade de medida.',
@@ -1451,6 +1450,12 @@ function extrairTextoOpenAI(payload) {
   return '';
 }
 
+function extrairTextoAnthropic(payload) {
+  if (!payload || !Array.isArray(payload.content)) return '';
+  const blocoTexto = payload.content.find((item) => item?.type === 'text' && typeof item?.text === 'string');
+  return blocoTexto?.text?.trim() || '';
+}
+
 async function validarUsuario(authHeader, serviceKey) {
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return { ok: false, status: 401, error: 'Unauthorized' };
@@ -1508,12 +1513,12 @@ async function registrarNaoMapeados({ serviceKey, userId, pathname, eventos }) {
   }
 }
 
-// ═══════ SISTEMA DE APRENDIZADO ATIVO DO PAULO ═══════
+// â•â•â•â•â•â•â• SISTEMA DE APRENDIZADO ATIVO DO PAULO â•â•â•â•â•â•â•
 
 async function buscarConhecimentoAprendido(serviceKey, pathname) {
   if (!serviceKey) return [];
   try {
-    // Buscar últimos 30 aprendizados relevantes (mesma rota + globais)
+    // Buscar Ãºltimos 30 aprendizados relevantes (mesma rota + globais)
     const rotas = [pathname, 'global'].filter(Boolean);
     const filtro = rotas.map(r => `rota.eq.${r}`).join(',');
     // Prioritize util=true (user-approved) and most recent; include auto entries for broader context
@@ -1642,7 +1647,7 @@ export default async function handler(req, res) {
     const eventosNaoMapeados = [];
     const reportUnknown = (ev) => eventosNaoMapeados.push(ev);
 
-    // ── Feedback explícito do usuário ──
+    // â”€â”€ Feedback explÃ­cito do usuÃ¡rio â”€â”€
     if (feedback === 'positivo' && pergunta && respostaPaulo) {
       await salvarAprendizado(serviceKey, {
         pergunta,
@@ -1655,7 +1660,7 @@ export default async function handler(req, res) {
     }
 
     if (feedback === 'negativo' && pergunta) {
-      // Registrar como não mapeado para revisão futura
+      // Registrar como nÃ£o mapeado para revisÃ£o futura
       await registrarNaoMapeados({
         serviceKey,
         userId: validacao.user?.id,
@@ -1671,8 +1676,9 @@ export default async function handler(req, res) {
 
     const sugestoes = sugestoesPorRota(pathname);
     const openaiKey = process.env.OPENAI_API_KEY;
+    const anthropicKey = process.env.ANTHROPIC_API_KEY;
 
-    if (!openaiKey) {
+    if (!openaiKey && !anthropicKey) {
       const respostaFallback = fallbackInteligente(pergunta, pathname, historico, { reportUnknown });
       await registrarNaoMapeados({
         serviceKey,
@@ -1692,7 +1698,7 @@ export default async function handler(req, res) {
     const contextoAprendido = montarContextoAprendido(conhecimentos);
 
     const systemPrompt = [
-      'Voce e o Paulo, assistente IA do BiasiHub — sistema de gestao de orcamentos, propostas comerciais, clientes, fornecedores, composicoes, insumos e mao de obra da Biasi Engenharia.',
+      'Voce e o Paulo, assistente IA especializado no modulo Comercial do BiasiHub da Biasi Engenharia.',
       '',
       '## Personalidade',
       '- Tom profissional mas acessivel, como um colega experiente.',
@@ -1705,14 +1711,15 @@ export default async function handler(req, res) {
       '- NUNCA invente funcionalidades, campos ou botoes que nao existem no sistema.',
       '- Se nao souber algo, diga com transparencia e proponha verificacao pratica.',
       '- Sempre considere o contexto da rota atual para orientar exatamente o que fazer naquela tela.',
+      '- Seu foco e o modulo Comercial. Se perguntarem sobre outro modulo, responda de forma breve e traga a resposta para o fluxo comercial quando possivel.',
       '- Quando o usuario pedir explicacao completa, entregue: visao geral, blocos da tela, campos principais, termos-chave, leitura de cores e fluxo de uso.',
       '- Quando o usuario te corrigir ou ensinar algo novo sobre o sistema (ex: "na verdade...", "o correto e...", "isso nao existe mais..."), extraia e coloque no final: [APRENDIZADO: descricao objetiva do que aprendeu]',
       '- Use [APRENDIZADO:] apenas para correcoes factuais confirmadas pelo usuario, nao para toda resposta.',
       '',
       '## Aprendizado continuo',
       '- Voce tem uma base de conhecimento que cresce a cada conversa.',
-      '- Entradas marcadas como APROVADO PELO USUARIO tem prioridade maxima — trate como fato confirmado.',
-      '- Entradas AUTO sao historico de conversas — use como contexto mas confirme antes de afirmar como verdade absoluta.',
+      '- Entradas marcadas como APROVADO PELO USUARIO tem prioridade maxima â€” trate como fato confirmado.',
+      '- Entradas AUTO sao historico de conversas â€” use como contexto mas confirme antes de afirmar como verdade absoluta.',
       '- Quando o usuario confirmar uma resposta sua (thumbs up), ela entra na base de alta prioridade.',
       '',
       '## Contexto da rota atual',
@@ -1736,39 +1743,81 @@ export default async function handler(req, res) {
       },
     ];
 
-    const aiRes = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${openaiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
-        messages: input,
-        temperature: 0.4,
-        max_tokens: 1200,
-      }),
-    });
+    let resposta = '';
+    let fonte = '';
 
-    if (!aiRes.ok) {
-      const erroTexto = await aiRes.text();
-      console.error('Erro OpenAI Paulo:', aiRes.status, erroTexto);
-      const respostaFallback = fallbackInteligente(pergunta, pathname, historico, { reportUnknown });
-      await registrarNaoMapeados({
-        serviceKey,
-        userId: validacao.user?.id,
-        pathname,
-        eventos: eventosNaoMapeados,
-      });
-      return res.status(200).json({
-        resposta: respostaFallback,
-        fonte: 'fallback',
-        sugestoes,
-      });
+    if (openaiKey) {
+      try {
+        const aiRes = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${openaiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+            messages: input,
+            temperature: 0.4,
+            max_tokens: 1200,
+          }),
+        });
+
+        if (aiRes.ok) {
+          const aiPayload = await aiRes.json();
+          resposta = extrairTextoOpenAI(aiPayload);
+          fonte = 'openai';
+        } else {
+          const erroTexto = await aiRes.text();
+          console.error('Erro OpenAI Paulo:', aiRes.status, erroTexto);
+        }
+      } catch (errorOpenAI) {
+        console.error('Erro OpenAI Paulo:', errorOpenAI);
+      }
     }
 
-    const aiPayload = await aiRes.json();
-    let resposta = extrairTextoOpenAI(aiPayload) || fallbackInteligente(pergunta, pathname, historico, { reportUnknown });
+    if (!resposta && anthropicKey) {
+      try {
+        const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': anthropicKey,
+            'anthropic-version': '2023-06-01',
+          },
+          body: JSON.stringify({
+            model: process.env.ANTHROPIC_MODEL || 'claude-3-5-sonnet-20241022',
+            max_tokens: 1200,
+            system: systemPrompt,
+            messages: [
+              ...historico.map((m) => ({
+                role: m.role === 'assistant' ? 'assistant' : 'user',
+                content: m.content,
+              })),
+              {
+                role: 'user',
+                content: pergunta,
+              },
+            ],
+          }),
+        });
+
+        if (anthropicRes.ok) {
+          const anthropicPayload = await anthropicRes.json();
+          resposta = extrairTextoAnthropic(anthropicPayload);
+          fonte = 'anthropic';
+        } else {
+          const erroTexto = await anthropicRes.text();
+          console.error('Erro Anthropic Paulo:', anthropicRes.status, erroTexto);
+        }
+      } catch (errorAnthropic) {
+        console.error('Erro Anthropic Paulo:', errorAnthropic);
+      }
+    }
+
+    if (!resposta) {
+      resposta = fallbackInteligente(pergunta, pathname, historico, { reportUnknown });
+      fonte = 'fallback';
+    }
 
     // Extrair e salvar aprendizados marcados com tag [APRENDIZADO:]
     const matchAprendizado = resposta.match(/\[APRENDIZADO:\s*(.+?)\]/i);
@@ -1783,7 +1832,7 @@ export default async function handler(req, res) {
       resposta = resposta.replace(/\s*\[APRENDIZADO:\s*.+?\]/gi, '').trim();
     }
 
-    // Sempre salvar o par pergunta-resposta para aprendizado contínuo
+    // Sempre salvar o par pergunta-resposta para aprendizado contÃ­nuo
     salvarAprendizado(serviceKey, {
       pergunta: pergunta.slice(0, 500),
       resposta: resposta.slice(0, 2000),
@@ -1801,7 +1850,7 @@ export default async function handler(req, res) {
 
     return res.status(200).json({
       resposta,
-      fonte: 'openai',
+      fonte,
       sugestoes,
     });
   } catch (error) {
@@ -1816,3 +1865,5 @@ export default async function handler(req, res) {
     });
   }
 }
+
+

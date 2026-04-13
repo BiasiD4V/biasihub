@@ -17,6 +17,15 @@ export function Aprovacoes() {
   const [pendencias, setPendencias] = useState<PendenciaAprovacao[]>([]);
   const [loading, setLoading] = useState(true);
   const [processandoId, setProcessandoId] = useState<string | null>(null);
+  const [negacaoAberta, setNegacaoAberta] = useState<{
+    id: string;
+    propostaId: string;
+    etapaNova: string;
+    observacaoAtual: string | null;
+    titulo: string;
+  } | null>(null);
+  const [motivoNegacao, setMotivoNegacao] = useState('');
+  const [erroNegacao, setErroNegacao] = useState('');
 
   // Controle de Acesso
   const temAcesso = usuario?.papel === 'admin' || usuario?.papel === 'gestor' || usuario?.papel === 'dono';
@@ -27,7 +36,7 @@ export function Aprovacoes() {
       const data = await propostasRepository.listarTodasMudancasPendentes();
       setPendencias(data);
     } catch (err) {
-      console.error('Erro ao carregar aprovações:', err);
+      console.error('Erro ao carregar aprovaÃ§Ãµes:', err);
     } finally {
       setLoading(false);
     }
@@ -37,18 +46,33 @@ export function Aprovacoes() {
     if (temAcesso) carregar();
   }, [temAcesso]);
 
-  const handleDecisao = async (id: string, propostaId: string, decisao: 'aprovado' | 'rejeitado', novaEtapa: string) => {
+  const handleDecisao = async (
+    id: string,
+    propostaId: string,
+    decisao: 'aprovado' | 'rejeitado',
+    novaEtapa: string,
+    motivoRejeicao?: string,
+    observacaoAtual?: string | null
+  ) => {
     setProcessandoId(id);
     try {
-      // 1. Atualiza o status da mudança
-      await propostasRepository.atualizarMudancaEtapa(id, { status: decisao });
+      const payloadMudanca: any = { status: decisao };
+      if (decisao === 'rejeitado' && motivoRejeicao) {
+        const dataHora = new Date().toLocaleString('pt-BR');
+        const aprovador = usuario?.nome || 'Aprovador';
+        const blocoNegacao = `[NEGADO ${dataHora} - ${aprovador}] ${motivoRejeicao}`;
+        payloadMudanca.observacao = observacaoAtual
+          ? `${observacaoAtual}\n\n${blocoNegacao}`
+          : blocoNegacao;
+      }
 
-      // 2. Se aprovado, atualiza a etapa do orçamento
+      const okMudanca = await propostasRepository.atualizarMudancaEtapa(id, payloadMudanca);
+      if (!okMudanca) throw new Error('Não foi possível atualizar a solicitação.');
+
       if (decisao === 'aprovado') {
         await propostasRepository.atualizar(propostaId, { etapa_funil: novaEtapa as any });
       }
 
-      // 3. Remove da lista local com animação
       setPendencias((prev: PendenciaAprovacao[]) => prev.filter((p: PendenciaAprovacao) => p.id !== id));
     } catch (err) {
       console.error('Erro ao processar aprovação:', err);
@@ -57,7 +81,41 @@ export function Aprovacoes() {
     }
   };
 
-  // ── Render: Acesso Negado ──────────────────────────────────────────────────
+  const abrirNegacao = (item: PendenciaAprovacao) => {
+    setNegacaoAberta({
+      id: item.id,
+      propostaId: item.proposta_id,
+      etapaNova: item.etapa_nova,
+      observacaoAtual: item.observacao,
+      titulo: item.proposta.obra || item.proposta.objeto || item.proposta.numero_composto || 'Revisão',
+    });
+    setMotivoNegacao('');
+    setErroNegacao('');
+  };
+
+  const confirmarNegacao = async () => {
+    if (!negacaoAberta) return;
+    const motivo = motivoNegacao.trim();
+    if (!motivo) {
+      setErroNegacao('Informe o motivo da negação.');
+      return;
+    }
+
+    await handleDecisao(
+      negacaoAberta.id,
+      negacaoAberta.propostaId,
+      'rejeitado',
+      negacaoAberta.etapaNova,
+      motivo,
+      negacaoAberta.observacaoAtual
+    );
+
+    setNegacaoAberta(null);
+    setMotivoNegacao('');
+    setErroNegacao('');
+  };
+
+  // â”€â”€ Render: Acesso Negado â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (!temAcesso) {
     return (
       <div className="h-full flex flex-col items-center justify-center p-8 bg-slate-50">
@@ -69,11 +127,11 @@ export function Aprovacoes() {
             </div>
             <h2 className="text-2xl font-black text-slate-900 mb-3 tracking-tight">Acesso Restrito</h2>
             <p className="text-sm font-medium text-slate-500 leading-relaxed">
-              Somente gestores e administradores podem acessar a Central de Aprovações.
+              Somente gestores e administradores podem acessar a Central de AprovaÃ§Ãµes.
             </p>
             <div className="mt-8 flex items-center gap-2 px-4 py-2 bg-slate-50 rounded-2xl border border-slate-100 fill-slate-400">
                <ShieldCheck size={16} className="text-blue-500" />
-               <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Segurança BiásiHub</span>
+               <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">SeguranÃ§a BiÃ¡siHub</span>
             </div>
           </div>
         </div>
@@ -91,9 +149,9 @@ export function Aprovacoes() {
               <CheckSquare size={24} />
             </div>
             <div>
-              <h1 className="text-3xl font-black text-slate-900 tracking-tight">Central de Aprovações</h1>
+              <h1 className="text-3xl font-black text-slate-900 tracking-tight">Central de AprovaÃ§Ãµes</h1>
               <p className="text-sm font-semibold text-slate-400 mt-1">
-                {pendencias.length} {pendencias.length === 1 ? 'revisão' : 'revisões'} aguardando sua decisão
+                {pendencias.length} {pendencias.length === 1 ? 'revisÃ£o' : 'revisÃµes'} aguardando sua decisÃ£o
               </p>
             </div>
           </div>
@@ -117,23 +175,23 @@ export function Aprovacoes() {
                 <CheckCircle size={40} />
              </div>
              <h3 className="text-xl font-black text-slate-900 mb-2">Tudo em dia!</h3>
-             <p className="text-sm text-slate-400 font-medium">Não há revisões pendentes de aprovação neste momento.</p>
+             <p className="text-sm text-slate-400 font-medium">NÃ£o hÃ¡ revisÃµes pendentes de aprovaÃ§Ã£o neste momento.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 max-w-7xl mx-auto">
             {pendencias.map(item => (
               <div key={item.id} className="bg-white rounded-[32px] shadow-sm border border-slate-200/60 overflow-hidden hover:shadow-xl hover:shadow-slate-200/40 transition-all duration-300 group">
                 <div className="p-8">
-                  {/* Info Orçamento */}
+                  {/* Info OrÃ§amento */}
                   <div className="flex items-start justify-between mb-6">
                     <div className="space-y-1">
                        <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest bg-blue-50 px-2 py-1 rounded-md">
                          {item.proposta.numero_composto}
                        </span>
                        <h4 className="text-lg font-black text-slate-900 leading-tight pt-1">
-                         {item.proposta.obra || item.proposta.objeto || '—'}
+                         {item.proposta.obra || item.proposta.objeto || 'â€”'}
                        </h4>
-                       <p className="text-sm text-slate-400 font-medium">{item.proposta.cliente || '—'}</p>
+                       <p className="text-sm text-slate-400 font-medium">{item.proposta.cliente || 'â€”'}</p>
                     </div>
                     <div className="text-right">
                        <p className="text-[10px] font-bold text-slate-300 uppercase tracking-widest leading-none">Aberto em</p>
@@ -141,12 +199,12 @@ export function Aprovacoes() {
                     </div>
                   </div>
 
-                  {/* Transição de Etapa */}
+                  {/* TransiÃ§Ã£o de Etapa */}
                   <div className="flex items-center gap-4 bg-slate-50 rounded-2xl p-5 mb-6 border border-slate-100 group-hover:bg-slate-50/50 transition-colors">
                     <div className="flex-1 text-center">
                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-2">Anterior</p>
                        <span className="text-xs font-black text-slate-700 whitespace-nowrap px-3 py-1.5 bg-white rounded-xl shadow-sm border border-slate-100">
-                          {item.etapa_anterior || 'Início'}
+                          {item.etapa_anterior || 'InÃ­cio'}
                        </span>
                     </div>
                     <div className="flex flex-col items-center gap-1">
@@ -160,12 +218,12 @@ export function Aprovacoes() {
                     </div>
                   </div>
 
-                  {/* Detalhes e Responsável */}
+                  {/* Detalhes e ResponsÃ¡vel */}
                   <div className="space-y-4 mb-8">
                     <div className="flex items-start gap-4 p-4 bg-amber-50/50 border border-amber-100/50 rounded-2xl italic">
                        <Clock size={16} className="text-amber-500 mt-0.5 flex-shrink-0" />
                        <p className="text-sm text-amber-900 font-medium leading-relaxed">
-                         "{item.observacao || 'Nenhuma observação informada.'}"
+                         "{item.observacao || 'Nenhuma observaÃ§Ã£o informada.'}"
                        </p>
                     </div>
                     <div className="flex items-center justify-between px-2">
@@ -184,10 +242,10 @@ export function Aprovacoes() {
                     </div>
                   </div>
 
-                  {/* Botões de Ação */}
+                  {/* BotÃµes de AÃ§Ã£o */}
                   <div className="flex gap-3 pt-4 border-t border-slate-100">
                     <button
-                      onClick={() => handleDecisao(item.id, item.proposta_id, 'rejeitado', item.etapa_nova)}
+                      onClick={() => abrirNegacao(item)}
                       disabled={!!processandoId}
                       className="flex-1 flex items-center justify-center gap-2 py-4 rounded-2xl text-sm font-black text-slate-400 hover:bg-red-50 hover:text-red-500 transition-all active:scale-95 disabled:opacity-50"
                     >
@@ -199,7 +257,7 @@ export function Aprovacoes() {
                       className="flex-[1.5] flex items-center justify-center gap-2 py-4 rounded-2xl text-sm font-black text-white bg-blue-600 hover:bg-blue-700 shadow-xl shadow-blue-500/20 active:scale-95 disabled:opacity-50"
                     >
                       {processandoId === item.id ? <RefreshCw size={18} className="animate-spin" /> : <CheckCircle size={18} />}
-                      Aprovar Revisão
+                      Aprovar RevisÃ£o
                     </button>
                   </div>
                 </div>
@@ -208,6 +266,59 @@ export function Aprovacoes() {
           </div>
         )}
       </div>
+
+      {negacaoAberta && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center p-4 bg-slate-950/50 backdrop-blur-sm">
+          <div className="w-full max-w-xl rounded-3xl border border-slate-200 bg-white shadow-2xl overflow-hidden">
+            <div className="px-6 py-5 border-b border-slate-100">
+              <h3 className="text-lg font-black text-slate-900">Negar revisão</h3>
+              <p className="text-sm text-slate-500 mt-1">
+                Informe o motivo da negação para <span className="font-semibold text-slate-700">{negacaoAberta.titulo}</span>.
+              </p>
+            </div>
+
+            <div className="px-6 py-5 space-y-3">
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">
+                Motivo da negação
+              </label>
+              <textarea
+                value={motivoNegacao}
+                onChange={(e) => {
+                  setMotivoNegacao(e.target.value);
+                  if (erroNegacao) setErroNegacao('');
+                }}
+                rows={4}
+                placeholder="Ex: Falta documento técnico para aprovar nesta etapa."
+                className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-red-500/30 focus:border-red-400"
+              />
+              {erroNegacao && (
+                <p className="text-sm font-semibold text-red-600">{erroNegacao}</p>
+              )}
+            </div>
+
+            <div className="px-6 py-4 border-t border-slate-100 flex justify-end gap-3 bg-slate-50">
+              <button
+                onClick={() => {
+                  setNegacaoAberta(null);
+                  setMotivoNegacao('');
+                  setErroNegacao('');
+                }}
+                className="px-5 py-2.5 rounded-xl text-sm font-bold text-slate-600 hover:text-slate-800 hover:bg-slate-100 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmarNegacao}
+                disabled={processandoId === negacaoAberta.id}
+                className="px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-red-600 hover:bg-red-700 disabled:opacity-60 transition-colors"
+              >
+                {processandoId === negacaoAberta.id ? 'Negando...' : 'Confirmar Negação'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+

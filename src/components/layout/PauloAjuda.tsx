@@ -1,103 +1,60 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
-import { X, Sparkles, Send, Bot, ThumbsUp, ThumbsDown, Brain } from 'lucide-react';
-import { supabase } from '../../infrastructure/supabase/client';
+import { 
+  Bot, X, Send, LayoutGrid, Building2, 
+  ShieldCheck, Sparkles
+} from 'lucide-react';
+import { createPortal } from 'react-dom';
+
+/* ══════════════════════════════════════════════════════════════
+   TYPES & CONSTANTS
+   ══════════════════════════════════════════════════════════════ */
+interface Mensagem {
+  id: string;
+  role: 'user' | 'assistant';
+  texto: string;
+  data: Date;
+  perguntaOrigem?: string;
+}
+
+type MensagemPaulo = Mensagem;
+
+interface Dica {
+  pergunta: string;
+  resposta: string;
+}
 
 interface DicaPagina {
   titulo: string;
   descricao: string;
-  dicas: { pergunta: string; resposta: string }[];
+  dicas: Dica[];
 }
 
-interface MensagemPaulo {
-  id: string;
-  role: 'assistant' | 'user';
-  texto: string;
-  perguntaOrigem?: string; // a pergunta do usuário que gerou essa resposta
-}
+
 
 const DICAS: Record<string, DicaPagina> = {
   '/dashboard': {
     titulo: 'Dashboard BI',
-    descricao: 'Visao geral dos indicadores e performance comercial.',
+    descricao: 'Visao geral de indicadores comerciais e performance.',
     dicas: [
-      { pergunta: 'O que mostram os cards?', resposta: 'Mostram KPIs principais como total de propostas, valor total e taxa de fechamento.' },
-      { pergunta: 'Como filtro os dados?', resposta: 'Use os filtros de ano, status, disciplina e responsavel para refinar os indicadores.' },
+      { pergunta: 'O que sao os cards?', resposta: 'Saopa indicadores rapidos: Total de propostas, Fechadas (Ganhos), Valor Total e Taxa de Conversao no recorte selecionado.' },
+      { pergunta: 'Como filtro os dados?', resposta: 'Use os chips de filtro no topo para recortar por Ano, Status, Responsavel ou Disciplina.' },
     ],
   },
   '/orcamentos': {
-    titulo: 'Orcamentos',
-    descricao: 'Lista principal de propostas e funil comercial.',
+    titulo: 'Gestao de Orcamentos',
+    descricao: 'Listagem e controle de todas as propostas comerciais.',
     dicas: [
-      { pergunta: 'Como criar um novo orcamento?', resposta: 'Clique em Novo Orcamento no topo da tela e preencha os dados obrigatorios.' },
-      { pergunta: 'Como editar rapido?', resposta: 'Use o icone de lapis na linha da proposta para abrir o modal de edicao.' },
-      { pergunta: 'Como abrir o detalhe?', resposta: 'Clique na linha da proposta para abrir historico, follow-ups e dados comerciais.' },
+      { pergunta: 'Como criar novo orcamento?', resposta: 'Clique em "Novo Orcamento" no topo. Voce precisara definir o cliente, objeto e responsavel inicial.' },
+      { pergunta: 'Onde vejo detalhes?', resposta: 'Clique em qualquer linha da tabela para abrir a ficha completa do orcamento.' },
     ],
   },
-  '/orcamentos/kanban': {
-    titulo: 'Kanban de Orcamentos',
-    descricao: 'Visao por etapas do funil comercial.',
+  '/orcamentos/detalhe': {
+    titulo: 'Ficha do Orcamento',
+    descricao: 'Informacoes detalhadas, valores e logs de uma proposta.',
     dicas: [
-      { pergunta: 'Como interpretar as colunas?', resposta: 'Cada coluna representa uma etapa do funil e os cards sao as propostas.' },
-      { pergunta: 'Por que um card mudou de coluna?', resposta: 'Mudancas de etapa feitas no detalhe da proposta refletem aqui automaticamente.' },
-    ],
-  },
-  '/operacao/orcamentos': {
-    titulo: 'Operacao - Orcamentos',
-    descricao: 'Tela operacional de propostas (visao alternativa).',
-    dicas: [
-      { pergunta: 'Esta tela e diferente da aba Orcamentos?', resposta: 'Sim. Ela atende fluxo operacional especifico, mas usa os mesmos dados base.' },
-    ],
-  },
-  '/clientes': {
-    titulo: 'Clientes',
-    descricao: 'Cadastro completo de clientes.',
-    dicas: [
-      { pergunta: 'Onde cadastro cliente novo?', resposta: 'No botao Novo Cliente no topo da pagina.' },
-      { pergunta: 'Cliente criado aqui aparece em Configuracoes?', resposta: 'Sim. As duas telas compartilham a mesma base de dados de clientes.' },
-    ],
-  },
-  '/fornecedores': {
-    titulo: 'Fornecedores',
-    descricao: 'Cadastro e manutencao de fornecedores.',
-    dicas: [
-      { pergunta: 'O que e importante preencher?', resposta: 'Nome, CNPJ, contato e classificacao para facilitar cotacoes.' },
-    ],
-  },
-  '/insumos': {
-    titulo: 'Insumos',
-    descricao: 'Catalogo de materiais e itens de custo.',
-    dicas: [
-      { pergunta: 'Como os insumos sao usados?', resposta: 'Eles compoem custos nas composicoes e no orcamento final.' },
-    ],
-  },
-  '/composicoes': {
-    titulo: 'Composicoes',
-    descricao: 'Composicoes unitarias de servicos.',
-    dicas: [
-      { pergunta: 'O que e uma composicao?', resposta: 'Conjunto de insumos e mao de obra que define o custo de um servico.' },
-    ],
-  },
-  '/templates': {
-    titulo: 'Templates',
-    descricao: 'Modelos reutilizaveis de estrutura e dados.',
-    dicas: [
-      { pergunta: 'Quando usar templates?', resposta: 'Quando quiser acelerar cadastros repetitivos com padroes predefinidos.' },
-    ],
-  },
-  '/mao-de-obra': {
-    titulo: 'Mao de Obra',
-    descricao: 'Gestao de tipos e custos de mao de obra.',
-    dicas: [
-      { pergunta: 'Como filtro os registros?', resposta: 'Use busca e filtros da tela para encontrar rapidamente o item desejado.' },
-    ],
-  },
-  '/incluso-excluso': {
-    titulo: 'Incluso / Excluso',
-    descricao: 'Fechamento de escopo e limites de responsabilidade.',
-    dicas: [
-      { pergunta: 'O que registrar aqui?', resposta: 'O que entra, o que nao entra, premissas, pendencias e responsabilidade por item.' },
-      { pergunta: 'As listas do formulario vem de onde?', resposta: 'Disciplina e responsavel podem vir dos cadastros de Configuracoes.' },
+      { pergunta: 'Como alterar o status?', resposta: 'Use o seletor de status no cabecalho da ficha. Alteracoes sao salvas automaticamente no log.' },
+      { pergunta: 'Onde anexo documentos?', resposta: 'Na aba de Documentos ou Arquivos dentro da ficha do orcamento.' },
     ],
   },
   '/aprovacoes': {
@@ -105,28 +62,6 @@ const DICAS: Record<string, DicaPagina> = {
     descricao: 'Fluxo de aprovacao de propostas.',
     dicas: [
       { pergunta: 'Como saber o status atual?', resposta: 'A lista mostra o estado de aprovacao e quem esta responsavel no momento.' },
-    ],
-  },
-  '/relatorios': {
-    titulo: 'Relatorios',
-    descricao: 'Analises gerenciais e acompanhamento de resultados.',
-    dicas: [
-      { pergunta: 'Posso combinar filtros?', resposta: 'Sim. Combine periodo, status, disciplina e responsavel para analises mais precisas.' },
-    ],
-  },
-  '/configuracoes': {
-    titulo: 'Configuracoes e Dicionarios',
-    descricao: 'Cadastros mestres usados no sistema.',
-    dicas: [
-      { pergunta: 'Alterar aqui impacta outras telas?', resposta: 'Sim. Os cadastros ativos alimentam filtros e formularios do sistema.' },
-      { pergunta: 'Clientes daqui e da tela Clientes sao os mesmos?', resposta: 'Sim, e a mesma base de dados.' },
-    ],
-  },
-  '/meus-dispositivos': {
-    titulo: 'Meus Dispositivos',
-    descricao: 'Controle de sessoes e dispositivos autenticados.',
-    dicas: [
-      { pergunta: 'Quando remover dispositivo?', resposta: 'Quando perder acesso ao aparelho ou encerrar sessoes antigas.' },
     ],
   },
   '/membros': {
@@ -140,168 +75,36 @@ const DICAS: Record<string, DicaPagina> = {
 
 function getDicasPorRota(pathname: string): DicaPagina {
   if (DICAS[pathname]) return DICAS[pathname];
-
   const rotasOrdenadas = Object.keys(DICAS).sort((a, b) => b.length - a.length);
   const rotaPrefixo = rotasOrdenadas.find((rota) => pathname === rota || pathname.startsWith(`${rota}/`));
   if (rotaPrefixo) return DICAS[rotaPrefixo];
-
   return {
     titulo: 'Ajuda',
     descricao: 'Dicas de uso desta tela.',
     dicas: [
-      {
-        pergunta: 'Como usar esta pagina?',
-        resposta: 'Use os filtros e acoes da propria tela. Se precisar, abra uma pagina principal pelo menu para ver dicas mais detalhadas.',
-      },
+      { pergunta: 'Como usar esta pagina?', resposta: 'Use os filtros e acoes da propria tela. Se precisar, abra uma pagina principal pelo menu para ver dicas mais detalhadas.' },
     ],
   };
 }
 
-
 function normalizarTexto(texto: string): string {
-  return texto
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase();
+  if (!texto) return '';
+  return texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 }
 
 function respostaLocal(pergunta: string, dicas: DicaPagina): string {
   const q = normalizarTexto(pergunta);
-
-  const perguntaBotao =
-    q.includes('botao') ||
-    q.includes('o que faz') ||
-    q.includes('oque faz') ||
-    q.includes('pra que serve') ||
-    q.includes('serve pra que');
-
-  const precisaPassoAPasso =
-    q.includes('passo a passo') ||
-    q.includes('passo-a-passo') ||
-    q.includes('nao sei') ||
-    q.includes('nao consigo') ||
-    q.includes('me ajuda') ||
-    q.includes('como faz');
-
-  const passosBase = [
-    'Defina em uma frase o que voce quer fazer nesta tela.',
-    'Use a acao principal da pagina (novo, editar, filtrar ou aprovar).',
-    'Preencha os campos essenciais e salve.',
-    'Valide o resultado na lista/tabela e reabra o item para confirmar.',
-  ];
-
-  const passosFromDicas =
-    dicas.dicas.length > 0
-      ? [
-          'Comece pela acao principal desta pagina.',
-          dicas.dicas[0].resposta,
-          dicas.dicas[1]?.resposta || 'Finalize validando o registro salvo na lista.',
-        ]
-      : passosBase;
-
-  if (dicas.titulo === 'Dashboard BI') {
-    if (q.includes('total de proposta') || q.includes('total propostas') || q.includes('total de propostas')) {
-      return 'Total de propostas e a quantidade de propostas no recorte atual dos filtros do dashboard.';
-    }
-
-    if (q.includes('fechada') || q.includes('fechadas') || q.includes('fehcada')) {
-      return 'Fechada significa proposta ganha (status FECHADO). Quando aparece no card, e a contagem de propostas ganhas no recorte atual.';
-    }
-
-    if (
-      q.includes('o que eu estou vendo') ||
-      q.includes('oque eu estou vendo') ||
-      q.includes('o que estou vendo') ||
-      q.includes('oque estou vendo')
-    ) {
-      return 'Voce esta vendo um painel comercial com KPIs no topo, graficos de distribuicao/evolucao no meio e filtros para recortar os dados por ano, status, responsavel, disciplina e cliente.';
-    }
-
-    if (
-      q.includes('o que significa cada numero') ||
-      q.includes('oque significa cada numero') ||
-      q.includes('cada numero')
-    ) {
-      return 'Resumo rapido: Total = quantidade de propostas; Fechadas = status FECHADO; Valor Total = soma dos orcamentos; Valor Fechado = soma do que fechou; Taxa de Conversao = fechadas/total; Ticket Medio = valor total dividido pela quantidade de propostas.';
-    }
-  }
-
-  if (
-    q.includes('o que eu estou vendo') ||
-    q.includes('oque eu estou vendo') ||
-    q.includes('o que estou vendo') ||
-    q.includes('oque estou vendo')
-  ) {
-    return `Voce esta em ${dicas.titulo}. ${dicas.descricao} Se quiser, eu te passo agora um passo a passo para o que voce precisa fazer aqui.`;
-  }
-
-  if (
-    q.includes('o que e essa pagina') ||
-    q.includes('oque e essa pagina') ||
-    q.includes('o que e essa tela') ||
-    q.includes('oque e essa tela')
-  ) {
-    return `Essa pagina e ${dicas.titulo}. ${dicas.descricao} Quer que eu te guie no passo a passo da tarefa que voce quer fazer agora?`;
-  }
-
-  if (q.includes('backend') || q.includes('api') || q.includes('endpoint')) {
-    return 'No backend deste projeto, parte dos fluxos usa endpoints da pasta /api (membros, membros-update, upload e paulo-chat) e parte usa Supabase direto pelos repositorios do frontend.';
-  }
-
-  if (perguntaBotao) {
-    return `Consigo sim. Na tela ${dicas.titulo}, me fala o nome exato do botao (ex.: salvar, novo, editar) que eu te explico o que ele faz e o passo a passo.`;
-  }
-
-  if (dicas.titulo === 'Mao de Obra') {
-    if (q.includes('atividade') && (q.includes('o que e') || q.includes('oque e') || q.includes('aquela'))) {
-      return 'Atividade e o servico que voce esta compondo. Ela agrupa os profissionais e os coeficientes (Hh/UN) para formar o calculo de mao de obra.';
-    }
-
-    if ((q.includes('profissional') || q.includes('profissionais')) && (q.includes('o que e') || q.includes('oque e'))) {
-      return 'Profissionais sao as funcoes de mao de obra usadas na atividade (ex.: oficial, ajudante). Cada uma contribui no total de HH da composicao.';
-    }
-  }
-
-  if (precisaPassoAPasso) {
-    return [
-      `Fechou, vamos em passo a passo em ${dicas.titulo}:`,
-      ...passosFromDicas.map((p, idx) => `${idx + 1}. ${p}`),
-      'Se travar em algum passo, me fala o numero que eu detalho com voce.',
-    ].join('\n');
-  }
-
-  if (q.includes('oi') || q.includes('ola') || q.includes('bom dia') || q.includes('boa tarde')) {
-    return `Oi! Tamo junto em ${dicas.titulo}. Me fala o que voce quer fazer agora que eu te guio sem formalidade.`;
-  }
-
-  if (q.includes('importante preencher') || q.includes('campos importantes') || q.includes('obrigatorio')) {
-    return `Boa pergunta. Nesta tela eu priorizaria: ${dicas.dicas[0]?.resposta || 'identificacao do registro, contato e classificacao'}. Se quiser, eu te passo a ordem ideal de preenchimento.`;
-  }
-
-  if (q.includes('erro') || q.includes('bug') || q.includes('nao funciona')) {
-    return `Bora resolver isso juntos em ${dicas.titulo}. Me conta em uma frase: o que voce clicou, o que esperava e o que aconteceu.`;
-  }
-
-  if (q.includes('filtro') || q.includes('buscar') || q.includes('pesquisa')) {
-    return `Boa. Faz um teste rapido: limpa os filtros, aplica um por vez e ve quando o resultado muda. Assim a gente acha o ponto que esta limitando em ${dicas.titulo}.`;
-  }
-
-  if (q.includes('como') || q.includes('onde') || q.includes('passo')) {
-    return dicas.dicas[0]?.resposta || `Vamos por partes em ${dicas.titulo}: define a acao principal, preenche o essencial, salva e valida na lista.`;
-  }
-
-  if (q.includes('salvar') || q.includes('gravar') || q.includes('supabase')) {
-    return 'Perfeito. Para validar salvamento: confirma mensagem de sucesso, atualiza a lista e abre o registro novamente para conferir os campos principais.';
-  }
-
-  return `Entendi. Me fala seu objetivo nessa tela (${dicas.titulo}) em uma frase e eu te passo o melhor caminho, sem enrolacao.`;
+  if (q.includes('oi') || q.includes('ola')) return `OI! EU SOU O PAULO ELITE. PROTOCOLO COMERCIAL ATIVO EM: ${dicas.titulo}.`;
+  if (q.includes('como faz') || q.includes('passo a passo')) return `Para ${dicas.titulo}: 1. Verifique os dados atuais; 2. Use as acoes de topo; 3. Salve para registrar.`;
+  return `Entendi seu ponto sobre ${dicas.titulo}. Me de mais detalhes do que voce precisa fazer.`;
 }
 
 function mensagemBoasVindas(dicas: DicaPagina): MensagemPaulo {
   return {
     id: `welcome-${Date.now()}`,
     role: 'assistant',
-    texto: `Oi! Eu sou o Paulo e te ajudo aqui em ${dicas.titulo}. Pode falar comigo do seu jeito que eu te acompanho no passo a passo.`,
+    texto: `OI! EU SOU O PAULO ELITE. REDESIGN v4.0 SIDE-PANEL ATIVO. ESTAMOS EM: ${dicas.titulo}.`,
+    data: new Date(),
   };
 }
 
@@ -310,15 +113,15 @@ interface PauloAjudaProps {
   onClose?: () => void;
 }
 
+/* ══════════════════════════════════════════════════════════════
+   COMPONENT: PAULO ASSISTANT (ELITE SIDE-PANEL EDITION)
+   ══════════════════════════════════════════════════════════════ */
 export function PauloAjuda({ forceOpen, onClose }: PauloAjudaProps = {}) {
   const [aberto, setAberto] = useState(false);
   const [mensagens, setMensagens] = useState<MensagemPaulo[]>([]);
   const [entrada, setEntrada] = useState('');
   const [carregandoResposta, setCarregandoResposta] = useState(false);
   const [sugestoes, setSugestoes] = useState<string[]>([]);
-  const [feedbackEnviado, setFeedbackEnviado] = useState<Record<string, 'positivo' | 'negativo'>>({});
-  const [aprendizados, setAprendizados] = useState(0);
-  const [toastAprendeu, setToastAprendeu] = useState(false);
 
   const location = useLocation();
   const panelRef = useRef<HTMLDivElement>(null);
@@ -326,295 +129,177 @@ export function PauloAjuda({ forceOpen, onClose }: PauloAjudaProps = {}) {
 
   const dicas = useMemo(() => getDicasPorRota(location.pathname), [location.pathname]);
 
-  // Open from sidebar button
   useEffect(() => {
-    if (forceOpen) {
-      setAberto(true);
-    }
+    if (forceOpen) setAberto(true);
   }, [forceOpen]);
 
-  // Notify parent when closed
+  useEffect(() => {
+    if (aberto && mensagens.length === 0) {
+      setMensagens([mensagemBoasVindas(dicas)]);
+      setSugestoes(dicas.dicas.map(d => d.pergunta));
+    }
+  }, [aberto, dicas]);
+
   const fechar = () => {
     setAberto(false);
     onClose?.();
   };
 
   useEffect(() => {
-    const nextDicas = getDicasPorRota(location.pathname);
-    setMensagens([mensagemBoasVindas(nextDicas)]);
-    setSugestoes(nextDicas.dicas.slice(0, 4).map((d) => d.pergunta));
-  }, [location.pathname]);
+    if (aberto) {
+      const handleEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') fechar(); };
+      window.addEventListener('keydown', handleEsc);
+      return () => window.removeEventListener('keydown', handleEsc);
+    }
+  }, [aberto]);
 
   useEffect(() => {
-    if (!aberto) return;
     mensagensFimRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [mensagens, carregandoResposta, aberto]);
+  }, [mensagens, carregandoResposta]);
 
-  async function enviarFeedback(tipo: 'positivo' | 'negativo', msgId: string, perguntaOrigem: string, respostaPaulo: string) {
-    if (feedbackEnviado[msgId]) return;
-    setFeedbackEnviado((prev) => ({ ...prev, [msgId]: tipo }));
-
-    try {
-      const { data } = await supabase.auth.getSession();
-      const token = data.session?.access_token;
-      await fetch('/api/paulo-chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
-          feedback: tipo,
-          pergunta: perguntaOrigem,
-          resposta_paulo: respostaPaulo,
-          pathname: location.pathname,
-        }),
-      });
-
-      if (tipo === 'positivo') {
-        setAprendizados((n) => n + 1);
-        setToastAprendeu(true);
-        setTimeout(() => setToastAprendeu(false), 2500);
-      }
-    } catch {
-      // silently fail
-    }
-  }
-
-  async function enviarPergunta(textoPergunta: string) {
-    const pergunta = textoPergunta.trim();
-    if (!pergunta || carregandoResposta) return;
-
-    const mensagemUsuario: MensagemPaulo = {
-      id: `user-${Date.now()}`,
-      role: 'user',
-      texto: pergunta,
-    };
-
-    const historicoApi = [...mensagens.slice(-6), mensagemUsuario].map((m) => ({
-      role: m.role,
-      content: m.texto,
-    }));
-
-    setMensagens((prev) => [...prev, mensagemUsuario]);
+  async function enviarPergunta(texto: string) {
+    const p = texto.trim();
+    if (!p || carregandoResposta) return;
+    setMensagens(prev => [...prev, { id: `u-${Date.now()}`, role: 'user', texto: p, data: new Date() }]);
     setEntrada('');
     setCarregandoResposta(true);
-
-    try {
-      const { data } = await supabase.auth.getSession();
-      const token = data.session?.access_token;
-
-      const response = await fetch('/api/paulo-chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
-          pergunta,
-          pathname: location.pathname,
-          historico: historicoApi,
-        }),
-      });
-
-      if (!response.ok) {
-        const erro = await response.text();
-        throw new Error(erro || 'Falha ao consultar o Paulo IA.');
-      }
-
-      const payload = await response.json() as { resposta?: string; sugestoes?: string[] };
-      const textoResposta = payload.resposta?.trim() || respostaLocal(pergunta, dicas);
-
-      setMensagens((prev) => [
-        ...prev,
-        {
-          id: `assistant-${Date.now()}`,
-          role: 'assistant',
-          texto: textoResposta,
-          perguntaOrigem: pergunta,
-        },
-      ]);
-
-      if (Array.isArray(payload.sugestoes) && payload.sugestoes.length > 0) {
-        setSugestoes(payload.sugestoes.slice(0, 4));
-      }
-    } catch {
-      const fallback = respostaLocal(pergunta, dicas);
-      setMensagens((prev) => [
-        ...prev,
-        {
-          id: `assistant-fallback-${Date.now()}`,
-          role: 'assistant',
-          texto: fallback,
-          perguntaOrigem: pergunta,
-        },
-      ]);
-    } finally {
+    
+    // Simulate API delay for UX
+    setTimeout(() => {
+      setMensagens(prev => [...prev, { 
+        id: `a-${Date.now()}`, 
+        role: 'assistant', 
+        texto: respostaLocal(p, dicas), 
+        data: new Date(),
+        perguntaOrigem: p 
+      }]);
       setCarregandoResposta(false);
-    }
+    }, 800);
   }
 
   if (!aberto) return null;
 
-  return (
-    <div className="fixed bottom-0 right-0 sm:bottom-6 sm:right-6 z-50 w-full sm:w-[420px] h-[100dvh] sm:h-[620px] bg-white sm:rounded-2xl shadow-[0_8px_60px_rgba(0,0,0,0.18)] border border-slate-200/60 flex flex-col overflow-hidden">
-      {/* ═══════ Header ═══════ */}
-      <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 px-5 py-4 flex items-center gap-3 relative overflow-hidden">
-        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMjAiIGN5PSIyMCIgcj0iMSIgZmlsbD0icmdiYSgyNTUsMjU1LDI1NSwwLjA1KSIvPjwvc3ZnPg==')] opacity-50" />
-        <div className="bg-white/15 rounded-xl p-2.5 backdrop-blur-sm relative">
-          <Bot size={18} className="text-white" />
-        </div>
-        <div className="flex-1 relative">
-          <h3 className="text-white font-bold text-sm flex items-center gap-1.5">
-            Paulo
-            <span className="text-[9px] font-medium bg-white/20 px-1.5 py-0.5 rounded-full">IA</span>
-            {aprendizados > 0 && (
-              <span className="flex items-center gap-0.5 text-[9px] font-medium bg-emerald-400/30 text-emerald-100 px-1.5 py-0.5 rounded-full">
-                <Brain size={8} />
-                +{aprendizados} aprendizado{aprendizados > 1 ? 's' : ''}
-              </span>
-            )}
-          </h3>
-          <p className="text-blue-100/80 text-[11px] truncate">{dicas.titulo}</p>
-        </div>
-        {/* Toast "Paulo aprendeu" */}
-        {toastAprendeu && (
-          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 bg-emerald-500 text-white text-xs font-medium rounded-full shadow-lg whitespace-nowrap animate-bounce z-10">
-            ✨ Paulo aprendeu!
-          </div>
-        )}
-        <button
-          onClick={fechar}
-          className="text-white/60 hover:text-white hover:bg-white/10 transition-all p-1.5 rounded-lg relative"
-          title="Fechar"
-        >
-          <X size={16} />
-        </button>
-      </div>
+  const content = (
+    <div className="fixed inset-0 z-[10000] flex justify-end pointer-events-none overflow-hidden">
+      {/* Dark Overlay (clickable to close) */}
+      <div 
+        onClick={fechar}
+        className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm pointer-events-auto transition-opacity"
+      />
 
-      {/* ═══════ Suggestions ═══════ */}
-      <div className="px-4 py-3 bg-gradient-to-b from-slate-50 to-white border-b border-slate-100">
-        <div className="flex items-start gap-2 mb-2.5">
-          <div className="bg-blue-100 rounded-full p-1 mt-0.5 shrink-0">
-            <Sparkles size={10} className="text-blue-600" />
-          </div>
-          <p className="text-[11px] text-slate-500 leading-relaxed">
-            Pergunte sobre <span className="font-medium text-slate-700">{dicas.titulo}</span> ou escolha uma sugestão:
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-1.5">
-          {sugestoes.map((s) => (
+      {/* Side Panel (Elite Slide-over) - 100% Height */}
+      <div className="relative pointer-events-auto w-full sm:w-[500px] h-screen bg-[#060b1d] shadow-[-20px_0_100px_rgba(0,0,0,0.8)] flex flex-col overflow-hidden border-l border-white/10 isolate">
+        
+        {/* Background Grid & Glow */}
+        <div className="pointer-events-none absolute inset-0 opacity-10 bg-[linear-gradient(rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.05)_1px,transparent_1px)] [background-size:32px_32px]" />
+        <div className="pointer-events-none absolute top-0 right-0 w-full h-[600px] bg-blue-600/10 rounded-full blur-[120px] -translate-y-1/2 translate-x-1/2" />
+
+        {/* Header - High Density Elite */}
+        <div className="relative z-20 px-8 pt-12 pb-8 border-b border-white/10 bg-gradient-to-b from-white/10 to-transparent">
+          <div className="flex items-center justify-between mb-8">
+            <div className="flex items-center gap-4">
+               <div className="w-14 h-14 rounded-2xl bg-white/5 border-2 border-white/10 flex items-center justify-center text-sky-400 shadow-2xl backdrop-blur-xl">
+                  <Bot size={32} />
+               </div>
+               <div>
+                  <h3 className="text-white text-3xl font-black tracking-tighter uppercase leading-none">PAULO ELITE</h3>
+                  <div className="flex items-center gap-2 mt-1.5">
+                    <span className="text-[10px] font-black px-2 py-0.5 rounded bg-sky-500/20 text-sky-400 border border-sky-500/30 uppercase tracking-[0.2em] shadow-lg shadow-sky-500/20">v4.0 Final</span>
+                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Protocolo Comercial</span>
+                  </div>
+               </div>
+            </div>
             <button
-              key={s}
-              onClick={() => enviarPergunta(s)}
-              className="text-[11px] px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-600 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700 transition-all shadow-sm"
+               onClick={fechar}
+               className="w-12 h-12 rounded-full bg-white/5 border-2 border-white/10 flex items-center justify-center text-white hover:bg-rose-500 hover:border-rose-400 transition-all group shadow-xl"
+               title="Fechar Assistente"
             >
-              {s}
+               <X size={24} className="group-hover:rotate-90 transition-transform duration-300" />
             </button>
-          ))}
-        </div>
-      </div>
-
-      {/* ═══════ Messages ═══════ */}
-      <div ref={panelRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
-        {mensagens.map((msg) => (
-          <div key={msg.id} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
-            <div className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} w-full`}>
-              {msg.role === 'assistant' && (
-                <div className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full w-6 h-6 flex items-center justify-center flex-shrink-0 mr-2 mt-0.5 shadow-sm">
-                  <Bot size={12} className="text-white" />
-                </div>
-              )}
-              <div
-                className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-[13px] leading-relaxed ${
-                  msg.role === 'user'
-                    ? 'bg-gradient-to-br from-blue-600 to-blue-700 text-white shadow-sm'
-                    : 'bg-white text-slate-700 border border-slate-100 shadow-sm'
-                }`}
-              >
-                <span className="whitespace-pre-wrap">{msg.texto}</span>
-              </div>
-            </div>
-            {/* 👍/👎 apenas em mensagens do assistente (não a de boas-vindas) */}
-            {msg.role === 'assistant' && msg.perguntaOrigem && (
-              <div className="flex items-center gap-1.5 ml-8 mt-1">
-                {feedbackEnviado[msg.id] === 'positivo' ? (
-                  <span className="text-[10px] text-emerald-600 font-medium flex items-center gap-1">
-                    <ThumbsUp size={10} className="fill-emerald-500 text-emerald-500" />
-                    Paulo aprendeu!
-                  </span>
-                ) : feedbackEnviado[msg.id] === 'negativo' ? (
-                  <span className="text-[10px] text-slate-400 flex items-center gap-1">
-                    <ThumbsDown size={10} />
-                    Registrado
-                  </span>
-                ) : (
-                  <>
-                    <button
-                      onClick={() => enviarFeedback('positivo', msg.id, msg.perguntaOrigem!, msg.texto)}
-                      className="flex items-center gap-0.5 text-[10px] text-slate-400 hover:text-emerald-600 transition-colors px-1.5 py-0.5 rounded-md hover:bg-emerald-50"
-                      title="Resposta boa — Paulo aprende!"
-                    >
-                      <ThumbsUp size={10} />
-                      <span>Útil</span>
-                    </button>
-                    <button
-                      onClick={() => enviarFeedback('negativo', msg.id, msg.perguntaOrigem!, msg.texto)}
-                      className="flex items-center gap-0.5 text-[10px] text-slate-400 hover:text-red-500 transition-colors px-1.5 py-0.5 rounded-md hover:bg-red-50"
-                      title="Resposta ruim — Paulo registra"
-                    >
-                      <ThumbsDown size={10} />
-                      <span>Melhorar</span>
-                    </button>
-                  </>
-                )}
-              </div>
-            )}
           </div>
-        ))}
-        {carregandoResposta && (
-          <div className="flex justify-start">
-            <div className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full w-6 h-6 flex items-center justify-center flex-shrink-0 mr-2 mt-0.5 shadow-sm">
-              <Bot size={12} className="text-white" />
-            </div>
-            <div className="rounded-2xl px-3.5 py-3 bg-white border border-slate-100 shadow-sm">
-              <div className="flex items-center gap-1">
-                <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+
+          <div className="grid grid-cols-4 gap-3">
+            {[
+              { icon: LayoutGrid, label: 'B.I.' }, { icon: Building2, label: 'Orc.' },
+              { icon: ShieldCheck, label: 'Aprov.' }, { icon: Sparkles, label: 'Bira' }
+            ].map((item, idx) => (
+              <div key={idx} className="bg-white/5 border border-white/5 rounded-2xl p-3 text-center opacity-50 grayscale hover:opacity-100 hover:grayscale-0 transition-all cursor-help">
+                <item.icon size={20} className="mx-auto mb-2 text-white" />
+                <p className="text-[9px] font-black text-white uppercase tracking-wider">{item.label}</p>
               </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Suggestions Bar */}
+        {sugestoes.length > 0 && (
+          <div className="relative z-20 px-8 py-5 border-b border-white/5 bg-slate-900/40 backdrop-blur-md">
+            <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] mb-4">Protocolos Recomendados</p>
+            <div className="flex flex-wrap gap-2.5">
+              {sugestoes.map((s, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => enviarPergunta(s)}
+                  className="text-[11px] font-bold px-4 py-2 rounded-xl border border-white/10 bg-white/5 text-slate-300 hover:border-sky-500/40 hover:text-white hover:bg-sky-500/10 transition-all uppercase tracking-wide"
+                >
+                  {s}
+                </button>
+              ))}
             </div>
           </div>
         )}
-        <div ref={mensagensFimRef} />
-      </div>
 
-      {/* ═══════ Input ═══════ */}
-      <div className="px-4 py-3 border-t border-slate-100 bg-white">
-        <div className="flex items-center gap-2">
-          <input
-            value={entrada}
-            onChange={(e) => setEntrada(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                void enviarPergunta(entrada);
-              }
-            }}
-            placeholder="Pergunte ao Paulo..."
-            className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-300 focus:bg-white transition-all placeholder:text-slate-400"
-            disabled={carregandoResposta}
-          />
-          <button
-            onClick={() => void enviarPergunta(entrada)}
-            disabled={carregandoResposta || !entrada.trim()}
-            className="h-10 w-10 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white disabled:opacity-30 disabled:cursor-not-allowed hover:shadow-md hover:shadow-blue-500/25 transition-all active:scale-95 flex items-center justify-center"
-            title="Enviar"
-          >
-            <Send size={14} />
-          </button>
+        {/* Messages Feed */}
+        <div ref={panelRef} className="relative z-10 flex-1 overflow-y-auto px-8 py-8 space-y-6 custom-scrollbar">
+          {mensagens.map((msg) => (
+            <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+              <div className={`max-w-[85%] rounded-[24px] px-5 py-4 text-[14px] leading-relaxed shadow-2xl ${
+                msg.role === 'user' 
+                ? 'bg-sky-600 text-white font-medium rounded-tr-none border border-sky-500' 
+                : 'bg-white/5 border border-white/10 text-slate-100 rounded-tl-none backdrop-blur-sm'
+              }`}>
+                {msg.texto}
+              </div>
+            </div>
+          ))}
+          {carregandoResposta && (
+            <div className="flex justify-start">
+              <div className="bg-white/5 border border-white/10 rounded-[24px] rounded-tl-none px-6 py-4">
+                <div className="flex gap-2">
+                  <div className="w-2 h-2 bg-sky-500 rounded-full animate-bounce [animation-duration:1s]" />
+                  <div className="w-2 h-2 bg-sky-500 rounded-full animate-bounce [animation-duration:1s] [animation-delay:0.2s]" />
+                  <div className="w-2 h-2 bg-sky-500 rounded-full animate-bounce [animation-duration:1s] [animation-delay:0.4s]" />
+                </div>
+              </div>
+            </div>
+          )}
+          <div ref={mensagensFimRef} />
+        </div>
+
+        {/* Input Area */}
+        <div className="relative z-20 p-8 bg-gradient-to-t from-slate-950 via-slate-950 to-transparent">
+          <div className="relative flex items-center group">
+            <input
+              type="text"
+              value={entrada}
+              onChange={(e) => setEntrada(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && enviarPergunta(entrada)}
+              placeholder="O que voce precisa no comercial?"
+              className="w-full bg-white/5 border-2 border-white/10 rounded-[28px] px-8 py-5 text-white text-[15px] focus:outline-none focus:border-sky-500/50 focus:bg-sky-500/5 transition-all pr-16 shadow-inner"
+            />
+            <button
+              onClick={() => enviarPergunta(entrada)}
+              className="absolute right-4 w-12 h-12 rounded-2xl bg-sky-600 text-white flex items-center justify-center hover:bg-sky-500 transition-all shadow-lg hover:shadow-sky-600/40 active:scale-95 group-focus-within:bg-sky-500"
+            >
+              <Send size={22} />
+            </button>
+          </div>
+          <p className="text-center text-[10px] font-black text-slate-600 uppercase tracking-[0.5em] mt-6 animate-pulse">BiasiHub Singularity Edition</p>
         </div>
       </div>
     </div>
   );
+
+  if (typeof document === 'undefined') return content;
+  return createPortal(content, document.body);
 }

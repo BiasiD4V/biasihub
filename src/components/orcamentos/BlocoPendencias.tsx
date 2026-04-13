@@ -1,4 +1,4 @@
-import { CheckCircle, AlertCircle, Plus } from 'lucide-react';
+﻿import { CheckCircle, AlertCircle, Plus } from 'lucide-react';
 import type { Pendencia, StatusPendencia } from '../../domain/entities/Pendencia';
 import { formatarData } from '../../utils/datas';
 
@@ -121,3 +121,4 @@ export function BlocoPendencias({ pendencias, onResolver, onAdicionarNova }: Blo
     </div>
   );
 }
+

@@ -9,6 +9,7 @@ import {
   statusCls, statusDot,
 } from './biraTypes';
 import { biraRepository } from '../../infrastructure/supabase/biraRepository';
+import { useAuth } from '../../context/AuthContext';
 
 // ── StatusDropdown ───────────────────────────────────────────────────────────
 function StatusDropdown({ current, onSelect, disabled }: {
@@ -187,10 +188,11 @@ function QuadroView({ issues, onOpenPanel, onStatusChange }: {
   onOpenPanel: (i: JiraIssue) => void;
   onStatusChange: (id: string, t: typeof TRANSITIONS[0]) => void;
 }) {
+  const { usuario } = useAuth();
   const issueMap = useMemo(() => {
-    const m: Record<string, JiraIssue> = {};
-    issues.forEach(i => { m[i.id] = i; });
-    return m;
+     const m: Record<string, JiraIssue> = {};
+     issues.forEach(i => { m[i.id] = i; });
+     return m;
   }, [issues]);
 
   return (
@@ -222,25 +224,46 @@ function QuadroView({ issues, onOpenPanel, onStatusChange }: {
               {items.map(issue => {
                 const TypeIcon = ISSUE_TYPE_ICON[issue.tipo] || CheckSquare;
                 const pai = issue.parent_id ? issueMap[issue.parent_id] : null;
+                const isMine = usuario && issue.responsavel_id === usuario.id;
+                
                 return (
                   <div key={issue.id} draggable onDragStart={e => e.dataTransfer.setData('text/plain', issue.id)} onClick={() => onOpenPanel(issue)}
-                    className="group bg-white rounded-3xl p-5 border border-slate-200/60 shadow-sm hover:shadow-xl hover:border-blue-300 transition-all cursor-grab active:cursor-grabbing">
-                    <div className="flex items-center justify-between mb-3 text-[10px]">
-                      <div className="flex items-center gap-2">
-                         <div className="p-1.5 rounded-xl bg-slate-50 text-slate-400 group-hover:text-blue-500 transition-colors"><TypeIcon size={11} /></div>
-                         <span className="font-mono font-bold text-blue-600/60 tracking-tight">{issue.codigo}</span>
+                    className={`group relative rounded-3xl p-5 transition-all cursor-grab active:cursor-grabbing overflow-hidden ${
+                      isMine 
+                        ? 'bg-white shadow-[0_0_30px_rgba(245,158,11,0.25)]' 
+                        : 'bg-white border border-slate-200/60 shadow-sm'
+                    } hover:shadow-xl hover:border-blue-300`}>
+                    
+                    {/* Borda Animada Tipo "Carregando" (Gold Singularity) */}
+                    {isMine && (
+                      <>
+                        <div className="absolute inset-0 z-0 p-[2px]">
+                          <div className="absolute inset-[-500%] animate-[spin_4s_linear_infinite] bg-[conic-gradient(from_0deg,transparent_0%,transparent_30%,#f59e0b_50%,transparent_70%,transparent_100%)]" />
+                          <div className="absolute inset-0 bg-white rounded-[22px] z-10" />
+                        </div>
+                        <div className="absolute top-3 right-3 w-2 h-2 rounded-full bg-amber-500 animate-ping z-20" />
+                        <div className="absolute top-3 right-3 w-2 h-2 rounded-full bg-amber-500 z-20" />
+                      </>
+                    )}
+
+                    <div className="relative z-10">
+                      <div className="flex items-center justify-between mb-3 text-[10px]">
+                        <div className="flex items-center gap-2">
+                           <div className="p-1.5 rounded-xl bg-slate-50 text-slate-400 group-hover:text-blue-500 transition-colors"><TypeIcon size={11} /></div>
+                           <span className="font-mono font-bold text-blue-600/60 tracking-tight">{issue.codigo}</span>
+                        </div>
+                        <div className={`font-extrabold ${PRIORITY_CLS[issue.prioridade]}`}>{PRIORITY_ICON[issue.prioridade]}</div>
                       </div>
-                      <div className={`font-extrabold ${PRIORITY_CLS[issue.prioridade]}`}>{PRIORITY_ICON[issue.prioridade]}</div>
-                    </div>
-                    <p className="text-sm font-bold tracking-tight mb-4 leading-relaxed text-slate-700 group-hover:text-slate-900 transition-colors">{issue.titulo}</p>
-                    {pai && <div className="mb-4 px-2.5 py-1.5 bg-indigo-50 border border-indigo-100 rounded-xl text-[10px] font-bold text-indigo-700 truncate">Pai: {pai.codigo}</div>}
-                    <div className="flex items-center justify-between pt-2 border-t border-slate-50">
-                      <span />
-                      {issue.responsavel_nome ? (
-                         <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center ring-2 ring-white">
-                            <span className="text-[10px] text-white font-extrabold">{issue.responsavel_nome.charAt(0).toUpperCase()}</span>
-                         </div>
-                      ) : <User size={12} className="text-slate-300" />}
+                      <p className="text-sm font-bold tracking-tight mb-4 leading-relaxed text-slate-700 group-hover:text-slate-900 transition-colors">{issue.titulo}</p>
+                      {pai && <div className="mb-4 px-2.5 py-1.5 bg-indigo-50 border border-indigo-100 rounded-xl text-[10px] font-bold text-indigo-700 truncate">Pai: {pai.codigo}</div>}
+                      <div className="flex items-center justify-between pt-2 border-t border-slate-50">
+                        <span />
+                        {issue.responsavel_nome ? (
+                           <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center ring-2 ring-white">
+                              <span className="text-[10px] text-white font-extrabold">{issue.responsavel_nome.charAt(0).toUpperCase()}</span>
+                           </div>
+                        ) : <User size={12} className="text-slate-300" />}
+                      </div>
                     </div>
                   </div>
                 );

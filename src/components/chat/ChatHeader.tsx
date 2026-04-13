@@ -1,4 +1,4 @@
-import { X, Hash, ArrowLeft, Phone, Video, Search, MessageCircle } from 'lucide-react';
+﻿import { X, Hash, ArrowLeft, Phone, Video, Search, MessageCircle } from 'lucide-react';
 import type { Membro } from './chatTypes';
 
 export interface ChatHeaderProps {
@@ -33,86 +33,84 @@ export function ChatHeader({
   formatUltimoVisto,
 }: ChatHeaderProps) {
   return (
-    <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white px-5 py-3.5 flex items-center justify-between flex-shrink-0">
-      <div className="flex items-center gap-3">
+    <div className="bg-slate-900 border-b border-slate-700 px-6 py-4 flex items-center justify-between flex-shrink-0">
+      <div className="flex items-center gap-4">
         {!mostrarLista && (
-          <button onClick={onVoltarParaLista} className="p-1.5 rounded-lg hover:bg-white/10 transition-colors mr-0.5">
+          <button onClick={onVoltarParaLista} className="w-8 h-8 flex items-center justify-center rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-100 transition-all active:scale-90">
             <ArrowLeft size={16} />
           </button>
         )}
+
         {mostrarLista ? (
-          <div className="flex items-center gap-2.5">
-            <div className="bg-white/10 p-1.5 rounded-lg">
-              <MessageCircle size={16} />
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-slate-800 flex items-center justify-center text-sky-300 shadow-xl shadow-black/25">
+              <MessageCircle size={20} />
             </div>
             <div>
-              <span className="font-semibold text-sm block leading-tight">Chat da Equipe</span>
-              <span className="text-[10px] text-slate-400">{onlineCount} online agora</span>
+              <span className="font-black text-slate-100 text-sm block leading-none mb-1 tracking-tight">Comunicacoes</span>
+              <div className="flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">{onlineCount} Operacionais</span>
+              </div>
             </div>
           </div>
         ) : dmAtivo ? (
-          <div className="flex items-center gap-2.5">
-            <div className="relative">
-              <div className={`bg-gradient-to-br ${getAvatarColor(dmAtivo.nome)} rounded-full w-8 h-8 flex items-center justify-center shadow-sm`}>
-                <span className="text-white text-xs font-bold">{dmAtivo.nome.charAt(0).toUpperCase()}</span>
+          <div className="flex items-center gap-3">
+            <div className="relative group">
+              <div className={`bg-gradient-to-br ${getAvatarColor(dmAtivo.nome)} rounded-2xl w-10 h-10 flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform`}>
+                <span className="text-white text-sm font-black">{dmAtivo.nome.charAt(0).toUpperCase()}</span>
               </div>
-              <span className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-slate-900 ${dmAtivo.esta_online ? 'bg-emerald-400' : 'bg-slate-500'}`} />
+              <span className={`absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-slate-900 ${dmAtivo.esta_online ? 'bg-emerald-500' : 'bg-slate-500'}`} />
             </div>
             <div>
-              <span className="font-semibold text-sm block leading-tight">{dmAtivo.nome}</span>
+              <span className="font-black text-slate-100 text-sm block leading-none mb-1 tracking-tight">{dmAtivo.nome}</span>
               {quemDigitando ? (
-                <span className="text-[10px] text-emerald-400 font-medium flex items-center gap-1">
-                  digitando
-                  <span className="flex gap-0.5">
-                    <span className="w-1 h-1 bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                    <span className="w-1 h-1 bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                    <span className="w-1 h-1 bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                  </span>
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-indigo-300 font-black uppercase tracking-widest animate-pulse">Transmitindo...</span>
+                </div>
               ) : (
-                <span className="text-[10px] text-slate-400">{dmAtivo.esta_online ? formatTempoOnline(dmAtivo.conectado_desde) : formatUltimoVisto(dmAtivo.ultimo_visto)}</span>
+                <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">
+                  {dmAtivo.esta_online ? formatTempoOnline(dmAtivo.conectado_desde) : formatUltimoVisto(dmAtivo.ultimo_visto)}
+                </span>
               )}
             </div>
           </div>
         ) : (
-          <div className="flex items-center gap-2.5">
-            <div className="bg-white/10 p-1.5 rounded-lg">
-              <Hash size={16} />
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-slate-800 flex items-center justify-center text-sky-300 shadow-xl shadow-black/25">
+              <Hash size={20} />
             </div>
             <div>
-              <span className="font-semibold text-sm block leading-tight">Geral</span>
+              <span className="font-black text-slate-100 text-sm block leading-none mb-1 tracking-tight">Canal Geral</span>
               {quemDigitando ? (
-                <span className="text-[10px] text-emerald-400 font-medium flex items-center gap-1">
-                  {quemDigitando} digitando
-                  <span className="flex gap-0.5">
-                    <span className="w-1 h-1 bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                    <span className="w-1 h-1 bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                    <span className="w-1 h-1 bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                  </span>
+                <span className="text-[10px] text-indigo-300 font-black uppercase tracking-widest animate-pulse">
+                  {quemDigitando} digitando...
                 </span>
               ) : (
-                <span className="text-[10px] text-slate-400">Canal da equipe</span>
+                <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Protocolo de Equipe</span>
               )}
             </div>
           </div>
         )}
       </div>
-      <div className="flex items-center gap-0.5">
+
+      <div className="flex items-center gap-2">
         {!mostrarLista && (
-          <>
-            <button onClick={onToggleBusca} className={`p-2 rounded-lg transition-colors ${buscaMsgAberta ? 'bg-white/20 text-white' : 'hover:bg-white/10'}`} title="Buscar mensagens">
-              <Search size={14} />
+          <div className="flex items-center gap-1 bg-slate-800 p-1 rounded-2xl border border-slate-700">
+            <button onClick={onToggleBusca} className={`p-2 rounded-xl transition-all ${buscaMsgAberta ? 'bg-slate-100 text-slate-900 shadow-sm' : 'text-slate-300 hover:text-white'}`} title="Buscar">
+              <Search size={16} />
             </button>
-            <button onClick={onIniciarLigacao} className="p-2 rounded-lg hover:bg-white/10 transition-colors" title="Chamada de voz">
-              <Phone size={14} />
+            <button onClick={onIniciarLigacao} className="p-2 rounded-xl text-slate-300 hover:text-indigo-300 hover:bg-slate-700 transition-all" title="Voz">
+              <Phone size={16} />
             </button>
-            <button onClick={onIniciarVideoCall} className="p-2 rounded-lg hover:bg-white/10 transition-colors" title="Videochamada">
-              <Video size={14} />
+            <button onClick={onIniciarVideoCall} className="p-2 rounded-xl text-slate-300 hover:text-purple-300 hover:bg-slate-700 transition-all" title="Video">
+              <Video size={16} />
             </button>
-          </>
+          </div>
         )}
-        <button onClick={onFechar} className="p-2 rounded-lg hover:bg-white/10 transition-colors ml-1">
-          <X size={16} />
+
+        <button onClick={onFechar} className="w-10 h-10 flex items-center justify-center rounded-2xl text-slate-300 hover:text-rose-400 hover:bg-rose-500/10 transition-all active:scale-90">
+          <X size={20} />
         </button>
       </div>
     </div>
