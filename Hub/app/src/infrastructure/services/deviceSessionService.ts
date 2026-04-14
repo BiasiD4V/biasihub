@@ -81,7 +81,6 @@ export async function validateRememberedSession(): Promise<{
     const storedRefreshToken = localStorage.getItem(REFRESH_KEY);
     const storedUserId = localStorage.getItem(USERID_KEY);
     const storedExpires = localStorage.getItem(`${STORAGE_KEY}_expires`);
-    const storedIp = localStorage.getItem(`${STORAGE_KEY}_ip`);
 
     if (!storedToken || !storedEmail || !storedRefreshToken || !storedUserId) {
       return { valid: false };
@@ -90,16 +89,6 @@ export async function validateRememberedSession(): Promise<{
     if (storedExpires && new Date(storedExpires) < new Date()) {
       clearRememberedSession();
       return { valid: false };
-    }
-
-    try {
-      const currentIP = await getDeviceIP();
-      if (storedIp && storedIp !== currentIP) {
-        clearRememberedSession();
-        return { valid: false };
-      }
-    } catch {
-      // continua mesmo sem IP
     }
 
     const { data: refreshData, error: refreshError } =

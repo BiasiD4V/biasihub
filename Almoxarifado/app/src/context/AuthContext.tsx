@@ -66,6 +66,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const { data: ssoData } = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
           if (ssoData.session?.user) {
             await loadUserProfile(ssoData.session.user.id);
+            // Auto-salva sessão local para que refresh de página funcione sem pedir login
+            await createDeviceSession(ssoData.session.user.id, ssoData.session.user.email ?? '');
             setLoading(false);
             inicializado.current = true;
             setErroConexao(null);

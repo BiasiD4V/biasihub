@@ -68,7 +68,16 @@ export function LayoutAutenticado() {
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+    const isElectron = navigator.userAgent.includes('Electron');
+    window.location.replace(isElectron ? 'app://hub.local/' : 'https://biasihub-hub.vercel.app/');
+    return (
+      <div className="biasi-shell-bg flex min-h-screen items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-10 w-10 animate-spin rounded-full border-b-2 border-[#FFC82D]" />
+          <p className="text-sm text-[#DCE8FF]">Redirecionando para o Hub...</p>
+        </div>
+      </div>
+    );
   }
 
   return (
