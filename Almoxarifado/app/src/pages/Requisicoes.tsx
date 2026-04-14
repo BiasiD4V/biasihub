@@ -6,10 +6,10 @@ import type { ItemAlmoxarifado } from '../domain/entities/ItemAlmoxarifado';
 import { useAuth } from '../context/AuthContext';
 
 const STATUS_CONFIG: Record<StatusRequisicao, { label: string; cor: string; corBg: string }> = {
-  pendente:  { label: 'Pendente',  cor: 'text-amber-700',  corBg: 'bg-amber-100' },
-  aprovada:  { label: 'Aprovada',  cor: 'text-blue-700',   corBg: 'bg-blue-100' },
-  entregue:  { label: 'Entregue',  cor: 'text-green-700',  corBg: 'bg-green-100' },
-  cancelada: { label: 'Cancelada', cor: 'text-red-700',    corBg: 'bg-red-100' },
+  pendente:  { label: 'Pendente',  cor: 'text-amber-700', corBg: 'bg-amber-100' },
+  aprovada:  { label: 'Aprovada',  cor: 'text-blue-700',  corBg: 'bg-blue-100'  },
+  entregue:  { label: 'Entregue',  cor: 'text-green-700', corBg: 'bg-green-100' },
+  cancelada: { label: 'Cancelada', cor: 'text-red-700',   corBg: 'bg-red-100'   },
 };
 
 const COLUNAS: StatusRequisicao[] = ['pendente', 'aprovada', 'entregue'];

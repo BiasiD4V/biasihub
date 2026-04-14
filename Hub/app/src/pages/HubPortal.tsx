@@ -1,4 +1,4 @@
-﻿import { Briefcase, Package, HardHat, BarChart3, FileText, Truck, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Briefcase, Package, HardHat, BarChart3, FileText, Truck, ChevronLeft, ChevronRight } from 'lucide-react';
 import { ModuleCard } from '../components/ModuleCard';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../infrastructure/supabase/client';
@@ -21,8 +21,8 @@ interface ModuleDef {
 const IS_ELECTRON = navigator.userAgent.includes('Electron');
 
 const URLS = {
-  comercial: IS_ELECTRON ? 'app://comercial.local' : 'https://biasihub-comercial.vercel.app',
-  almoxarifado: IS_ELECTRON ? 'app://almoxarifado.local' : 'https://biasihub-almoxarifado-weld.vercel.app',
+  comercial: IS_ELECTRON ? 'http://localhost:5175' : 'https://biasihub-comercial.vercel.app',
+  almoxarifado: IS_ELECTRON ? 'http://localhost:5174' : 'https://biasihub-almoxarifado-weld.vercel.app',
   obras: IS_ELECTRON ? 'app://obras.local' : 'https://erp-gestaodeobras.vercel.app',
 };
 

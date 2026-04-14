@@ -523,6 +523,8 @@ async function handleMembros(request) {
 }
 
 // ── Protocol handler: serve arquivos dos apps ────────────────────────────────
+const appDirsChecked = new Set();
+
 function setupProtocol() {
   protocol.handle('app', async (request) => {
     const url = new URL(request.url);
@@ -562,19 +564,39 @@ function setupProtocol() {
     const appsDir = getAppsDir();
     const appDir = path.join(appsDir, appName);
 
-    if (!fs.existsSync(appDir)) {
-      return new Response(`App "${appName}" não encontrado. Execute o build primeiro.`, {
-        status: 404,
-        headers: { 'Content-Type': 'text/plain' },
-      });
+    // Cache de existência do diretório do app para evitar hits excessivos no servidor de arquivos
+    if (!appDirsChecked.has(appDir)) {
+      if (!fs.existsSync(appDir)) {
+        return new Response(`App "${appName}" não encontrado. Execute o build primeiro.`, {
+          status: 404,
+          headers: { 'Content-Type': 'text/plain' },
+        });
+      }
+      appDirsChecked.add(appDir);
     }
 
-    // Resolve o caminho do arquivo
-    let filePath = path.join(appDir, pathname === '/' ? 'index.html' : pathname);
+    // Resolve o caminho do arquivo de forma robusta e segura
+    // Usamos pathname.slice(1) se começar com barra para o path.join funcionar melhor em rede
+    const cleanPath = pathname.startsWith('/') ? pathname.slice(1) : pathname;
+    let filePath = path.join(appDir, cleanPath || 'index.html');
 
-    // SPA fallback: se o arquivo não existe, serve o index.html
+    const hasExtension = pathname.includes('.');
+    const isRoot = pathname === '/' || pathname === '';
+
+    // Lógica Defensiva:
+    // 1. Se o arquivo existe fisicamente, usamos ele.
+    // 2. Se NÃO existe:
+    //    a. Se for uma rota (sem extensão ou raiz), servimos index.html (SPA).
+    //    b. Se tiver extensão (ex: .js, .css), NÃO servimos index.html senão causamos "Syntax Error <"
     if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
-      filePath = path.join(appDir, 'index.html');
+      if (isRoot || !hasExtension) {
+        filePath = path.join(appDir, 'index.html');
+      } else {
+        return new Response(`Arquivo "${pathname}" não encontrado no App "${appName}".`, {
+          status: 404,
+          headers: { 'Content-Type': 'text/plain' },
+        });
+      }
     }
 
     return net.fetch(pathToFileURL(filePath).href);
@@ -599,8 +621,8 @@ function createWindow() {
     backgroundColor: '#f8fafc',
   });
 
-  // Carrega sempre o Hub local via protocolo app:// (sem localhost).
-  win.loadURL('app://hub.local/');
+  // MODE DEV: Carrega o Hub via Localhost para testes em tempo real
+  win.loadURL('http://localhost:5176/');
 
   // Abre links externos no browser padrão do sistema
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -612,7 +634,7 @@ function createWindow() {
 
   // Permite navegação somente entre os apps internos
   win.webContents.on('will-navigate', (event, url) => {
-    if (url.startsWith('app://')) return; // permitido
+    if (url.startsWith('app://') || url.includes('localhost') || url.includes('127.0.0.1')) return; // permitido
     event.preventDefault();
     if (url.startsWith('https://') || url.startsWith('http://')) {
       shell.openExternal(url);
@@ -787,7 +809,18 @@ function setupIPC() {
 
 // ── Setup Auto-updater ──────────────────────────────────────────────────────────
 function setupUpdater() {
-  autoUpdater.autoDownload = false;
+  // Mudamos para TRUE para garantir que todos os usuários recebam a atualização em background
+  autoUpdater.autoDownload = true;
+  autoUpdater.allowPrerelease = false;
+
+  autoUpdater.on('update-available', (info) => {
+    console.log('[updater] Atualização disponível:', info.version);
+    new Notification({
+      title: 'BiasíHub - Atualização Disponível',
+      body: `A versão ${info.version} está sendo baixada e será instalada automaticamente.`,
+      icon: path.join(__dirname, '..', 'resources', 'icon.png'),
+    }).show();
+  });
 
   // Envia progresso de download para o renderer
   autoUpdater.on('download-progress', (info) => {

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Send, Package, Wrench, MessageSquare, ChevronRight, Clock, AlertTriangle, CheckCircle, Loader2, History, X, Sparkles } from 'lucide-react';
+import { Package, Wrench, MessageSquare, ChevronRight, Clock, CheckCircle, Loader2, History, X, Sparkles, Check, Trash2, Ban } from 'lucide-react';
 import { supabase } from '../infrastructure/supabase/client';
 import { useAuth } from '../context/AuthContext';
 
@@ -92,7 +92,6 @@ export function Solicitacoes() {
   const [texto, setTexto] = useState('');
   const [categoria, setCategoria] = useState<Categoria | null>(null);
   const [subcategoria, setSubcategoria] = useState<string | null>(null);
-  const [urgente, setUrgente] = useState(false);
 
   // Resultado da IA
   const [resultado, setResultado] = useState<{
@@ -150,7 +149,7 @@ export function Solicitacoes() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({ texto: texto.trim(), categoria, subcategoria, urgente }),
+        body: JSON.stringify({ texto: texto.trim(), categoria, subcategoria }),
       });
 
       const analise = await res.json();
@@ -161,7 +160,6 @@ export function Solicitacoes() {
         texto: texto.trim(),
         categoria,
         subcategoria,
-        urgente,
         prioridade: analise.prioridade || 'normal',
         prazo_sugerido: analise.prazo_sugerido || null,
         mensagem_ia: analise.mensagem || null,
@@ -181,16 +179,23 @@ export function Solicitacoes() {
     setTexto('');
     setCategoria(null);
     setSubcategoria(null);
-    setUrgente(false);
     setResultado(null);
     setEtapa('form');
   }
 
-  async function cancelarSolicitacao(id: string) {
-    await supabase
-      .from('solicitacoes_almoxarifado')
-      .update({ status: 'cancelada' })
-      .eq('id', id);
+  async function aceitarSolicitacao(id: string) {
+    await supabase.from('solicitacoes_almoxarifado').update({ status: 'em_andamento' }).eq('id', id);
+    carregarHistorico();
+  }
+
+  async function negarSolicitacao(id: string) {
+    await supabase.from('solicitacoes_almoxarifado').update({ status: 'cancelada' }).eq('id', id);
+    carregarHistorico();
+  }
+
+  async function apagarSolicitacao(id: string) {
+    if (!window.confirm('Apagar esta solicitação permanentemente?')) return;
+    await supabase.from('solicitacoes_almoxarifado').delete().eq('id', id);
     carregarHistorico();
   }
 
@@ -313,21 +318,6 @@ export function Solicitacoes() {
                 </div>
               )}
 
-              {/* Urgente */}
-              <div className="flex items-center gap-3 p-4 bg-red-50 border border-red-100 rounded-xl">
-                <input
-                  type="checkbox"
-                  id="urgente"
-                  checked={urgente}
-                  onChange={e => setUrgente(e.target.checked)}
-                  className="w-4 h-4 rounded border-slate-300 text-red-600 focus:ring-2 focus:ring-red-500 cursor-pointer"
-                />
-                <label htmlFor="urgente" className="text-sm font-medium text-red-700 cursor-pointer flex items-center gap-1.5">
-                  <AlertTriangle size={14} />
-                  Marcar como urgente — receberá prioridade máxima
-                </label>
-              </div>
-
               {/* Botão enviar */}
               <button
                 onClick={enviar}
@@ -437,11 +427,6 @@ export function Solicitacoes() {
                           <span className={`text-[11px] font-medium ${priCfg.cor}`}>
                             {priCfg.label}
                           </span>
-                          {sol.urgente && (
-                            <span className="text-[11px] font-semibold text-red-600 flex items-center gap-0.5">
-                              <AlertTriangle size={10} />Urgente
-                            </span>
-                          )}
                         </div>
                         <p className="text-sm text-slate-700 font-medium truncate">{sol.texto}</p>
                         {sol.mensagem_ia && (
@@ -467,15 +452,44 @@ export function Solicitacoes() {
                         </div>
                       </div>
 
-                      {sol.status === 'pendente' && (
-                        <button
-                          onClick={() => cancelarSolicitacao(sol.id)}
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors flex-shrink-0"
-                          title="Cancelar solicitação"
-                        >
-                          <X size={14} />
-                        </button>
-                      )}
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        {sol.status === 'pendente' && isGestor && (
+                          <button
+                            onClick={() => aceitarSolicitacao(sol.id)}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-green-600 hover:bg-green-50 transition-colors"
+                            title="Aceitar solicitação"
+                          >
+                            <Check size={14} />
+                          </button>
+                        )}
+                        {sol.status === 'pendente' && isGestor && (
+                          <button
+                            onClick={() => negarSolicitacao(sol.id)}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                            title="Negar solicitação"
+                          >
+                            <Ban size={14} />
+                          </button>
+                        )}
+                        {sol.status === 'pendente' && !isGestor && (
+                          <button
+                            onClick={() => negarSolicitacao(sol.id)}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                            title="Cancelar solicitação"
+                          >
+                            <X size={14} />
+                          </button>
+                        )}
+                        {isGestor && (
+                          <button
+                            onClick={() => apagarSolicitacao(sol.id)}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                            title="Apagar solicitação"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );

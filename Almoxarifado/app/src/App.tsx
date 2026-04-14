@@ -10,6 +10,7 @@ import { Frota } from './pages/Frota';
 import { MeusDispositivos } from './pages/MeusDispositivos';
 import { Relatorios } from './pages/Relatorios';
 import { Igor } from './pages/Igor';
+import { Calendario } from './pages/Calendario';
 import { Login } from './pages/Login';
 
 export default function App() {
@@ -26,6 +27,7 @@ export default function App() {
             <Route path="/requisicoes" element={<Requisicoes />} />
             <Route path="/solicitacoes" element={<Solicitacoes />} />
             <Route path="/frota" element={<Frota />} />
+            <Route path="/calendario" element={<Calendario />} />
             <Route path="/relatorios" element={<Relatorios />} />
             <Route path="/igor" element={<Igor />} />
             <Route path="/meus-dispositivos" element={<MeusDispositivos />} />

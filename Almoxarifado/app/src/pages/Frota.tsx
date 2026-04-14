@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   Plus, Truck, Wrench, MapPin, Calendar, DollarSign, X,
   ChevronDown, ChevronRight, Building2, HardHat, User,
-  AlertTriangle, Camera, ImageIcon, CheckCircle,
+  AlertTriangle, Camera, ImageIcon, CheckCircle, Droplets,
 } from 'lucide-react';
 import { supabase } from '../infrastructure/supabase/client';
 import type { Veiculo, StatusVeiculo } from '../domain/entities/Veiculo';
@@ -17,6 +17,20 @@ interface Acidente {
   descricao: string | null;
   custo_reparo: number;
   fotos: string[];
+  criado_em: string;
+}
+
+interface Abastecimento {
+  id: string;
+  veiculo_id: string;
+  data: string;
+  km_atual: number;
+  litros: number;
+  valor_total: number;
+  responsavel_nome: string | null;
+  obra_atual: string | null;
+  data_retorno: string | null;
+  observacao: string | null;
   criado_em: string;
 }
 
@@ -37,8 +51,9 @@ export function Frota() {
   const [veiculos, setVeiculos] = useState<Veiculo[]>([]);
   const [manutencoes, setManutencoes] = useState<Record<string, Manutencao[]>>({});
   const [acidentes, setAcidentes] = useState<Record<string, Acidente[]>>({});
+  const [abastecimentos, setAbastecimentos] = useState<Record<string, Abastecimento[]>>({});
   const [expandidos, setExpandidos] = useState<Record<string, boolean>>({});
-  const [abaExpandida, setAbaExpandida] = useState<Record<string, 'manutencao' | 'acidente'>>({});
+  const [abaExpandida, setAbaExpandida] = useState<Record<string, 'manutencao' | 'acidente' | 'abastecimento'>>({});
   const [loading, setLoading] = useState(true);
 
   // Modais
@@ -46,6 +61,7 @@ export function Frota() {
   const [editandoVeiculo, setEditandoVeiculo] = useState<Veiculo | null>(null);
   const [modalManutencao, setModalManutencao] = useState<string | null>(null);
   const [modalAcidente, setModalAcidente] = useState<string | null>(null);
+  const [modalAbastecimento, setModalAbastecimento] = useState<string | null>(null);
   const [fotoAmpliada, setFotoAmpliada] = useState<string | null>(null);
 
   // Forms
@@ -64,6 +80,11 @@ export function Frota() {
     local: '', descricao: '', custo_reparo: '',
     fotos: [] as File[],
   });
+  const [formAbast, setFormAbast] = useState({
+    data: new Date().toISOString().split('T')[0],
+    km_atual: '', litros: '', valor_total: '',
+    responsavel_nome: '', obra_atual: '', data_retorno: '', observacao: '',
+  });
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState('');
   const [uploadando, setUploadando] = useState(false);
@@ -78,17 +99,19 @@ export function Frota() {
   }
 
   async function carregarDetalhes(veiculoId: string) {
-    const [{ data: m }, { data: a }] = await Promise.all([
+    const [{ data: m }, { data: a }, { data: ab }] = await Promise.all([
       supabase.from('manutencoes_veiculo').select('*').eq('veiculo_id', veiculoId).order('data', { ascending: false }),
       supabase.from('acidentes_veiculo').select('*').eq('veiculo_id', veiculoId).order('data', { ascending: false }),
+      supabase.from('abastecimentos_veiculo').select('*').eq('veiculo_id', veiculoId).order('data', { ascending: false }),
     ]);
     setManutencoes(prev => ({ ...prev, [veiculoId]: m || [] }));
     setAcidentes(prev => ({ ...prev, [veiculoId]: a || [] }));
+    setAbastecimentos(prev => ({ ...prev, [veiculoId]: ab || [] }));
   }
 
   useEffect(() => { carregar(); }, []);
 
-  function toggleExpand(id: string, aba: 'manutencao' | 'acidente' = 'manutencao') {
+  function toggleExpand(id: string, aba: 'manutencao' | 'acidente' | 'abastecimento' = 'manutencao') {
     const jaAberto = expandidos[id];
     const mesmaAba = abaExpandida[id] === aba;
     if (!manutencoes[id]) carregarDetalhes(id);
@@ -186,6 +209,29 @@ export function Frota() {
     setFormAcidente({ data: new Date().toISOString().split('T')[0], local: '', descricao: '', custo_reparo: '', fotos: [] });
   }
 
+  // ── Salvar abastecimento ───────────────────────────────────────────────────
+  async function salvarAbastecimento() {
+    if (!formAbast.data || !formAbast.litros || !formAbast.valor_total) { setErro('Data, litros e valor são obrigatórios'); return; }
+    setSalvando(true); setErro('');
+    const { error } = await supabase.from('abastecimentos_veiculo').insert({
+      veiculo_id: modalAbastecimento,
+      data: formAbast.data,
+      km_atual: parseFloat(formAbast.km_atual) || 0,
+      litros: parseFloat(formAbast.litros),
+      valor_total: parseFloat(formAbast.valor_total),
+      responsavel_nome: formAbast.responsavel_nome.trim() || null,
+      obra_atual: formAbast.obra_atual.trim() || null,
+      data_retorno: formAbast.data_retorno || null,
+      observacao: formAbast.observacao.trim() || null,
+      criado_por: usuario!.id,
+    });
+    if (error) { setErro(error.message); setSalvando(false); return; }
+    await carregarDetalhes(modalAbastecimento!);
+    setModalAbastecimento(null);
+    setSalvando(false);
+    setFormAbast({ data: new Date().toISOString().split('T')[0], km_atual: '', litros: '', valor_total: '', responsavel_nome: '', obra_atual: '', data_retorno: '', observacao: '' });
+  }
+
   function abrirEditar(v: Veiculo) {
     setEditandoVeiculo(v);
     setFormVeiculo({
@@ -261,9 +307,11 @@ export function Frota() {
             const aba = abaExpandida[v.id] || 'manutencao';
             const manutV = manutencoes[v.id] || [];
             const acidentesV = acidentes[v.id] || [];
+            const abastV = abastecimentos[v.id] || [];
             const custoManut = manutV.reduce((a, m) => a + Number(m.custo), 0);
             const custoAcid = acidentesV.reduce((a, ac) => a + Number(ac.custo_reparo), 0);
             const custoTotal = custoManut + custoAcid;
+            const totalLitros = abastV.reduce((a, ab) => a + Number(ab.litros), 0);
             const loc = (v as any).localizacao || 'biasi';
             const obraAtual = (v as any).obra_atual;
             const responsavel = (v as any).responsavel_atual;
@@ -318,6 +366,11 @@ export function Frota() {
                             <AlertTriangle size={10} />{acidentesV.length} acidente(s) · {fmtBRL(custoAcid)}
                           </span>
                         )}
+                        {abastV.length > 0 && (
+                          <span className="flex items-center gap-1 text-[11px] text-blue-400">
+                            <Droplets size={10} />{abastV.length} abast. · {totalLitros.toFixed(1)}L
+                          </span>
+                        )}
                         {custoTotal > 0 && (manutV.length > 0 || acidentesV.length > 0) && (
                           <span className="flex items-center gap-1 text-[11px] font-semibold text-slate-600">
                             <DollarSign size={10} />Total: {fmtBRL(custoTotal)}
@@ -343,6 +396,10 @@ export function Frota() {
                           className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-red-700 bg-red-50 hover:bg-red-100 rounded-lg border border-red-200 transition-colors">
                           <AlertTriangle size={11} />Acidente
                         </button>
+                        <button onClick={() => { setModalAbastecimento(v.id); setErro(''); }}
+                          className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg border border-blue-200 transition-colors">
+                          <Droplets size={11} />Abastecimento
+                        </button>
                       </>
                     )}
                     <button onClick={() => toggleExpand(v.id, aba)} className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors">
@@ -356,10 +413,10 @@ export function Frota() {
                   <div className="border-t border-slate-100">
                     {/* Abas */}
                     <div className="flex border-b border-slate-100">
-                      {(['manutencao', 'acidente'] as const).map(a => (
+                      {(['manutencao', 'acidente', 'abastecimento'] as const).map(a => (
                         <button key={a} onClick={() => setAbaExpandida(prev => ({ ...prev, [v.id]: a }))}
-                          className={`px-5 py-2.5 text-xs font-medium transition-colors ${aba === a ? 'text-blue-600 border-b-2 border-blue-600' : 'text-slate-500 hover:text-slate-700'}`}>
-                          {a === 'manutencao' ? `🔧 Manutenções (${manutV.length})` : `⚠️ Acidentes (${acidentesV.length})`}
+                          className={`px-4 py-2.5 text-xs font-medium transition-colors ${aba === a ? 'text-blue-600 border-b-2 border-blue-600' : 'text-slate-500 hover:text-slate-700'}`}>
+                          {a === 'manutencao' ? `🔧 Manutenções (${manutV.length})` : a === 'acidente' ? `⚠️ Acidentes (${acidentesV.length})` : `⛽ Abastecimentos (${abastV.length})`}
                         </button>
                       ))}
                     </div>
@@ -438,6 +495,60 @@ export function Frota() {
                           </div>
                         </div>
                       )
+                    )}
+
+                    {/* Tab abastecimentos */}
+                    {aba === 'abastecimento' && (
+                      abastV.length === 0 ? (
+                        <p className="px-5 py-4 text-sm text-slate-400">Nenhum abastecimento registrado</p>
+                      ) : (() => {
+                        const kmOrdenado = [...abastV].sort((a, b) => Number(a.km_atual) - Number(b.km_atual));
+                        const consumoMedio = kmOrdenado.length >= 2
+                          ? (Number(kmOrdenado[kmOrdenado.length - 1].km_atual) - Number(kmOrdenado[0].km_atual)) / abastV.reduce((s, a) => s + Number(a.litros), 0)
+                          : null;
+                        return (
+                          <div>
+                            {consumoMedio !== null && (
+                              <div className="px-5 py-2 bg-blue-50 border-b border-blue-100 flex items-center gap-2 text-xs text-blue-700">
+                                <Droplets size={12} />
+                                <span>Consumo médio estimado: <strong>{consumoMedio.toFixed(2)} km/L</strong></span>
+                              </div>
+                            )}
+                            <table className="w-full text-sm">
+                              <thead>
+                                <tr className="bg-slate-50">
+                                  <th className="text-left px-4 py-2 text-[10px] font-semibold text-slate-400 uppercase">Data</th>
+                                  <th className="text-left px-4 py-2 text-[10px] font-semibold text-slate-400 uppercase hidden sm:table-cell">KM</th>
+                                  <th className="text-left px-4 py-2 text-[10px] font-semibold text-slate-400 uppercase">Litros</th>
+                                  <th className="text-left px-4 py-2 text-[10px] font-semibold text-slate-400 uppercase hidden md:table-cell">R$/L</th>
+                                  <th className="text-left px-4 py-2 text-[10px] font-semibold text-slate-400 uppercase hidden lg:table-cell">Responsável</th>
+                                  <th className="text-left px-4 py-2 text-[10px] font-semibold text-slate-400 uppercase hidden lg:table-cell">Retorno</th>
+                                  <th className="text-right px-4 py-2 text-[10px] font-semibold text-slate-400 uppercase">Total</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100">
+                                {abastV.map(ab => (
+                                  <tr key={ab.id} className="hover:bg-slate-50/50">
+                                    <td className="px-4 py-2.5 text-xs text-slate-500">{new Date(ab.data).toLocaleDateString('pt-BR')}</td>
+                                    <td className="px-4 py-2.5 text-xs text-slate-500 hidden sm:table-cell">{Number(ab.km_atual) > 0 ? `${Number(ab.km_atual).toLocaleString('pt-BR')} km` : '—'}</td>
+                                    <td className="px-4 py-2.5 text-xs font-medium text-slate-700">{Number(ab.litros).toFixed(2)}L</td>
+                                    <td className="px-4 py-2.5 text-xs text-slate-500 hidden md:table-cell">{fmtBRL(Number(ab.valor_total) / Number(ab.litros))}</td>
+                                    <td className="px-4 py-2.5 text-xs text-slate-500 hidden lg:table-cell">{ab.responsavel_nome || '—'}{ab.obra_atual ? ` · ${ab.obra_atual}` : ''}</td>
+                                    <td className="px-4 py-2.5 text-xs text-slate-500 hidden lg:table-cell">{ab.data_retorno ? new Date(ab.data_retorno).toLocaleDateString('pt-BR') : '—'}</td>
+                                    <td className="px-4 py-2.5 text-xs font-semibold text-slate-700 text-right">{fmtBRL(Number(ab.valor_total))}</td>
+                                  </tr>
+                                ))}
+                                <tr className="bg-slate-50 font-semibold">
+                                  <td colSpan={2} className="px-4 py-2 text-xs text-slate-600">Total abastecimentos</td>
+                                  <td className="px-4 py-2 text-xs text-slate-700">{totalLitros.toFixed(2)}L</td>
+                                  <td colSpan={3} className="hidden md:table-cell" />
+                                  <td className="px-4 py-2 text-xs text-right text-slate-800">{fmtBRL(abastV.reduce((s, ab) => s + Number(ab.valor_total), 0))}</td>
+                                </tr>
+                              </tbody>
+                            </table>
+                          </div>
+                        );
+                      })()
                     )}
                   </div>
                 )}
@@ -675,6 +786,76 @@ export function Frota() {
               <button onClick={salvarAcidente} disabled={salvando || uploadando}
                 className="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 rounded-xl">
                 {salvando ? 'Salvando...' : 'Registrar acidente'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal Abastecimento ── */}
+      {modalAbastecimento && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setModalAbastecimento(null)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-5 border-b border-slate-100 sticky top-0 bg-white">
+              <h3 className="font-semibold text-slate-800 flex items-center gap-2">
+                <Droplets size={16} className="text-blue-500" />Registrar Abastecimento
+              </h3>
+              <button onClick={() => setModalAbastecimento(null)} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400"><X size={18} /></button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1.5">Data *</label>
+                  <input type="date" value={formAbast.data} onChange={e => setFormAbast(f => ({ ...f, data: e.target.value }))}
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1.5">KM atual</label>
+                  <input type="number" min="0" value={formAbast.km_atual} onChange={e => setFormAbast(f => ({ ...f, km_atual: e.target.value }))} placeholder="Ex: 45000"
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1.5">Litros *</label>
+                  <input type="number" min="0" step="0.01" value={formAbast.litros} onChange={e => setFormAbast(f => ({ ...f, litros: e.target.value }))} placeholder="Ex: 50.00"
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1.5">Valor total (R$) *</label>
+                  <input type="number" min="0" step="0.01" value={formAbast.valor_total} onChange={e => setFormAbast(f => ({ ...f, valor_total: e.target.value }))} placeholder="0,00"
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1.5">Responsável</label>
+                  <input value={formAbast.responsavel_nome} onChange={e => setFormAbast(f => ({ ...f, responsavel_nome: e.target.value }))} placeholder="Nome do condutor"
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1.5">Obra atual</label>
+                  <input value={formAbast.obra_atual} onChange={e => setFormAbast(f => ({ ...f, obra_atual: e.target.value }))} placeholder="Onde está o veículo"
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1.5">Previsão de retorno</label>
+                <input type="date" value={formAbast.data_retorno} onChange={e => setFormAbast(f => ({ ...f, data_retorno: e.target.value }))}
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1.5">Observação</label>
+                <textarea value={formAbast.observacao} onChange={e => setFormAbast(f => ({ ...f, observacao: e.target.value }))} rows={2}
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
+              </div>
+              {erro && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{erro}</p>}
+            </div>
+            <div className="flex gap-3 p-5 border-t border-slate-100">
+              <button onClick={() => setModalAbastecimento(null)} className="flex-1 px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-xl">Cancelar</button>
+              <button onClick={salvarAbastecimento} disabled={salvando}
+                className="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-xl">
+                {salvando ? 'Salvando...' : 'Registrar'}
               </button>
             </div>
           </div>

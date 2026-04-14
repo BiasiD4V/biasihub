@@ -3,6 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import {
   ArrowLeftRight,
   Bot,
+  Calendar,
   ClipboardList,
   FileSpreadsheet,
   Home,
@@ -49,7 +50,10 @@ const NAV_SECTIONS = [
   },
   {
     label: 'Frota',
-    items: [{ to: '/frota', icon: Truck, label: 'Veiculos' }],
+    items: [
+      { to: '/frota', icon: Truck, label: 'Veiculos' },
+      { to: '/calendario', icon: Calendar, label: 'Calendario' },
+    ],
   },
   {
     label: 'Analise',
