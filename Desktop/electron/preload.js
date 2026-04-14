@@ -2,9 +2,12 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 // Expõe para o renderer de forma segura
 contextBridge.exposeInMainWorld('electronBridge', {
-  // Config da chave da IA
+  // Config da IA (Anthropic + Ollama)
   getAnthropicKey: () => ipcRenderer.invoke('config:getAnthropicKey'),
   setAnthropicKey: (key) => ipcRenderer.invoke('config:setAnthropicKey', key),
+  getOllamaModel: () => ipcRenderer.invoke('config:getOllamaModel'),
+  setOllamaModel: (model) => ipcRenderer.invoke('config:setOllamaModel', model),
+  checkOllama: () => ipcRenderer.invoke('config:checkOllama'),
 
   // Info da versão do app
   getAppVersion: () => ipcRenderer.invoke('app:getVersion'),

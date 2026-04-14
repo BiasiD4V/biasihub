@@ -74,12 +74,7 @@ async function handleSolicitar(request) {
     // Tenta usar a chave da IA armazenada localmente
     const cfg = await getStore();
     const anthropicKey = cfg.get('anthropicKey') || '';
-
-    if (!anthropicKey) {
-      return new Response(JSON.stringify(fallbackClassificacao({ texto, categoria, subcategoria, urgente })), {
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
+    const ollamaModel = cfg.get('ollamaModel') || 'llama4';
 
     // Busca demandas existentes no Supabase
     let demandasExistentes = [];
@@ -128,33 +123,65 @@ Categoria: ${categoria}
 Subcategoria: ${subcategoria || 'não especificada'}
 Urgente: ${urgente ? 'sim' : 'não'}`;
 
-    const anthropicRes = await net.fetch(ANTHROPIC_API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': anthropicKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 400,
-        system: systemPrompt,
-        messages: [{ role: 'user', content: userMessage }],
-      }),
-    });
+    let rawText = null;
 
-    if (!anthropicRes.ok) {
+    // ── 1. Tenta Ollama (IA local, sem custo) ────────────────────────────────
+    try {
+      const ollamaRes = await net.fetch('http://localhost:11434/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: ollamaModel,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userMessage },
+          ],
+          temperature: 0.2,
+          max_tokens: 400,
+        }),
+      });
+      if (ollamaRes.ok) {
+        const ollamaData = await ollamaRes.json();
+        rawText = ollamaData.choices?.[0]?.message?.content || null;
+      }
+    } catch {
+      // Ollama não está rodando — fallback para Anthropic
+    }
+
+    // ── 2. Fallback: Anthropic ────────────────────────────────────────────────
+    if (!rawText && anthropicKey) {
+      const anthropicRes = await net.fetch(ANTHROPIC_API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': anthropicKey,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 400,
+          system: systemPrompt,
+          messages: [{ role: 'user', content: userMessage }],
+        }),
+      });
+      if (anthropicRes.ok) {
+        const data = await anthropicRes.json();
+        rawText = data.content?.[0]?.text || null;
+      }
+    }
+
+    // ── 3. Fallback local se nenhuma IA respondeu ────────────────────────────
+    if (!rawText) {
       return new Response(JSON.stringify(fallbackClassificacao({ texto, categoria, subcategoria, urgente })), {
         headers: { 'Content-Type': 'application/json' },
       });
     }
 
-    const data = await anthropicRes.json();
-    const rawText = data.content?.[0]?.text || '{}';
-
     let analise;
     try {
-      analise = JSON.parse(rawText);
+      // Remove markdown code blocks se o modelo retornar ```json ... ```
+      const cleaned = rawText.replace(/```(?:json)?\n?/g, '').trim();
+      analise = JSON.parse(cleaned);
     } catch {
       return new Response(JSON.stringify(fallbackClassificacao({ texto, categoria, subcategoria, urgente })), {
         headers: { 'Content-Type': 'application/json' },
@@ -775,6 +802,31 @@ function setupIPC() {
     const cfg = await getStore();
     cfg.set('anthropicKey', key.trim());
     return true;
+  });
+
+  ipcMain.handle('config:getOllamaModel', async () => {
+    const cfg = await getStore();
+    return cfg.get('ollamaModel') || 'llama4';
+  });
+
+  ipcMain.handle('config:setOllamaModel', async (_event, model) => {
+    const cfg = await getStore();
+    cfg.set('ollamaModel', (model || 'llama4').trim());
+    return true;
+  });
+
+  ipcMain.handle('config:checkOllama', async () => {
+    try {
+      const res = await net.fetch('http://localhost:11434/api/tags', { method: 'GET' });
+      if (res.ok) {
+        const data = await res.json();
+        const models = (data.models || []).map(m => m.name);
+        return { online: true, models };
+      }
+      return { online: false, models: [] };
+    } catch {
+      return { online: false, models: [] };
+    }
   });
 
   ipcMain.handle('app:getVersion', () => {

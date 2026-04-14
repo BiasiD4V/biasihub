@@ -1,5 +1,5 @@
 ﻿import { useEffect, useState } from 'react';
-import { Laptop, Smartphone, Monitor, Trash2, RefreshCw, Shield } from 'lucide-react';
+import { Laptop, Smartphone, Monitor, Trash2, RefreshCw, Shield, Bot, Eye, EyeOff, Check, Wifi, WifiOff } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { listUserSessions, revokeDeviceSession, revokeAllDeviceSessions } from '../infrastructure/services/deviceSessionService';
 import type { DeviceSession } from '../infrastructure/services/deviceSessionService';
@@ -12,6 +12,148 @@ function getDeviceIcon(deviceName: string) {
 
 function formatarData(iso: string) {
   return new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+function ConfiguracaoIA() {
+  const bridge = (window as any).electronBridge as ElectronBridge | undefined;
+  const [anthropicKey, setAnthropicKey] = useState('');
+  const [ollamaModel, setOllamaModel] = useState('llama4');
+  const [mostrarChave, setMostrarChave] = useState(false);
+  const [ollamaStatus, setOllamaStatus] = useState<{ online: boolean; models: string[] } | null>(null);
+  const [salvando, setSalvando] = useState(false);
+  const [savedMsg, setSavedMsg] = useState('');
+
+  useEffect(() => {
+    if (!bridge) return;
+    bridge.getAnthropicKey().then(setAnthropicKey);
+    bridge.getOllamaModel().then(setOllamaModel);
+    verificarOllama();
+  }, []);
+
+  async function verificarOllama() {
+    if (!bridge) return;
+    const status = await bridge.checkOllama();
+    setOllamaStatus(status);
+  }
+
+  async function salvar() {
+    if (!bridge) return;
+    setSalvando(true);
+    await bridge.setAnthropicKey(anthropicKey);
+    await bridge.setOllamaModel(ollamaModel);
+    setSalvando(false);
+    setSavedMsg('Salvo!');
+    setTimeout(() => setSavedMsg(''), 2500);
+  }
+
+  if (!bridge) return null;
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center gap-4">
+        <div className="w-12 h-12 rounded-2xl bg-violet-600 flex items-center justify-center text-white shadow-2xl">
+          <Bot size={24} />
+        </div>
+        <div>
+          <h2 className="text-2xl font-black text-slate-900 tracking-tight">Configuração de IA</h2>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Paulo · Igor · Assistentes</p>
+        </div>
+      </div>
+
+      {/* Status Ollama */}
+      <div
+        className={`rounded-[24px] border-2 p-5 flex items-center gap-4 cursor-pointer transition-all ${
+          ollamaStatus?.online
+            ? 'bg-emerald-500/5 border-emerald-500/20 hover:border-emerald-500/40'
+            : 'bg-slate-100/60 border-slate-200 hover:border-slate-300'
+        }`}
+        onClick={verificarOllama}
+      >
+        {ollamaStatus?.online ? (
+          <Wifi size={22} className="text-emerald-500 shrink-0" />
+        ) : (
+          <WifiOff size={22} className="text-slate-400 shrink-0" />
+        )}
+        <div className="flex-1 min-w-0">
+          {ollamaStatus === null ? (
+            <p className="text-sm font-bold text-slate-500">Verificando Ollama...</p>
+          ) : ollamaStatus.online ? (
+            <>
+              <p className="text-sm font-black text-emerald-700">Ollama rodando</p>
+              {ollamaStatus.models.length > 0 && (
+                <p className="text-[10px] font-bold text-emerald-600/70 uppercase tracking-widest mt-0.5 truncate">
+                  Modelos: {ollamaStatus.models.join(' · ')}
+                </p>
+              )}
+            </>
+          ) : (
+            <>
+              <p className="text-sm font-black text-slate-500">Ollama offline</p>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
+                Execute: ollama serve
+              </p>
+            </>
+          )}
+        </div>
+        <RefreshCw size={14} className="text-slate-400 shrink-0" />
+      </div>
+
+      {/* Modelo Ollama */}
+      <div className="space-y-2">
+        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Modelo Ollama</label>
+        <input
+          type="text"
+          value={ollamaModel}
+          onChange={e => setOllamaModel(e.target.value)}
+          placeholder="llama4"
+          className="w-full rounded-2xl border-2 border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-800 placeholder-slate-300 focus:border-violet-400 focus:outline-none transition-colors"
+        />
+        <p className="text-[10px] text-slate-400 font-medium ml-1">
+          Padrão: llama4 · Outros: llama3.2, mistral, gemma3, etc.
+        </p>
+      </div>
+
+      {/* Chave Anthropic */}
+      <div className="space-y-2">
+        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Chave Anthropic (fallback)</label>
+        <div className="relative">
+          <input
+            type={mostrarChave ? 'text' : 'password'}
+            value={anthropicKey}
+            onChange={e => setAnthropicKey(e.target.value)}
+            placeholder="sk-ant-..."
+            className="w-full rounded-2xl border-2 border-slate-200 bg-white px-4 py-3 pr-12 text-sm font-mono text-slate-800 placeholder-slate-300 focus:border-violet-400 focus:outline-none transition-colors"
+          />
+          <button
+            type="button"
+            onClick={() => setMostrarChave(v => !v)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 text-slate-400 hover:text-slate-600"
+          >
+            {mostrarChave ? <EyeOff size={16} /> : <Eye size={16} />}
+          </button>
+        </div>
+        <p className="text-[10px] text-slate-400 font-medium ml-1">
+          Usado se o Ollama não estiver rodando
+        </p>
+      </div>
+
+      {/* Botão salvar */}
+      <button
+        onClick={salvar}
+        disabled={salvando}
+        className="w-full h-12 rounded-2xl bg-violet-600 text-white font-black text-sm uppercase tracking-widest hover:bg-violet-700 transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2 shadow-xl shadow-violet-500/20"
+      >
+        {savedMsg ? (
+          <><Check size={16} /> {savedMsg}</>
+        ) : salvando ? (
+          <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+        ) : (
+          'Salvar Configurações'
+        )}
+      </button>
+    </div>
+  );
 }
 
 export function MeusDispositivos() {
@@ -148,6 +290,11 @@ export function MeusDispositivos() {
           })}
         </div>
       )}
+
+      {/* Configuração de IA */}
+      <div className="premium-glass bg-white/60 border-2 border-white/40 rounded-[32px] p-8 shadow-xl shadow-slate-900/5">
+        <ConfiguracaoIA />
+      </div>
     </div>
   );
 }
