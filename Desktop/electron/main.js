@@ -278,35 +278,146 @@ ${movs.map(m => `- ${m.tipo === 'entrada' ? '↑' : '↓'} ${m.item?.descricao}:
       { role: 'user', content: mensagem },
     ];
 
-    const resp = await net.fetch(ANTHROPIC_API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': anthropicKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 1024,
-        system: systemPrompt,
-        messages,
-      }),
-    });
+    let resposta = null;
 
-    if (!resp.ok) {
-      return new Response(JSON.stringify({ resposta: 'Erro ao conectar com a IA. Tente novamente.' }), {
+    // ── 1. Tenta Ollama (IA local, gratuita, sem chave de API) ───────────────
+    const ollamaModel = cfg.get('ollamaModel') || 'llama4';
+    try {
+      const ollamaRes = await net.fetch('http://localhost:11434/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: ollamaModel,
+          messages: [{ role: 'system', content: systemPrompt }, ...messages],
+          temperature: 0.4,
+          max_tokens: 1024,
+        }),
+      });
+      if (ollamaRes.ok) {
+        const ollamaData = await ollamaRes.json();
+        resposta = ollamaData.choices?.[0]?.message?.content || null;
+      }
+    } catch {
+      // Ollama não está rodando — fallback para Anthropic
+    }
+
+    // ── 2. Fallback: Anthropic ────────────────────────────────────────────────
+    if (!resposta && anthropicKey) {
+      const resp = await net.fetch(ANTHROPIC_API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': anthropicKey,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 1024,
+          system: systemPrompt,
+          messages,
+        }),
+      });
+
+      if (resp.ok) {
+        const data = await resp.json();
+        resposta = data.content?.[0]?.text || null;
+      }
+    }
+
+    if (!resposta) {
+      return new Response(JSON.stringify({ resposta: 'Não consegui processar sua mensagem. Verifique se o Ollama está rodando ou configure uma chave de IA.' }), {
         headers: { 'Content-Type': 'application/json' },
       });
     }
-
-    const data = await resp.json();
-    const resposta = data.content?.[0]?.text || 'Não consegui processar sua mensagem.';
 
     return new Response(JSON.stringify({ resposta }), {
       headers: { 'Content-Type': 'application/json' },
     });
   } catch (err) {
     console.error('[igor] erro:', err);
+    return new Response(JSON.stringify({ resposta: 'Ocorreu um erro interno. Tente novamente.' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+}
+
+// ── Handler do Paulo (IA do módulo Comercial) ────────────────────────────────
+async function handlePauloComercial(request) {
+  try {
+    const body = await request.json();
+    const { mensagem, historico = [] } = body;
+
+    const cfg = await getStore();
+    const anthropicKey = cfg.get('anthropicKey') || '';
+    const ollamaModel = cfg.get('ollamaModel') || 'llama4';
+
+    const systemPrompt = `Você é o Paulo, assistente IA especializado no módulo Comercial do BiasiHub da Biasi Engenharia.
+Você ajuda com orçamentos, clientes, propostas comerciais e processos do departamento comercial.
+Seja profissional mas acessível — como um colega experiente. Fale português BR natural, direto e objetivo.
+Não invente funcionalidades que não existem. Se não souber algo, diga honestamente.
+Use numeração quando der passo a passo. Respostas curtas e acionáveis.`;
+
+    const messages = [
+      ...historico.slice(-12),
+      { role: 'user', content: mensagem },
+    ];
+
+    let resposta = null;
+
+    // ── 1. Tenta Ollama (IA local, gratuita, sem chave de API) ───────────────
+    try {
+      const ollamaRes = await net.fetch('http://localhost:11434/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: ollamaModel,
+          messages: [{ role: 'system', content: systemPrompt }, ...messages],
+          temperature: 0.4,
+          max_tokens: 1024,
+        }),
+      });
+      if (ollamaRes.ok) {
+        const ollamaData = await ollamaRes.json();
+        resposta = ollamaData.choices?.[0]?.message?.content || null;
+      }
+    } catch {
+      // Ollama não está rodando — fallback para Anthropic
+    }
+
+    // ── 2. Fallback: Anthropic ────────────────────────────────────────────────
+    if (!resposta && anthropicKey) {
+      const resp = await net.fetch(ANTHROPIC_API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': anthropicKey,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 1024,
+          system: systemPrompt,
+          messages,
+        }),
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        resposta = data.content?.[0]?.text || null;
+      }
+    }
+
+    if (!resposta) {
+      return new Response(JSON.stringify({ resposta: 'Não consegui processar sua mensagem. Verifique se o Ollama está rodando ou configure uma chave de IA.' }), {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    return new Response(JSON.stringify({ resposta }), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  } catch (err) {
+    console.error('[paulo-comercial] erro:', err);
     return new Response(JSON.stringify({ resposta: 'Ocorreu um erro interno. Tente novamente.' }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },
@@ -552,6 +663,11 @@ function setupProtocol() {
     // Rota da API de atualização de membros (POST/PATCH)
     if (pathname === '/api/membros-update') {
       return handleMembrosUpdate(request);
+    }
+
+    // Paulo IA do Comercial (Ollama/Anthropic local — sem depender do Vercel)
+    if (appName === 'comercial' && pathname === '/api/paulo') {
+      return handlePauloComercial(request);
     }
 
     // Roteia as APIs do Comercial para o backend em producao (Jira/RDO)
