@@ -3,6 +3,7 @@ import { LayoutAutenticado } from './components/layout/LayoutAutenticado';
 import { AuthProvider } from './context/AuthContext';
 import { Dashboard } from './pages/Dashboard';
 import { Estoque } from './pages/Estoque';
+import { Ferramentas } from './pages/Ferramentas';
 import { Movimentacoes } from './pages/Movimentacoes';
 import { Requisicoes } from './pages/Requisicoes';
 import { Solicitacoes } from './pages/Solicitacoes';
@@ -23,6 +24,7 @@ export default function App() {
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/estoque" element={<Estoque />} />
+            <Route path="/ferramentas" element={<Ferramentas />} />
             <Route path="/movimentacoes" element={<Movimentacoes />} />
             <Route path="/requisicoes" element={<Requisicoes />} />
             <Route path="/solicitacoes" element={<Solicitacoes />} />

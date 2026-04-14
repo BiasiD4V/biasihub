@@ -1,4 +1,4 @@
-﻿import { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
   ArrowLeftRight,
@@ -17,6 +17,7 @@ import {
   Laptop,
   X,
   BarChart3,
+  Wrench,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../infrastructure/supabase/client';
@@ -42,9 +43,10 @@ const NAV_SECTIONS = [
     ],
   },
   {
-    label: 'Estoque',
+    label: 'Almoxarifado',
     items: [
       { to: '/estoque', icon: Package, label: 'Itens' },
+      { to: '/ferramentas', icon: Wrench, label: 'Ferramentas' },
       { to: '/movimentacoes', icon: ArrowLeftRight, label: 'Movimentacoes' },
     ],
   },
@@ -66,7 +68,9 @@ const NAV_SECTIONS = [
 ];
 
 const IS_ELECTRON = navigator.userAgent.includes('Electron');
-const HUB_URL = IS_ELECTRON ? 'app://hub.local/' : 'https://biasihub-portal.vercel.app/';
+const HUB_URL = IS_ELECTRON
+  ? (import.meta.env.DEV ? 'http://localhost:5176/' : 'app://hub.local/')
+  : 'https://biasihub-portal.vercel.app/';
 
 export function Sidebar({ onAbrirChat }: SidebarProps) {
   const { usuario, logout } = useAuth();

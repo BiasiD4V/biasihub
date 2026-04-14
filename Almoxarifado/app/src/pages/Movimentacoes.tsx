@@ -17,6 +17,7 @@ export function Movimentacoes() {
   const [modalAberto, setModalAberto] = useState(false);
   const [scannerAberto, setScannerAberto] = useState(false);
   const [form, setForm] = useState({ item_id: '', tipo: 'entrada' as 'entrada' | 'saida', quantidade: '', obra: '', observacao: '', data: new Date().toISOString().split('T')[0] });
+  const [buscaItem, setBuscaItem] = useState('');
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState('');
 
@@ -56,6 +57,7 @@ export function Movimentacoes() {
     setModalAberto(false);
     setSalvando(false);
     setForm({ item_id: '', tipo: 'entrada', quantidade: '', obra: '', observacao: '', data: new Date().toISOString().split('T')[0] });
+    setBuscaItem('');
   }
 
   const filtrados = movs.filter(m => {
@@ -189,11 +191,55 @@ export function Movimentacoes() {
 
               <div>
                 <label className="block text-xs font-medium text-slate-700 mb-1.5">Item *</label>
-                <select value={form.item_id} onChange={e => setForm(f => ({ ...f, item_id: e.target.value }))}
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                  <option value="">Selecione um item...</option>
-                  {itens.map(i => <option key={i.id} value={i.id}>{i.codigo} — {i.descricao}</option>)}
-                </select>
+                <div className="relative">
+                  <div className="relative">
+                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      value={form.item_id ? `${itens.find(i => i.id === form.item_id)?.codigo} — ${itens.find(i => i.id === form.item_id)?.descricao}` : buscaItem}
+                      readOnly={!!form.item_id}
+                      onChange={e => setBuscaItem(e.target.value)}
+                      placeholder="Buscar item por código ou nome..."
+                      className="w-full pl-9 pr-10 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    {form.item_id && (
+                      <button
+                        onClick={() => { setForm(f => ({ ...f, item_id: '' })); setBuscaItem(''); }}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 hover:bg-slate-100 rounded-lg text-slate-400"
+                      >
+                        <X size={16} />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Sugestões */}
+                  {!form.item_id && buscaItem && (
+                    <div className="absolute z-[60] left-0 right-0 mt-2 bg-white border border-slate-200 rounded-xl shadow-xl max-h-60 overflow-y-auto">
+                      {itens.filter(i =>
+                        i.descricao.toLowerCase().includes(buscaItem.toLowerCase()) ||
+                        i.codigo.toLowerCase().includes(buscaItem.toLowerCase())
+                      ).length === 0 ? (
+                        <div className="p-4 text-sm text-slate-400 text-center italic">Nenhum item encontrado</div>
+                      ) : (
+                        itens.filter(i =>
+                          i.descricao.toLowerCase().includes(buscaItem.toLowerCase()) ||
+                          i.codigo.toLowerCase().includes(buscaItem.toLowerCase())
+                        ).slice(0, 20).map(i => (
+                          <button
+                            key={i.id}
+                            onClick={() => {
+                              setForm(f => ({ ...f, item_id: i.id }));
+                              setBuscaItem('');
+                            }}
+                            className="w-full text-left px-4 py-3 text-sm hover:bg-blue-50 border-b border-slate-50 last:border-0"
+                          >
+                            <span className="font-semibold text-slate-700">{i.codigo}</span> — {i.descricao}
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">

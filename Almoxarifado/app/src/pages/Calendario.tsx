@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
-import { Plus, X, ChevronLeft, ChevronRight, Calendar, Truck, Wrench, CheckCircle } from 'lucide-react';
+import { Plus, X, ChevronLeft, ChevronRight, Calendar, Truck, Wrench, CheckCircle, Search } from 'lucide-react';
 import { supabase } from '../infrastructure/supabase/client';
 import { useAuth } from '../context/AuthContext';
 
@@ -59,6 +59,7 @@ export function Calendario() {
   });
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState('');
+  const [buscaItem, setBuscaItem] = useState('');
 
   const isGestor = ['gestor', 'admin', 'dono'].includes(usuario?.papel ?? '');
 
@@ -105,6 +106,7 @@ export function Calendario() {
     await carregar();
     setModal(false);
     setSalvando(false);
+    setBuscaItem('');
     setForm({ tipo: 'veiculo', item_id: '', data_inicio: new Date().toISOString().split('T')[0], data_fim: new Date().toISOString().split('T')[0], descricao: '' });
   }
 
@@ -160,6 +162,15 @@ export function Calendario() {
   }
 
   const itensOpcao = form.tipo === 'veiculo' ? itensVeiculos : itensFerramentas;
+
+  const itensFiltrados = useMemo(() => {
+    if (!buscaItem) return [];
+    return itensOpcao.filter(i =>
+      i.descricao.toLowerCase().includes(buscaItem.toLowerCase())
+    ).slice(0, 50); // Limite para performance
+  }, [itensOpcao, buscaItem]);
+
+  const itemSelecionado = itensOpcao.find(i => i.id === form.item_id);
 
   return (
     <div className="p-4 lg:p-6 space-y-6 max-w-6xl mx-auto">
@@ -313,7 +324,7 @@ export function Calendario() {
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between p-5 border-b border-slate-100">
               <h3 className="font-semibold text-slate-800">Novo Agendamento</h3>
-              <button onClick={() => setModal(false)} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400"><X size={18} /></button>
+              <button onClick={() => { setModal(false); setBuscaItem(''); }} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400"><X size={18} /></button>
             </div>
             <div className="p-5 space-y-4">
               {/* Tipo */}
@@ -321,7 +332,7 @@ export function Calendario() {
                 <label className="block text-xs font-medium text-slate-700 mb-2">Tipo *</label>
                 <div className="grid grid-cols-2 gap-2">
                   {(['veiculo', 'ferramenta'] as const).map(t => (
-                    <button key={t} onClick={() => setForm(f => ({ ...f, tipo: t, item_id: '' }))}
+                    <button key={t} onClick={() => { setForm(f => ({ ...f, tipo: t, item_id: '' })); setBuscaItem(''); }}
                       className={`flex items-center justify-center gap-2 py-2.5 rounded-lg border text-sm font-medium transition-colors ${form.tipo === t ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
                       {t === 'veiculo' ? <><Truck size={15} />Veículo</> : <><Wrench size={15} />Ferramenta</>}
                     </button>
@@ -329,16 +340,52 @@ export function Calendario() {
                 </div>
               </div>
 
-              {/* Item */}
-              <div>
+              {/* Item Searchable Select */}
+              <div className="relative">
                 <label className="block text-xs font-medium text-slate-700 mb-1.5">
-                  {form.tipo === 'veiculo' ? 'Veículo' : 'Ferramenta'} *
+                  {form.tipo === 'veiculo' ? 'Buscar Veículo' : 'Buscar Ferramenta'} *
                 </label>
-                <select value={form.item_id} onChange={e => setForm(f => ({ ...f, item_id: e.target.value }))}
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                  <option value="">Selecione...</option>
-                  {itensOpcao.map(i => <option key={i.id} value={i.id}>{i.descricao}</option>)}
-                </select>
+                <div className="relative">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    value={itemSelecionado ? itemSelecionado.descricao : buscaItem}
+                    readOnly={!!itemSelecionado}
+                    onChange={e => setBuscaItem(e.target.value)}
+                    placeholder={form.tipo === 'veiculo' ? "Digite modelo ou placa..." : "Digite o nome da ferramenta..."}
+                    className="w-full pl-9 pr-10 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  {itemSelecionado && (
+                    <button
+                      onClick={() => { setForm(f => ({ ...f, item_id: '' })); setBuscaItem(''); }}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-slate-100 rounded-md text-slate-400"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+
+                {/* Dropdown de sugestões */}
+                {!itemSelecionado && buscaItem.length > 0 && (
+                  <div className="absolute z-[60] left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-xl max-h-48 overflow-y-auto">
+                    {itensFiltrados.length === 0 ? (
+                      <div className="p-3 text-xs text-slate-500 text-center italic">Nenhum resultado encontrado</div>
+                    ) : (
+                      itensFiltrados.map(i => (
+                        <button
+                          key={i.id}
+                          onClick={() => {
+                            setForm(f => ({ ...f, item_id: i.id }));
+                            setBuscaItem('');
+                          }}
+                          className="w-full text-left px-4 py-2.5 text-xs hover:bg-blue-50 border-b border-slate-50 last:border-0 transition-colors"
+                        >
+                          <p className="font-medium text-slate-700">{i.descricao}</p>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Datas */}

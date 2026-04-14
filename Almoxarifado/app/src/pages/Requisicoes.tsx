@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, X, Check, ClipboardList } from 'lucide-react';
+import { Plus, X, Check, ClipboardList, Search } from 'lucide-react';
 import { supabase } from '../infrastructure/supabase/client';
 import type { Requisicao, StatusRequisicao, RequisicaoItem } from '../domain/entities/Requisicao';
 import type { ItemAlmoxarifado } from '../domain/entities/ItemAlmoxarifado';
@@ -21,7 +21,7 @@ export function Requisicoes() {
   const [loading, setLoading] = useState(true);
   const [modalAberto, setModalAberto] = useState(false);
   const [form, setForm] = useState({ obra: '', observacao: '' });
-  const [linhas, setLinhas] = useState<{ item_id: string; quantidade: string }[]>([{ item_id: '', quantidade: '' }]);
+  const [linhas, setLinhas] = useState<{ item_id: string; quantidade: string; busca: string }[]>([{ item_id: '', quantidade: '', busca: '' }]);
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState('');
 
@@ -65,7 +65,7 @@ export function Requisicoes() {
     setModalAberto(false);
     setSalvando(false);
     setForm({ obra: '', observacao: '' });
-    setLinhas([{ item_id: '', quantidade: '' }]);
+    setLinhas([{ item_id: '', quantidade: '', busca: '' }]);
   }
 
   async function atualizarStatus(id: string, status: StatusRequisicao) {
@@ -171,26 +171,74 @@ export function Requisicoes() {
 
               <div>
                 <label className="block text-xs font-medium text-slate-700 mb-2">Itens *</label>
-                <div className="space-y-2">
-                  {linhas.map((linha, idx) => (
-                    <div key={idx} className="flex gap-2">
-                      <select value={linha.item_id} onChange={e => setLinhas(prev => prev.map((l, i) => i === idx ? { ...l, item_id: e.target.value } : l))}
-                        className="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                        <option value="">Selecione...</option>
-                        {itensDisponiveis.map(i => <option key={i.id} value={i.id}>{i.codigo} — {i.descricao}</option>)}
-                      </select>
-                      <input type="number" min="0.001" step="0.001" placeholder="Qtd" value={linha.quantidade}
-                        onChange={e => setLinhas(prev => prev.map((l, i) => i === idx ? { ...l, quantidade: e.target.value } : l))}
-                        className="w-20 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                      {linhas.length > 1 && (
-                        <button onClick={() => setLinhas(prev => prev.filter((_, i) => i !== idx))} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
-                          <X size={14} />
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                  <button onClick={() => setLinhas(prev => [...prev, { item_id: '', quantidade: '' }])}
-                    className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 font-medium">
+                <div className="space-y-3">
+                  {linhas.map((linha, idx) => {
+                    const itemSelecionado = itensDisponiveis.find(i => i.id === linha.item_id);
+                    const filtrados = !linha.busca ? [] : itensDisponiveis.filter(i =>
+                      i.descricao.toLowerCase().includes(linha.busca.toLowerCase()) ||
+                      i.codigo.toLowerCase().includes(linha.busca.toLowerCase())
+                    ).slice(0, 10);
+
+                    return (
+                      <div key={idx} className="space-y-2 pb-3 border-b border-slate-50 last:border-0 last:pb-0">
+                        <div className="flex gap-2">
+                          {/* Searchable Select */}
+                          <div className="relative flex-1">
+                            <div className="relative">
+                              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                              <input
+                                type="text"
+                                value={itemSelecionado ? `${itemSelecionado.codigo} — ${itemSelecionado.descricao}` : linha.busca}
+                                readOnly={!!itemSelecionado}
+                                onChange={e => setLinhas(prev => prev.map((l, i) => i === idx ? { ...l, busca: e.target.value } : l))}
+                                placeholder="Buscar item por código ou nome..."
+                                className="w-full pl-9 pr-10 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              />
+                              {itemSelecionado && (
+                                <button
+                                  onClick={() => setLinhas(prev => prev.map((l, i) => i === idx ? { ...l, item_id: '', busca: '' } : l))}
+                                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-slate-100 rounded-md text-slate-400"
+                                >
+                                  <X size={14} />
+                                </button>
+                              )}
+                            </div>
+
+                            {/* Sugestões */}
+                            {!itemSelecionado && linha.busca && (
+                              <div className="absolute z-[60] left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-xl max-h-40 overflow-y-auto">
+                                {filtrados.length === 0 ? (
+                                  <div className="p-3 text-[11px] text-slate-400 text-center italic">Nenhum item encontrado</div>
+                                ) : (
+                                  filtrados.map(i => (
+                                    <button
+                                      key={i.id}
+                                      onClick={() => setLinhas(prev => prev.map((l, pIdx) => pIdx === idx ? { ...l, item_id: i.id, busca: '' } : l))}
+                                      className="w-full text-left px-3 py-2 text-xs hover:bg-blue-50 border-b border-slate-50 last:border-0"
+                                    >
+                                      <span className="font-semibold text-slate-700">{i.codigo}</span> — {i.descricao}
+                                    </button>
+                                  ))
+                                )}
+                              </div>
+                            )}
+                          </div>
+
+                          <input type="number" min="0.001" step="0.001" placeholder="Qtd" value={linha.quantidade}
+                            onChange={e => setLinhas(prev => prev.map((l, i) => i === idx ? { ...l, quantidade: e.target.value } : l))}
+                            className="w-20 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                          
+                          {linhas.length > 1 && (
+                            <button onClick={() => setLinhas(prev => prev.filter((_, i) => i !== idx))} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                              <X size={14} />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <button onClick={() => setLinhas(prev => [...prev, { item_id: '', quantidade: '', busca: '' }])}
+                    className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 font-medium pt-1">
                     <Plus size={14} />Adicionar item
                   </button>
                 </div>

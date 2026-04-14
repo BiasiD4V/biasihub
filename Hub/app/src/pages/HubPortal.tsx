@@ -19,11 +19,18 @@ interface ModuleDef {
 }
 
 const IS_ELECTRON = navigator.userAgent.includes('Electron');
+const IS_DEV = import.meta.env.DEV;
 
 const URLS = {
-  comercial: IS_ELECTRON ? 'http://localhost:5175' : 'https://biasihub-comercial.vercel.app',
-  almoxarifado: IS_ELECTRON ? 'http://localhost:5174' : 'https://biasihub-almoxarifado-weld.vercel.app',
-  obras: IS_ELECTRON ? 'app://obras.local' : 'https://erp-gestaodeobras.vercel.app',
+  comercial: IS_ELECTRON
+    ? (IS_DEV ? 'http://localhost:5174' : 'app://comercial.local')
+    : 'https://biasihub-comercial.vercel.app',
+  almoxarifado: IS_ELECTRON
+    ? (IS_DEV ? 'http://localhost:5173' : 'app://almoxarifado.local')
+    : 'https://biasihub-almoxarifado-weld.vercel.app',
+  obras: IS_ELECTRON
+    ? (IS_DEV ? 'http://localhost:5175' : 'app://obras.local')
+    : 'https://erp-gestaodeobras.vercel.app',
 };
 
 const MODULES: ModuleDef[] = [

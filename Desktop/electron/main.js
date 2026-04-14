@@ -621,8 +621,12 @@ function createWindow() {
     backgroundColor: '#f8fafc',
   });
 
-  // MODE DEV: Carrega o Hub via Localhost para testes em tempo real
-  win.loadURL('http://localhost:5176/');
+  // Carrega a URL inicial: Localhost para DEV, app:// para Produção
+  if (app.isPackaged) {
+    win.loadURL('app://hub.local/');
+  } else {
+    win.loadURL('http://localhost:5176/');
+  }
 
   // Abre links externos no browser padrão do sistema
   win.webContents.setWindowOpenHandler(({ url }) => {

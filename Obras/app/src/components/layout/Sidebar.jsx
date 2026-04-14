@@ -1,4 +1,4 @@
-﻿import { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
   Activity,
@@ -80,7 +80,9 @@ const grupos = [
 ];
 
 const IS_ELECTRON = navigator.userAgent.includes('Electron');
-const HUB_URL = IS_ELECTRON ? 'app://hub.local/' : 'https://biasihub-portal.vercel.app/';
+const HUB_URL = IS_ELECTRON
+  ? (import.meta.env.DEV ? 'http://localhost:5176/' : 'app://hub.local/')
+  : 'https://biasihub-portal.vercel.app/';
 
 export default function Sidebar({ onAbrirChat }) {
   const { usuario, logout } = useAuth();
