@@ -23,13 +23,13 @@ const IS_DEV = import.meta.env.DEV;
 
 const URLS = {
   comercial: IS_ELECTRON
-    ? (IS_DEV ? 'http://localhost:5174' : 'app://comercial.local')
+    ? 'app://comercial.local'
     : 'https://biasihub-comercial.vercel.app',
   almoxarifado: IS_ELECTRON
-    ? (IS_DEV ? 'http://localhost:5173' : 'app://almoxarifado.local')
+    ? 'app://almoxarifado.local'
     : 'https://biasihub-almoxarifado-weld.vercel.app',
   obras: IS_ELECTRON
-    ? (IS_DEV ? 'http://localhost:5175' : 'app://obras.local')
+    ? 'app://obras.local'
     : 'https://erp-gestaodeobras.vercel.app',
 };
 

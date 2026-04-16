@@ -74,7 +74,7 @@ async function handleSolicitar(request) {
     // Tenta usar a chave da IA armazenada localmente
     const cfg = await getStore();
     const anthropicKey = cfg.get('anthropicKey') || '';
-    const ollamaModel = cfg.get('ollamaModel') || 'llama4';
+    const ollamaModel = cfg.get('ollamaModel') || 'llama3.2:1b';
 
     // Busca demandas existentes no Supabase
     let demandasExistentes = [];
@@ -243,12 +243,6 @@ async function handlePaulo(request) {
     const cfg = await getStore();
     const anthropicKey = cfg.get('anthropicKey') || '';
 
-    if (!anthropicKey) {
-      return new Response(JSON.stringify({
-        resposta: 'Preciso de uma chave de IA para funcionar. Peça ao administrador configurar em Meus Dispositivos.',
-      }), { headers: { 'Content-Type': 'application/json' } });
-    }
-
     // Busca dados reais do Supabase para montar o contexto do Paulo
     const headers = { apikey: SUPABASE_SERVICE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_KEY}` };
     const [stockRes, reqRes, epiRes, frotaRes, movsRes] = await Promise.allSettled([
@@ -274,41 +268,20 @@ async function handlePaulo(request) {
     const episVencendo = epis.filter(e => new Date(e.data_validade) <= em30dias);
     const frotaProblemas = veiculos.filter(v => v.status !== 'ativo' || (v.proxima_manutencao_km && v.km_atual >= v.proxima_manutencao_km));
 
-    const systemPrompt = `Você é Igor, o assistente inteligente do Almoxarifado da Biasi Engenharia.
-Você estuda os dados da empresa o tempo todo e os conhece de cor.
-Você é amigável, direto, fala em português do Brasil natural (não formal demais).
-Use os dados abaixo para responder perguntas com precisão. Seja proativo: se notar algo importante, mencione.
-Não invente dados — use apenas o que está aqui. Se não souber, diga honestamente.
+    const systemPrompt = `Você é Igor, assistente do Almoxarifado da Biasi Engenharia. Responda em português BR, de forma direta e objetiva. Use apenas os dados abaixo — não invente informações.
 
-=== DADOS DE HOJE (${hoje.toLocaleDateString('pt-BR')}) ===
-
-📦 ESTOQUE: ${itens.length} itens ativos
-${itensZerados.length > 0 ? `🔴 ZERADOS (${itensZerados.length}): ${itensZerados.map(i => `${i.descricao} (${i.codigo})`).join(', ')}` : ''}
-${itensBaixos.length > itensZerados.length ? `🟡 ESTOQUE BAIXO (${itensBaixos.length - itensZerados.length}): ${itensBaixos.filter(i => Number(i.estoque_atual) > 0).map(i => `${i.descricao}: ${i.estoque_atual}${i.unidade} / mín ${i.estoque_minimo}${i.unidade}`).join(' | ')}` : ''}
-${itensBaixos.length === 0 ? '✅ Todos os itens com estoque adequado' : ''}
-
-📋 REQUISIÇÕES PENDENTES: ${requisicoes.length}
-${requisicoes.length > 0 ? requisicoes.map(r => `- "${r.titulo}" por ${r.solicitante}${r.urgente ? ' ⚠️ URGENTE' : ''}`).join('\n') : 'Nenhuma pendente'}
-
-🦺 EPI VENCENDO EM 30 DIAS: ${episVencendo.length}
-${episVencendo.length > 0 ? episVencendo.map(e => `- ${e.epi?.nome || 'EPI'} de ${e.colaborador_nome}: ${new Date(e.data_validade).toLocaleDateString('pt-BR')}`).join('\n') : 'Nenhum'}
-
-🚛 FROTA: ${veiculos.length} veículos
-${veiculos.map(v => `- ${v.modelo} ${v.placa}: ${v.km_atual ? v.km_atual.toLocaleString('pt-BR') + ' km' : 'km não informado'}${v.status !== 'ativo' ? ` (${v.status})` : ''}`).join('\n')}
-${frotaProblemas.length > 0 ? `⚠️ ${frotaProblemas.length} veículo(s) com atenção necessária` : ''}
-
-🔄 ÚLTIMAS MOVIMENTAÇÕES:
-${movs.map(m => `- ${m.tipo === 'entrada' ? '↑' : '↓'} ${m.item?.descricao}: ${m.quantidade} ${m.obra ? `(${m.obra})` : ''}`).join('\n')}`;
+DADOS (${hoje.toLocaleDateString('pt-BR')}): Estoque: ${itens.length} itens. Zerados(${itensZerados.length}): ${itensZerados.slice(0,5).map(i => i.descricao).join(', ') || 'nenhum'}. Baixos(${itensBaixos.length - itensZerados.length}): ${itensBaixos.filter(i=>Number(i.estoque_atual)>0).slice(0,5).map(i=>`${i.descricao}:${i.estoque_atual}`).join(', ') || 'nenhum'}. Requisições pendentes: ${requisicoes.length}${requisicoes.filter(r=>r.urgente).length > 0 ? ` (${requisicoes.filter(r=>r.urgente).length} urgentes)` : ''}. EPI vencendo 30d: ${episVencendo.length}. Frota: ${veiculos.length} veículos${frotaProblemas.length > 0 ? ` (${frotaProblemas.length} c/ atenção)` : ''}. Últimas movs: ${movs.slice(0,5).map(m=>`${m.tipo==='entrada'?'+':'-'}${m.item?.descricao}`).join(', ')}.`;
 
     const messages = [
-      ...historico.slice(-12),
+      ...historico.slice(-6),
       { role: 'user', content: mensagem },
     ];
 
-    let resposta = null;
+    const ollamaModel = cfg.get('ollamaModel') || 'llama3.2:1b';
 
-    // ── 1. Tenta Ollama (IA local, gratuita, sem chave de API) ───────────────
-    const ollamaModel = cfg.get('ollamaModel') || 'llama4';
+    // ── 1. Ollama streaming ───────────────────────────────────────────────────
+    const ollamaController = new AbortController();
+    const ollamaTimeoutId = setTimeout(() => ollamaController.abort(), 5000);
     try {
       const ollamaRes = await net.fetch('http://localhost:11434/v1/chat/completions', {
         method: 'POST',
@@ -317,55 +290,63 @@ ${movs.map(m => `- ${m.tipo === 'entrada' ? '↑' : '↓'} ${m.item?.descricao}:
           model: ollamaModel,
           messages: [{ role: 'system', content: systemPrompt }, ...messages],
           temperature: 0.4,
-          max_tokens: 1024,
+          max_tokens: 300,
+          stream: true,
+          keep_alive: '5m',
         }),
+        signal: ollamaController.signal,
       });
-      if (ollamaRes.ok) {
-        const ollamaData = await ollamaRes.json();
-        resposta = ollamaData.choices?.[0]?.message?.content || null;
+      clearTimeout(ollamaTimeoutId);
+      if (ollamaRes.ok && ollamaRes.body) {
+        const { readable, writable } = new TransformStream();
+        const writer = writable.getWriter();
+        const encoder = new TextEncoder();
+        const decoder = new TextDecoder();
+        ;(async () => {
+          try {
+            const reader = ollamaRes.body.getReader();
+            let buffer = '';
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              buffer += decoder.decode(value, { stream: true });
+              const lines = buffer.split('\n');
+              buffer = lines.pop() ?? '';
+              for (const line of lines) {
+                if (line.startsWith('data: ') && !line.includes('[DONE]')) {
+                  try {
+                    const token = JSON.parse(line.slice(6)).choices?.[0]?.delta?.content ?? '';
+                    if (token) await writer.write(encoder.encode(token));
+                  } catch { }
+                }
+              }
+            }
+          } finally { writer.close().catch(() => {}); }
+        })();
+        return new Response(readable, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
       }
-    } catch {
-      // Ollama não está rodando — fallback para Anthropic
-    }
+    } catch { clearTimeout(ollamaTimeoutId); }
 
-    // ── 2. Fallback: Anthropic ────────────────────────────────────────────────
-    if (!resposta && anthropicKey) {
+    // ── 2. Fallback: Anthropic (não-streaming) ────────────────────────────────
+    if (anthropicKey) {
       const resp = await net.fetch(ANTHROPIC_API_URL, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': anthropicKey,
-          'anthropic-version': '2023-06-01',
-        },
-        body: JSON.stringify({
-          model: 'claude-haiku-4-5-20251001',
-          max_tokens: 1024,
-          system: systemPrompt,
-          messages,
-        }),
+        headers: { 'Content-Type': 'application/json', 'x-api-key': anthropicKey, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 300, system: systemPrompt, messages }),
       });
-
       if (resp.ok) {
         const data = await resp.json();
-        resposta = data.content?.[0]?.text || null;
+        const texto = data.content?.[0]?.text || '';
+        return new Response(texto, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
       }
     }
 
-    if (!resposta) {
-      return new Response(JSON.stringify({ resposta: 'Não consegui processar sua mensagem. Verifique se o Ollama está rodando ou configure uma chave de IA.' }), {
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
-
-    return new Response(JSON.stringify({ resposta }), {
-      headers: { 'Content-Type': 'application/json' },
+    return new Response('Não consegui processar sua mensagem. Verifique se o Ollama está rodando.', {
+      headers: { 'Content-Type': 'text/plain; charset=utf-8' },
     });
   } catch (err) {
     console.error('[igor] erro:', err);
-    return new Response(JSON.stringify({ resposta: 'Ocorreu um erro interno. Tente novamente.' }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return new Response('Ocorreu um erro interno. Tente novamente.', { status: 500, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
   }
 }
 
@@ -377,22 +358,18 @@ async function handlePauloComercial(request) {
 
     const cfg = await getStore();
     const anthropicKey = cfg.get('anthropicKey') || '';
-    const ollamaModel = cfg.get('ollamaModel') || 'llama4';
+    const ollamaModel = cfg.get('ollamaModel') || 'llama3.2:1b';
 
-    const systemPrompt = `Você é o Paulo, assistente IA especializado no módulo Comercial do BiasiHub da Biasi Engenharia.
-Você ajuda com orçamentos, clientes, propostas comerciais e processos do departamento comercial.
-Seja profissional mas acessível — como um colega experiente. Fale português BR natural, direto e objetivo.
-Não invente funcionalidades que não existem. Se não souber algo, diga honestamente.
-Use numeração quando der passo a passo. Respostas curtas e acionáveis.`;
+    const systemPrompt = `Você é o Paulo, assistente do módulo Comercial do BiasiHub (Biasi Engenharia). Ajuda com orçamentos, clientes e propostas comerciais. Responda em português BR, direto e objetivo. Não invente informações.`;
 
     const messages = [
-      ...historico.slice(-12),
+      ...historico.slice(-6),
       { role: 'user', content: mensagem },
     ];
 
-    let resposta = null;
-
-    // ── 1. Tenta Ollama (IA local, gratuita, sem chave de API) ───────────────
+    // ── 1. Ollama streaming ───────────────────────────────────────────────────
+    const ollamaController = new AbortController();
+    const ollamaTimeoutId = setTimeout(() => ollamaController.abort(), 5000);
     try {
       const ollamaRes = await net.fetch('http://localhost:11434/v1/chat/completions', {
         method: 'POST',
@@ -401,15 +378,107 @@ Use numeração quando der passo a passo. Respostas curtas e acionáveis.`;
           model: ollamaModel,
           messages: [{ role: 'system', content: systemPrompt }, ...messages],
           temperature: 0.4,
-          max_tokens: 1024,
+          max_tokens: 300,
+          stream: true,
+          keep_alive: '5m',
         }),
+        signal: ollamaController.signal,
       });
+      clearTimeout(ollamaTimeoutId);
+      if (ollamaRes.ok && ollamaRes.body) {
+        const { readable, writable } = new TransformStream();
+        const writer = writable.getWriter();
+        const encoder = new TextEncoder();
+        const decoder = new TextDecoder();
+        ;(async () => {
+          try {
+            const reader = ollamaRes.body.getReader();
+            let buffer = '';
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              buffer += decoder.decode(value, { stream: true });
+              const lines = buffer.split('\n');
+              buffer = lines.pop() ?? '';
+              for (const line of lines) {
+                if (line.startsWith('data: ') && !line.includes('[DONE]')) {
+                  try {
+                    const token = JSON.parse(line.slice(6)).choices?.[0]?.delta?.content ?? '';
+                    if (token) await writer.write(encoder.encode(token));
+                  } catch { }
+                }
+              }
+            }
+          } finally { writer.close().catch(() => {}); }
+        })();
+        return new Response(readable, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
+      }
+    } catch { clearTimeout(ollamaTimeoutId); }
+
+    // ── 2. Fallback: Anthropic (não-streaming) ────────────────────────────────
+    if (anthropicKey) {
+      const resp = await net.fetch(ANTHROPIC_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': anthropicKey, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 300, system: systemPrompt, messages }),
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        const texto = data.content?.[0]?.text || '';
+        return new Response(texto, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
+      }
+    }
+
+    return new Response('Não consegui processar sua mensagem. Verifique se o Ollama está rodando.', {
+      headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+    });
+  } catch (err) {
+    console.error('[paulo-comercial] erro:', err);
+    return new Response('Ocorreu um erro interno. Tente novamente.', { status: 500, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
+  }
+}
+
+async function handleSabia(request) {
+  try {
+    const body = await request.json();
+    const { mensagem, historico = [] } = body;
+
+    const cfg = await getStore();
+    const anthropicKey = cfg.get('anthropicKey') || '';
+    const ollamaModel = cfg.get('ollamaModel') || 'llama3.2:1b';
+
+    const systemPrompt = `Você é o Sabiá, assistente do BiasiHub — sistema de gestão da Biasi Engenharia. Responda em português BR, de forma clara e direta. Módulos: Hub (portal central), Almoxarifado (Igor IA), Comercial/Orçamentos (Paulo IA), Obras, Reuniões. IA usa Ollama local com fallback para Anthropic Claude.`;
+
+    const messages = [
+      ...historico.slice(-6),
+      { role: 'user', content: mensagem },
+    ];
+
+    let resposta = null;
+
+    // ── 1. Tenta Ollama (IA local, gratuita) ────────────────────────────────
+    const ollamaController = new AbortController();
+    const ollamaTimeoutId = setTimeout(() => ollamaController.abort(), 5000);
+    try {
+      const ollamaRes = await net.fetch('http://localhost:11434/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: ollamaModel,
+          messages: [{ role: 'system', content: systemPrompt }, ...messages],
+          temperature: 0.5,
+          max_tokens: 300,
+        }),
+        signal: ollamaController.signal,
+      });
+      clearTimeout(ollamaTimeoutId);
       if (ollamaRes.ok) {
         const ollamaData = await ollamaRes.json();
         resposta = ollamaData.choices?.[0]?.message?.content || null;
       }
     } catch {
-      // Ollama não está rodando — fallback para Anthropic
+      clearTimeout(ollamaTimeoutId);
+      // Ollama não está rodando ou timeout — fallback para Anthropic
     }
 
     // ── 2. Fallback: Anthropic ────────────────────────────────────────────────
@@ -423,7 +492,7 @@ Use numeração quando der passo a passo. Respostas curtas e acionáveis.`;
         },
         body: JSON.stringify({
           model: 'claude-haiku-4-5-20251001',
-          max_tokens: 1024,
+          max_tokens: 300,
           system: systemPrompt,
           messages,
         }),
@@ -435,7 +504,7 @@ Use numeração quando der passo a passo. Respostas curtas e acionáveis.`;
     }
 
     if (!resposta) {
-      return new Response(JSON.stringify({ resposta: 'Não consegui processar sua mensagem. Verifique se o Ollama está rodando ou configure uma chave de IA.' }), {
+      return new Response(JSON.stringify({ resposta: 'Olá! Sou o Sabiá. No momento estou sem conexão com a IA. Configure o Ollama ou uma chave Anthropic em Meus Dispositivos.' }), {
         headers: { 'Content-Type': 'application/json' },
       });
     }
@@ -444,8 +513,8 @@ Use numeração quando der passo a passo. Respostas curtas e acionáveis.`;
       headers: { 'Content-Type': 'application/json' },
     });
   } catch (err) {
-    console.error('[paulo-comercial] erro:', err);
-    return new Response(JSON.stringify({ resposta: 'Ocorreu um erro interno. Tente novamente.' }), {
+    console.error('[sabia] erro:', err);
+    return new Response(JSON.stringify({ resposta: 'Erro interno. Tente novamente.' }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },
     });
@@ -697,6 +766,11 @@ function setupProtocol() {
       return handlePauloComercial(request);
     }
 
+    // Sabiá IA do Hub (assistente geral do sistema)
+    if (appName === 'hub' && pathname === '/api/sabia') {
+      return handleSabia(request);
+    }
+
     // Roteia as APIs do Comercial para o backend em producao (Jira/RDO)
     if (appName === 'comercial' && pathname.startsWith('/api/')) {
       const targetUrl = `${COMERCIAL_API_ORIGIN}${pathname}${url.search}`;
@@ -764,12 +838,8 @@ function createWindow() {
     backgroundColor: '#f8fafc',
   });
 
-  // Carrega a URL inicial: Localhost para DEV, app:// para Produção
-  if (app.isPackaged) {
-    win.loadURL('app://hub.local/');
-  } else {
-    win.loadURL('http://localhost:5176/');
-  }
+  // Sempre carrega via app:// (builds estáticos — sem dev servers)
+  win.loadURL('app://hub.local/');
 
   // Abre links externos no browser padrão do sistema
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -806,12 +876,12 @@ function setupIPC() {
 
   ipcMain.handle('config:getOllamaModel', async () => {
     const cfg = await getStore();
-    return cfg.get('ollamaModel') || 'llama4';
+    return cfg.get('ollamaModel') || 'llama3.2:1b';
   });
 
   ipcMain.handle('config:setOllamaModel', async (_event, model) => {
     const cfg = await getStore();
-    cfg.set('ollamaModel', (model || 'llama4').trim());
+    cfg.set('ollamaModel', (model || 'llama3.2').trim());
     return true;
   });
 

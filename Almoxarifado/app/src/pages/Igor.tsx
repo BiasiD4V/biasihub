@@ -95,7 +95,7 @@ export function Igor() {
     }
 
     try {
-      const historico = mensagens.slice(-12).map(m => ({
+      const historico = mensagens.slice(-6).map(m => ({
         role: m.papel === 'user' ? 'user' : 'assistant',
         content: m.conteudo,
       }));
@@ -106,26 +106,40 @@ export function Igor() {
         body: JSON.stringify({ mensagem: msg, historico }),
       });
 
-      const data = await resp.json();
-      const resposta = data.resposta || 'Não consegui processar sua mensagem.';
+      if (resp.ok && resp.body) {
+        const reader = resp.body.getReader();
+        const decoder = new TextDecoder();
+        let fullText = '';
 
-      const msgIgor: Mensagem = { papel: 'assistant', conteudo: resposta };
-      setMensagens(prev => [...prev, msgIgor]);
+        setMensagens(prev => [...prev, { papel: 'assistant', conteudo: '▌' }]);
+        setDigitando(false);
 
-      // Salva resposta do Igor
-      if (usuario?.id) {
-        supabase.from('conversas_paulo').insert({
-          usuario_id: usuario.id,
-          papel: 'assistant',
-          conteudo: resposta,
-        }).then(() => {});
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          fullText += decoder.decode(value, { stream: true });
+          setMensagens(prev => {
+            const updated = [...prev];
+            updated[updated.length - 1] = { papel: 'assistant', conteudo: fullText + '▌' };
+            return updated;
+          });
+        }
+        const textoFinal = fullText || 'Não consegui processar sua mensagem.';
+        setMensagens(prev => {
+          const updated = [...prev];
+          updated[updated.length - 1] = { papel: 'assistant', conteudo: textoFinal };
+          return updated;
+        });
+
+        if (usuario?.id) {
+          supabase.from('conversas_paulo').insert({ usuario_id: usuario.id, papel: 'assistant', conteudo: textoFinal }).then(() => {});
+        }
+      } else {
+        setMensagens(prev => [...prev, { papel: 'assistant', conteudo: 'Não consegui processar sua mensagem.' }]);
       }
     } catch (err) {
       console.error('[Igor] erro:', err);
-      setMensagens(prev => [
-        ...prev,
-        { papel: 'assistant', conteudo: 'Tive um problema de conexão. Tente novamente!' },
-      ]);
+      setMensagens(prev => [...prev, { papel: 'assistant', conteudo: 'Tive um problema de conexão. Tente novamente!' }]);
     } finally {
       setDigitando(false);
       inputRef.current?.focus();

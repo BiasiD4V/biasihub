@@ -211,7 +211,7 @@ export function Sidebar({ chatAberto, onAbrirChat }: SidebarProps) {
                  </span>
                )}
             </motion.button>
-            
+
             <button
                onClick={handleLogout}
                className="flex items-center gap-3 h-12 px-5 rounded-[18px] text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 hover:text-rose-500 hover:bg-rose-500/10 transition-all"

@@ -18,7 +18,7 @@ export function Estoque() {
 
   const [modalAberto, setModalAberto] = useState(false);
   const [editando, setEditando] = useState<ItemAlmoxarifado | null>(null);
-  const [form, setForm] = useState({ codigo: '', descricao: '', unidade: 'un', estoque_minimo: '', localizacao: '' });
+  const [form, setForm] = useState({ codigo: '', descricao: '', unidade: 'un', estoque_minimo: '', localizacao: '', categoria: '', marca: '' });
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState('');
 

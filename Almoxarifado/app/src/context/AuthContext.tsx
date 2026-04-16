@@ -1,5 +1,8 @@
 import { createContext, useContext, useState, useEffect, useRef, type ReactNode } from 'react';
 import { supabase } from '../infrastructure/supabase/client';
+
+// Captura o hash SSO ANTES do HashRouter apagar ele durante o render
+const _initialHash = typeof window !== 'undefined' ? window.location.hash : '';
 import type { Usuario } from '../domain/entities/Usuario';
 import type { PapelUsuario } from '../domain/value-objects/PapelUsuario';
 import {
@@ -55,8 +58,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let timeout: ReturnType<typeof setTimeout>;
 
     async function init() {
-      // SSO: process hash tokens fully (including profile load) BEFORE setting up listener
-      const hash = window.location.hash;
+      // SSO: usa o hash capturado no módulo (antes do HashRouter apagar)
+      const hash = _initialHash;
       if (hash.includes('access_token=')) {
         const params = new URLSearchParams(hash.slice(1));
         const accessToken = params.get('access_token');

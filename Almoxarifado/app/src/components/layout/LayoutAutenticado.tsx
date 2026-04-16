@@ -57,14 +57,7 @@ export function LayoutAutenticado() {
   }, [usuario, location.pathname]);
 
   if (loading) {
-    return (
-      <div className="biasi-shell-bg flex min-h-screen items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <div className="h-10 w-10 animate-spin rounded-full border-b-2 border-[#FFC82D]" />
-          <p className="text-sm text-[#DCE8FF]">Carregando...</p>
-        </div>
-      </div>
-    );
+    return <div className="biasi-shell-bg min-h-screen" />;
   }
 
   if (!isAuthenticated) {
