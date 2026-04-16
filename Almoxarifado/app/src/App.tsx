@@ -15,6 +15,7 @@ const MeusDispositivos = lazy(() => import('./pages/MeusDispositivos').then(m =>
 const Relatorios = lazy(() => import('./pages/Relatorios').then(m => ({ default: m.Relatorios })));
 const Calendario = lazy(() => import('./pages/Calendario').then(m => ({ default: m.Calendario })));
 const Reunioes = lazy(() => import('./pages/Reunioes').then(m => ({ default: m.Reunioes })));
+const Membros = lazy(() => import('./pages/Membros').then(m => ({ default: m.Membros })));
 
 export default function App() {
   return (
@@ -40,6 +41,7 @@ export default function App() {
               <Route path="/relatorios" element={<Relatorios />} />
               <Route path="/meus-dispositivos" element={<MeusDispositivos />} />
               <Route path="/reunioes" element={<Reunioes />} />
+              <Route path="/membros" element={<Membros />} />
             </Route>
             <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>

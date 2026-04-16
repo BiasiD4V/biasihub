@@ -59,7 +59,10 @@ const NAV_SECTIONS = [
   },
   {
     label: 'Time',
-    items: [{ to: '/reunioes', icon: Users, label: 'Reunioes' }],
+    items: [
+      { to: '/reunioes', icon: Users, label: 'Reunioes' },
+      { to: '/membros', icon: Users, label: 'Membros' },
+    ],
   },
   {
     label: 'Sistema',

@@ -42,9 +42,10 @@ export function Calendario() {
   const [filtroStatus, setFiltroStatus] = useState<'' | 'ativo' | 'concluido' | 'cancelado'>('ativo');
 
   // Calendário
-  const hoje = new Date();
-  const [mesSelecionado, setMesSelecionado] = useState(hoje.getMonth());
-  const [anoSelecionado, setAnoSelecionado] = useState(hoje.getFullYear());
+  const hojeDate = new Date();
+  const hoje = hojeDate.toISOString().split('T')[0];
+  const [mesSelecionado, setMesSelecionado] = useState(hojeDate.getMonth());
+  const [anoSelecionado, setAnoSelecionado] = useState(hojeDate.getFullYear());
 
   // Modal
   const [modal, setModal] = useState(false);
@@ -53,8 +54,8 @@ export function Calendario() {
   const [form, setForm] = useState({
     tipo: 'veiculo' as 'ferramenta' | 'veiculo',
     item_id: '',
-    data_inicio: '',
-    data_fim: '',
+    data_inicio: hoje,
+    data_fim: hoje,
     descricao: '',
   });
   const [salvando, setSalvando] = useState(false);
@@ -107,7 +108,7 @@ export function Calendario() {
     setModal(false);
     setSalvando(false);
     setBuscaItem('');
-    setForm({ tipo: 'veiculo', item_id: '', data_inicio: '', data_fim: '', descricao: '' });
+    setForm({ tipo: 'veiculo', item_id: '', data_inicio: hoje, data_fim: hoje, descricao: '' });
   }
 
   async function concluir(id: string) {
@@ -234,7 +235,7 @@ export function Calendario() {
             {diasDoMes.map((dia, idx) => {
               if (!dia) return <div key={idx} />;
               const agsDia = agendamentosNoDia(dia);
-              const isHoje = dia === hoje.getDate() && mesSelecionado === hoje.getMonth() && anoSelecionado === hoje.getFullYear();
+              const isHoje = dia === hojeDate.getDate() && mesSelecionado === hojeDate.getMonth() && anoSelecionado === hojeDate.getFullYear();
               return (
                 <div key={idx} className={`min-h-[56px] rounded-lg p-1 border text-xs transition-colors ${isHoje ? 'border-blue-400 bg-blue-50' : 'border-transparent hover:border-slate-200 hover:bg-slate-50'}`}>
                   <span className={`block text-center font-medium mb-0.5 ${isHoje ? 'text-blue-600' : 'text-slate-700'}`}>{dia}</span>
@@ -392,12 +393,12 @@ export function Calendario() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-slate-700 mb-1.5">Data início *</label>
-                  <input type="date" value={form.data_inicio} onChange={e => setForm(f => ({ ...f, data_inicio: e.target.value }))}
+                  <input type="date" value={form.data_inicio} min={hoje} onChange={e => setForm(f => ({ ...f, data_inicio: e.target.value }))}
                     className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-700 mb-1.5">Data fim *</label>
-                  <input type="date" value={form.data_fim} onChange={e => setForm(f => ({ ...f, data_fim: e.target.value }))}
+                  <input type="date" value={form.data_fim} min={hoje} onChange={e => setForm(f => ({ ...f, data_fim: e.target.value }))}
                     className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>
               </div>
