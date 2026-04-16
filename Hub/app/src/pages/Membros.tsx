@@ -85,6 +85,13 @@ export function Membros() {
   const [confirmDesativar, setConfirmDesativar] = useState<Membro | null>(null);
   const [desativando, setDesativando] = useState(false);
   const [cargos, setCargos] = useState<Cargo[]>([]);
+  const [novoMembroDepto, setNovoMembroDepto] = useState<string | null>(null);
+  const [novoNome, setNovoNome] = useState('');
+  const [novoEmail, setNovoEmail] = useState('');
+  const [novoPapel, setNovoPapel] = useState('membro');
+  const [novoSenha, setNovoSenha] = useState('');
+  const [criandoMembro, setCriandoMembro] = useState(false);
+  const [erroNovo, setErroNovo] = useState('');
 
   const meuPapel = usuario?.papel || '';
   const isSuper = meuPapel === 'admin' || meuPapel === 'dono';
@@ -98,8 +105,9 @@ export function Membros() {
     if (target.id === usuario?.id) return false;
     if (isSuper) return true;
     if (isGestor) {
+      // Gestores só podem editar membros do próprio departamento (exceto outros admins/donos)
       const targetInfo = getPapelInfo(target.papel);
-      if (targetInfo.nivel <= 2) return false;
+      if (targetInfo.nivel <= 1) return false; // não pode editar admin/dono
       return target.departamento === usuario?.departamento;
     }
     return false;
@@ -116,6 +124,50 @@ export function Membros() {
   }
 
   function fecharModal() { setEditando(null); setMensagem(null); }
+
+  function abrirNovoMembro(dept: string) {
+    setNovoMembroDepto(dept);
+    setNovoNome('');
+    setNovoEmail('');
+    setNovoPapel('membro');
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+    let s = '';
+    for (let i = 0; i < 10; i++) s += chars.charAt(Math.floor(Math.random() * chars.length));
+    setNovoSenha(s);
+    setErroNovo('');
+  }
+
+  async function criarMembro() {
+    if (!novoNome.trim() || !novoEmail.trim() || !novoSenha.trim()) {
+      setErroNovo('Preencha nome, email e senha.'); return;
+    }
+    setCriandoMembro(true); setErroNovo('');
+    try {
+      const { data: authData, error: authErr } = await supabase.auth.signUp({
+        email: novoEmail.trim(),
+        password: novoSenha,
+        options: { data: { nome: novoNome.trim() } },
+      });
+      if (authErr) throw authErr;
+      const uid = authData.user?.id;
+      if (uid) {
+        await supabase.from('usuarios').upsert({
+          id: uid,
+          nome: novoNome.trim(),
+          email: novoEmail.trim(),
+          papel: novoPapel,
+          departamento: novoMembroDepto,
+          ativo: true,
+        }, { onConflict: 'id' });
+      }
+      setNovoMembroDepto(null);
+      await carregarMembros();
+    } catch (err: any) {
+      setErroNovo(err.message || 'Erro ao criar membro.');
+    } finally {
+      setCriandoMembro(false);
+    }
+  }
 
   function gerarSenha() {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
@@ -289,31 +341,32 @@ export function Membros() {
     setConfirmDesativar(null);
   }
 
-  useEffect(() => {
-    async function carregarMembros() {
-      let carregados: Membro[] = [];
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.access_token) {
-          const response = await fetch('/api/membros', {
-            headers: { 'Authorization': `Bearer ${session.access_token}` },
-          });
-          if (response.ok) {
-            carregados = await response.json() as Membro[];
-          }
+  async function carregarMembros() {
+    let carregados: Membro[] = [];
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.access_token) {
+        const response = await fetch('/api/membros', {
+          headers: { 'Authorization': `Bearer ${session.access_token}` },
+        });
+        if (response.ok) {
+          carregados = await response.json() as Membro[];
         }
-      } catch (e) {
-        console.error('Erro de conexão ao carregar membros:', e);
       }
-
-      if (carregados.length === 0) {
-        carregados = await carregarMembrosDireto();
-      }
-
-      setMembros(carregados);
-      aplicarAgrupamentoDepartamentos(carregados);
-      setLoading(false);
+    } catch (e) {
+      console.error('Erro de conexão ao carregar membros:', e);
     }
+
+    if (carregados.length === 0) {
+      carregados = await carregarMembrosDireto();
+    }
+
+    setMembros(carregados);
+    aplicarAgrupamentoDepartamentos(carregados);
+    setLoading(false);
+  }
+
+  useEffect(() => {
     carregarMembros();
   }, []);
 
@@ -504,8 +557,19 @@ export function Membros() {
                        </div>
                     </div>
                   </div>
-                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${expanded ? 'bg-white text-slate-900' : 'bg-white/10 text-white hover:bg-white/20'}`}>
-                    {expanded ? <ChevronDown size={24} /> : <ChevronRight size={24} />}
+                  <div className="flex items-center gap-3">
+                    {isSuper && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); abrirNovoMembro(dept); }}
+                        className="w-10 h-10 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500 hover:text-white transition-all flex items-center justify-center"
+                        title={`Adicionar membro ao ${dept}`}
+                      >
+                        <span className="text-lg font-black leading-none">+</span>
+                      </button>
+                    )}
+                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${expanded ? 'bg-white text-slate-900' : 'bg-white/10 text-white hover:bg-white/20'}`}>
+                      {expanded ? <ChevronDown size={24} /> : <ChevronRight size={24} />}
+                    </div>
                   </div>
                 </button>
 
@@ -623,6 +687,57 @@ export function Membros() {
                 {desativando ? 'Processando Protocolo...' : 'Confirmar Revogacao'}
               </button>
               <button onClick={() => setConfirmDesativar(null)} className="w-full h-12 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 hover:text-white transition-colors">Abortar Operacao</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {novoMembroDepto && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-xl z-[999] flex items-center justify-center p-6" onClick={() => setNovoMembroDepto(null)}>
+          <div className="premium-glass bg-slate-900 border-2 border-emerald-500/30 p-10 w-full max-w-md rounded-[48px] shadow-2xl" onClick={e => e.stopPropagation()}>
+            <h3 className="text-2xl font-black text-white uppercase tracking-tight mb-2">Novo Membro</h3>
+            <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-8">Departamento: {novoMembroDepto}</p>
+            <div className="space-y-4">
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Nome Completo</label>
+                <input type="text" value={novoNome} onChange={e => setNovoNome(e.target.value)}
+                  placeholder="Ex: João Silva"
+                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-2xl text-white font-bold text-sm focus:outline-none focus:border-emerald-500" />
+              </div>
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Email</label>
+                <input type="email" value={novoEmail} onChange={e => setNovoEmail(e.target.value)}
+                  placeholder="email@biasi.com"
+                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-2xl text-white font-bold text-sm focus:outline-none focus:border-emerald-500" />
+              </div>
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Papel</label>
+                <select value={novoPapel} onChange={e => setNovoPapel(e.target.value)}
+                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-2xl text-white font-bold text-sm focus:outline-none focus:border-emerald-500">
+                  {['gestor','comercial','engenheiro','orcamentista','membro'].map(p => (
+                    <option key={p} value={p} className="bg-slate-900">{getPapelInfo(p).label}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Senha Inicial</label>
+                <div className="flex gap-2">
+                  <input type="text" value={novoSenha} onChange={e => setNovoSenha(e.target.value)}
+                    className="flex-1 px-4 py-3 bg-white/5 border border-white/10 rounded-2xl text-emerald-400 font-black text-sm font-mono focus:outline-none focus:border-emerald-500" />
+                  <button onClick={() => { const c='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'; let s=''; for(let i=0;i<10;i++) s+=c[Math.floor(Math.random()*c.length)]; setNovoSenha(s); }}
+                    className="px-4 py-3 bg-white/5 border border-white/10 rounded-2xl text-slate-400 hover:text-white text-xs font-bold transition-colors">
+                    Gerar
+                  </button>
+                </div>
+              </div>
+              {erroNovo && <p className="text-rose-400 text-xs font-bold">{erroNovo}</p>}
+            </div>
+            <div className="flex gap-3 mt-8">
+              <button onClick={() => setNovoMembroDepto(null)} className="flex-1 h-12 rounded-2xl border border-white/10 text-slate-400 text-xs font-black uppercase tracking-widest hover:bg-white/5">Cancelar</button>
+              <button onClick={criarMembro} disabled={criandoMembro}
+                className="flex-[2] h-12 rounded-2xl bg-emerald-600 text-white text-xs font-black uppercase tracking-widest hover:bg-emerald-700 disabled:opacity-50 transition-all">
+                {criandoMembro ? 'Criando...' : 'Criar Membro'}
+              </button>
             </div>
           </div>
         </div>

@@ -53,8 +53,8 @@ export function Calendario() {
   const [form, setForm] = useState({
     tipo: 'veiculo' as 'ferramenta' | 'veiculo',
     item_id: '',
-    data_inicio: new Date().toISOString().split('T')[0],
-    data_fim: new Date().toISOString().split('T')[0],
+    data_inicio: '',
+    data_fim: '',
     descricao: '',
   });
   const [salvando, setSalvando] = useState(false);
@@ -107,7 +107,7 @@ export function Calendario() {
     setModal(false);
     setSalvando(false);
     setBuscaItem('');
-    setForm({ tipo: 'veiculo', item_id: '', data_inicio: new Date().toISOString().split('T')[0], data_fim: new Date().toISOString().split('T')[0], descricao: '' });
+    setForm({ tipo: 'veiculo', item_id: '', data_inicio: '', data_fim: '', descricao: '' });
   }
 
   async function concluir(id: string) {

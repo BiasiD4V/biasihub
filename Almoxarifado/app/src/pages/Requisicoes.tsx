@@ -305,6 +305,7 @@ export function Requisicoes() {
   /* carro */
   const [numCarros, setNumCarros] = useState(1);
   const [veiculosSel, setVeiculosSel] = useState(['', '', '', '', '']);
+  const [veiculosDB, setVeiculosDB] = useState<{ value: string; label: string }[]>([]);
   const [horarioCarro, setHorarioCarro] = useState('');
   const [urgenteCarro, setUrgenteCarro] = useState('');
   const [justCarro, setJustCarro] = useState('');
@@ -322,6 +323,11 @@ export function Requisicoes() {
   useEffect(() => {
     supabase.from('obras').select('nome').order('nome').then(({ data }) => {
       if (data && data.length > 0) setObras(data.map((o: { nome: string }) => o.nome));
+    });
+    supabase.from('veiculos').select('id, modelo, placa').eq('ativo', true).order('modelo').then(({ data }) => {
+      if (data && data.length > 0) {
+        setVeiculosDB(data.map((v: any) => ({ value: v.placa || v.id, label: `${v.placa ? v.placa + ' — ' : ''}${v.modelo}` })));
+      }
     });
     setDataReq(new Date().toISOString().slice(0, 10));
   }, []);
@@ -575,7 +581,7 @@ export function Requisicoes() {
                   <label className={labelCls}>Veículo 1 *
                     <select value={veiculosSel[0]} onChange={e => setVeiculo(0, e.target.value)} className={inputCls} required>
                       <option value="">Selecione o veículo</option>
-                      {VEICULOS.map(v => <option key={v.value} value={v.value}>{v.label}</option>)}
+                      {(veiculosDB.length > 0 ? veiculosDB : VEICULOS).map(v => <option key={v.value} value={v.value}>{v.label}</option>)}
                     </select>
                   </label>
                   {Array.from({ length: numCarros - 1 }, (_, i) => i + 1).map(idx => (
@@ -583,7 +589,7 @@ export function Requisicoes() {
                       <label className={labelCls + ' flex-1'}>Veículo {idx + 1}
                         <select value={veiculosSel[idx]} onChange={e => setVeiculo(idx, e.target.value)} className={inputCls}>
                           <option value="">Selecione o veículo</option>
-                          {VEICULOS.map(v => <option key={v.value} value={v.value}>{v.label}</option>)}
+                          {(veiculosDB.length > 0 ? veiculosDB : VEICULOS).map(v => <option key={v.value} value={v.value}>{v.label}</option>)}
                         </select>
                       </label>
                       <button

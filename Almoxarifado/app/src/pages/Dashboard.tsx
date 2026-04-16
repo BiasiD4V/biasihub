@@ -41,6 +41,7 @@ export function Dashboard() {
 
   async function carregar() {
     setLoading(true);
+    try {
     const hoje = new Date().toISOString().slice(0, 10);
 
     const [itensRes, reqRes, veiculosRes, movHojeRes, custoFrotaRes, ultimasMov] = await Promise.all([
@@ -89,7 +90,11 @@ export function Dashboard() {
     ].filter(s => s.value > 0));
 
     setUltimasMovimentacoes((ultimasMov.data || []) as unknown as Movimentacao[]);
-    setLoading(false);
+    } catch (err) {
+      console.error('[Dashboard] erro ao carregar:', err);
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => { carregar(); }, []);
