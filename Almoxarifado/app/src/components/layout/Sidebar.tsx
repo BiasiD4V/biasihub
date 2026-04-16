@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
   ArrowLeftRight,
-  Bot,
   Calendar,
   ClipboardList,
   FileSpreadsheet,
@@ -18,6 +17,7 @@ import {
   X,
   BarChart3,
   Wrench,
+  Users,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../infrastructure/supabase/client';
@@ -32,13 +32,9 @@ const NAV_SECTIONS = [
     items: [{ to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' }],
   },
   {
-    label: 'Assistente IA',
-    items: [{ to: '/igor', icon: Bot, label: 'Igor', badge: 'IA' }],
-  },
-  {
     label: 'Solicitacoes',
     items: [
-      { to: '/solicitacoes', icon: Sparkles, label: 'Solicitar (IA)' },
+      { to: '/solicitacoes', icon: Sparkles, label: 'Solicitacoes' },
       { to: '/requisicoes', icon: ClipboardList, label: 'Requisicoes' },
     ],
   },
@@ -60,6 +56,10 @@ const NAV_SECTIONS = [
   {
     label: 'Analise',
     items: [{ to: '/relatorios', icon: FileSpreadsheet, label: 'Relatorios' }],
+  },
+  {
+    label: 'Time',
+    items: [{ to: '/reunioes', icon: Users, label: 'Reunioes' }],
   },
   {
     label: 'Sistema',
