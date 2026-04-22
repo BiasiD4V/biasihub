@@ -1,15 +1,21 @@
 import XLSX from 'xlsx';
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = 'https://vzaabtzcilyoknksvhrc.supabase.co';
-const supabaseServiceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ6YWFidHpjaWx5b2tua3N2aHJjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NDUyNDI0NiwiZXhwIjoyMDkwMTAwMjQ2fQ.b0QCcqqIJMrx8li0g_uRXoJ9z114YWyiHvu5QPjMG7o';
+const supabaseUrl = process.env.VITE_SUPABASE_URL
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY
+const filePath = process.env.FILE_PATH || 'ferramentas.xlsx'
+
+if (!supabaseUrl || !supabaseServiceKey) {
+  console.error('❌ Defina VITE_SUPABASE_URL e SUPABASE_SERVICE_KEY antes de rodar.')
+  console.error('   Exemplo: VITE_SUPABASE_URL=https://... SUPABASE_SERVICE_KEY=eyJ... FILE_PATH=caminho.xlsx node scripts/import_ferramentas.mjs')
+  process.exit(1)
+}
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
-const filePath = 'C:\\Users\\guilherme.moreira\\Downloads\\ferramentas estoque.xlsx';
 
 async function importFerramentas() {
   console.log('--- Iniciando Importação de Ferramentas ---');
-  
+
   try {
     const workbook = XLSX.readFile(filePath);
     const sheetName = workbook.SheetNames[0];
@@ -21,27 +27,17 @@ async function importFerramentas() {
     const batch = [];
     let skipped = 0;
 
-    // Começamos o loop. 
-    // Na nossa análise, a linha 1 da planilha (rawData[0]) parece conter os cabeçalhos amigáveis se lido como JSON simples.
-    // Mas o sheet_to_json padrão pode ter consumido a primeira linha como keys.
-    // Vamos processar a partir da primeira linha de dados reais detectada.
-
     rawData.forEach((row, index) => {
-      // Mapeamento baseado no diagnóstico anterior:
-      // __EMPTY_1: Nome do Produto
-      // __EMPTY_6: Nº Patrimônio
-      
       const nome = row['__EMPTY_1'];
       const patrimonio = row['__EMPTY_6'];
-      
+
       if (!nome || nome === 'Nome do Produto') {
         skipped++;
         return;
       }
 
-      // Se patrimônio estiver vazio, geramos um código
       const codigo = patrimonio ? String(patrimonio).trim().toUpperCase() : `FER-AUTO-${index + 1}`;
-      
+
       batch.push({
         codigo,
         descricao: String(nome).trim(),
@@ -64,17 +60,13 @@ async function importFerramentas() {
       return;
     }
 
-    // Upsert para evitar duplicados se o código já existir
-    // Deduplicar localmente primeiro para evitar erro: 
-    // "ON CONFLICT DO UPDATE command cannot affect row a second time"
     const uniqueBatch = [];
     const seenCodes = new Set();
-    
+
     for (let i = batch.length - 1; i >= 0; i--) {
       const item = batch[i];
       if (!seenCodes.has(item.codigo)) {
         uniqueBatch.push(item);
-        seenCodes.has(item.codigo);
         seenCodes.add(item.codigo);
       }
     }
