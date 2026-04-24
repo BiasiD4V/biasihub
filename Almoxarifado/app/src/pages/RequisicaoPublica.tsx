@@ -1,7 +1,8 @@
 ﻿import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { supabase } from '../infrastructure/supabase/client';
-import { Camera, CheckCircle2, Mic, Package, Paperclip, Plus, StopCircle, Truck, Wrench, X } from 'lucide-react';
+import { Camera, CheckCircle2, Mic, Package, Paperclip, Plus, StopCircle, Truck, Video, Wrench, X } from 'lucide-react';
+import { CameraModal } from '../components/CameraModal';
 
 /* ======================================================================
    TIPOS / CONSTANTES
@@ -56,6 +57,7 @@ const STORAGE_BUCKET = 'requisicoes';
 const OBRAS_PADRAO: string[] = [];
 
 const UNIDADES = ['un', 'pç', 'cx', 'm', 'm²', 'm³', 'kg', 'L', 'mL', 'rolo', 'par', 'saco', 'barra', 'jogo'];
+const CARGOS = ['Almoxarifado', 'Engenheiro', 'Encarregado', 'Técnico', 'Administrativo', 'Compras'];
 const IDENT_KEY = 'biasi_public_ident_v1';
 
 /* ======================================================================
@@ -211,11 +213,7 @@ function ItemRow({
   onRemove: () => void;
 }) {
   const [deleteArmed, setDeleteArmed] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const [cameraOpen, setCameraOpen] = useState(false);
-  const [cameraError, setCameraError] = useState('');
+  const [camOpen, setCamOpen] = useState(false);
 
   const autoItems = useMemo<AutocompleteItem[]>(() => {
     if (categoria === 'insumos') {
@@ -240,7 +238,10 @@ function ItemRow({
   }, [categoria, insumos, ferramentas, veiculos]);
 
   function handleSelect(item: AutocompleteItem | null) {
-    if (!item) { onChange({ itemId: null, codigo: null, descricao: '', unidade: linha.unidade }); return; }
+    if (!item) {
+      onChange({ itemId: null, codigo: null, descricao: '', unidade: linha.unidade });
+      return;
+    }
     if (categoria === 'insumos') {
       const raw = insumos.find((i) => i.id === item.id);
       if (!raw) return;
@@ -256,83 +257,28 @@ function ItemRow({
     }
   }
 
-  function stopCameraStream() {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop());
-      streamRef.current = null;
-    }
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
-    }
-  }
-
-  function closeCamera() {
-    stopCameraStream();
-    setCameraOpen(false);
-  }
-
-  async function openCamera() {
-    setCameraError('');
-    if (!navigator.mediaDevices?.getUserMedia) {
-      fileInputRef.current?.click();
-      return;
-    }
-
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: 'environment' } },
-        audio: false,
-      });
-      streamRef.current = stream;
-      setCameraOpen(true);
-      requestAnimationFrame(() => {
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          void videoRef.current.play();
-        }
-      });
-    } catch {
-      fileInputRef.current?.click();
-    }
-  }
-
-  function capturePhoto() {
-    const video = videoRef.current;
-    if (!video || video.videoWidth === 0 || video.videoHeight === 0) {
-      setCameraError('Não foi possível capturar a foto.');
-      return;
-    }
-
-    const canvas = document.createElement('canvas');
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) {
-      setCameraError('Não foi possível processar a imagem.');
-      return;
-    }
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    canvas.toBlob((blob) => {
-      if (!blob) {
-        setCameraError('Não foi possível gerar a imagem.');
-        return;
-      }
-      const photoFile = new File([blob], `foto-item-${Date.now()}.jpg`, { type: 'image/jpeg' });
-      onChange({
-        fotos: [...(linha.fotos || []), photoFile],
-        fotosUrls: [...(linha.fotosUrls || []), URL.createObjectURL(photoFile)],
-      });
-      closeCamera();
-    }, 'image/jpeg', 0.92);
-  }
-
-  useEffect(() => {
-    return () => stopCameraStream();
-  }, []);
+  const mostrarUnidade = categoria === 'insumos';
+  const isFrota = categoria === 'frota';
+  const gridCols = mostrarUnidade
+    ? 'minmax(0,2.2fr) 120px 180px 52px'
+    : 'minmax(0,2.2fr) 120px 52px';
 
   return (
     <div className="p-3.5 rounded-[18px] border border-[rgba(113,154,255,0.28)] bg-[rgba(8,24,64,0.24)]">
-      <div className="grid gap-3 items-start" style={{ gridTemplateColumns: 'minmax(0,2.2fr) 120px 180px 52px' }}>
+      {camOpen && (
+        <CameraModal
+          mode="photo"
+          onCapture={(file) => {
+            const url = URL.createObjectURL(file);
+            onChange({
+              fotos: [...linha.fotos, file],
+              fotosUrls: [...linha.fotosUrls, url],
+            });
+          }}
+          onClose={() => setCamOpen(false)}
+        />
+      )}
+      <div className="grid gap-3 items-start" style={{ gridTemplateColumns: gridCols }}>
         <div>
           <Autocomplete
             items={autoItems}
@@ -357,14 +303,16 @@ function ItemRow({
           value={linha.quantidade}
           onChange={(e) => onChange({ quantidade: e.target.value })}
         />
-        <div>
-          <select className={styles.inputCompact} value={linha.unidade} onChange={(e) => onChange({ unidade: e.target.value })} style={selectFieldStyle}>
-            {UNIDADES.map((u) => <option key={u} value={u} style={selectOptionStyle}>{u}</option>)}
-            {linha.unidade && !UNIDADES.includes(linha.unidade) && (
-              <option value={linha.unidade} style={selectOptionStyle}>{linha.unidade}</option>
-            )}
-          </select>
-        </div>
+        {mostrarUnidade && (
+          <div>
+            <select className={styles.inputCompact} value={linha.unidade} onChange={(e) => onChange({ unidade: e.target.value })} style={selectFieldStyle}>
+              {UNIDADES.map((u) => <option key={u} value={u} style={selectOptionStyle}>{u}</option>)}
+              {linha.unidade && !UNIDADES.includes(linha.unidade) && (
+                <option value={linha.unidade} style={selectOptionStyle}>{linha.unidade}</option>
+              )}
+            </select>
+          </div>
+        )}
         <button
           type="button"
           onClick={() => { if (deleteArmed) onRemove(); else { setDeleteArmed(true); setTimeout(() => setDeleteArmed(false), 2500); } }}
@@ -378,67 +326,40 @@ function ItemRow({
         <input
           type="text"
           className={styles.inputCompact}
-          placeholder="Observação do item (opcional)"
+          placeholder={isFrota ? 'Motivo da requisição *' : 'Observação do item (opcional)'}
           value={linha.observacao}
           onChange={(e) => onChange({ observacao: e.target.value })}
+          required={isFrota}
         />
       </div>
-      <div className="mt-2 flex items-start gap-3 flex-wrap">
-        <button type="button" className={styles.btnSmall + ' text-[0.8rem] py-1.5'} onClick={openCamera}>
-          <Camera size={13} />
-          {linha.fotosUrls.length > 0 ? `Adicionar foto (${linha.fotosUrls.length})` : 'Foto do item'}
-        </button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          capture="environment"
-          multiple
-          className="hidden"
-          onChange={(e) => {
-            const files = Array.from(e.target.files || []);
-            if (files.length === 0) return;
-            onChange({
-              fotos: [...(linha.fotos || []), ...files],
-              fotosUrls: [...(linha.fotosUrls || []), ...files.map((f) => URL.createObjectURL(f))],
-            });
-            e.target.value = '';
-          }}
-        />
-        {linha.fotosUrls.length > 0 && (
-          <div className="flex items-center gap-2 flex-wrap">
-            {linha.fotosUrls.map((url, idx) => (
-              <div key={idx} className="relative">
-                <img src={url} alt={`foto-${idx}`} className="w-12 h-12 object-cover rounded-[10px] border border-[rgba(113,154,255,0.4)]" />
-                <button
-                  type="button"
-                  onClick={() =>
-                    onChange({
-                      fotos: linha.fotos.filter((_, i) => i !== idx),
-                      fotosUrls: linha.fotosUrls.filter((_, i) => i !== idx),
-                    })
-                  }
-                  className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-[#ff6b6b] text-white text-[0.7rem] grid place-items-center border border-white/30 leading-none"
-                  title="Remover foto"
-                >
-                  <X size={10} />
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-      {cameraOpen && (
-        <div className="fixed inset-0 z-[120] bg-black/75 flex items-center justify-center p-4">
-          <div className="w-full max-w-[520px] rounded-[20px] border border-[rgba(113,154,255,0.4)] bg-[linear-gradient(180deg,rgba(24,55,120,0.98),rgba(20,48,111,0.98))] p-4">
-            <p className="text-sm font-bold text-white mb-3">Câmera do item</p>
-            <video ref={videoRef} autoPlay playsInline muted className="w-full rounded-[14px] bg-black max-h-[60vh] object-cover" />
-            {cameraError && <p className="text-[0.8rem] text-[#ffb4b4] mt-2">{cameraError}</p>}
-            <div className="mt-3 flex flex-wrap gap-2 justify-end">
-              <button type="button" onClick={closeCamera} className={styles.btnSmall + ' text-[0.82rem]'}>Cancelar</button>
-              <button type="button" onClick={capturePhoto} className={styles.btnPrimary + ' text-[0.82rem]'}>Capturar foto</button>
+      {!isFrota && (
+        <div className="mt-2 flex items-start gap-3 flex-wrap">
+          <button type="button" className={styles.btnSmall + ' text-[0.8rem] py-1.5'} onClick={() => setCamOpen(true)}>
+            <Camera size={13} />
+            {linha.fotosUrls.length > 0 ? `Adicionar foto (${linha.fotosUrls.length})` : 'Foto do item'}
+          </button>
+          {linha.fotosUrls.length > 0 && (
+            <div className="flex items-center gap-2 flex-wrap">
+              {linha.fotosUrls.map((url, idx) => (
+                <div key={idx} className="relative">
+                  <img src={url} alt={`foto-${idx}`} className="w-12 h-12 object-cover rounded-[10px] border border-[rgba(113,154,255,0.4)]" />
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onChange({
+                        fotos: linha.fotos.filter((_, i) => i !== idx),
+                        fotosUrls: linha.fotosUrls.filter((_, i) => i !== idx),
+                      })
+                    }
+                    className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-[#ff6b6b] text-white text-[0.7rem] grid place-items-center border border-white/30 leading-none"
+                    title="Remover foto"
+                  >
+                    <X size={10} />
+                  </button>
+                </div>
+              ))}
             </div>
-          </div>
+          )}
         </div>
       )}
     </div>
@@ -495,8 +416,40 @@ export function RequisicaoPublica() {
   const [obraOutro, setObraOutro] = useState('');
   const [nome, setNome] = useState(nomeParam);
   const [telefone, setTelefone] = useState(telParam);
+  const [cargo, setCargo] = useState('');
+  const [dataSolicitacao, setDataSolicitacao] = useState(() =>
+    new Date().toLocaleString('pt-BR', {
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+  );
+  // Atualiza o horário exibido a cada minuto enquanto o formulário está aberto
+  useEffect(() => {
+    const id = setInterval(() => {
+      setDataSolicitacao(
+        new Date().toLocaleString('pt-BR', {
+          day: '2-digit',
+          month: 'long',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        })
+      );
+    }, 60_000);
+    return () => clearInterval(id);
+  }, []);
   const [prazo, setPrazo] = useState('');
-  const [prazoMinimo] = useState(datetimeLocalNow);
+  // Valor mínimo para o campo "Prazo Desejado" (impede datas passadas)
+  const minPrazo = useMemo(() => {
+    const d = new Date();
+    d.setSeconds(0, 0);
+    const off = d.getTimezoneOffset();
+    const local = new Date(d.getTime() - off * 60_000);
+    return local.toISOString().slice(0, 16);
+  }, [dataSolicitacao]);
   const [prioridade, setPrioridade] = useState<'normal' | 'urgente' | 'baixo'>('normal');
   const [observacao, setObservacao] = useState('');
   const [justificativaUrgencia, setJustificativaUrgencia] = useState('');
@@ -521,12 +474,14 @@ export function RequisicaoPublica() {
   const [audioUrl, setAudioUrl] = useState('');
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const [camMode, setCamMode] = useState<'photo' | 'video' | null>(null);
 
   /* envio */
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState('');
   const [sucesso, setSucesso] = useState(false);
   const [linkFila, setLinkFila] = useState('');
+  const [posicaoFila, setPosicaoFila] = useState<number | null>(null);
 
   useEffect(() => {
     try {
@@ -622,6 +577,7 @@ export function RequisicaoPublica() {
     if (!obraFinal) return setErro('Selecione a obra.');
     if (!nome.trim()) return setErro('Informe seu nome.');
     if (!telefone.trim()) return setErro('Informe seu WhatsApp.');
+    if (!cargo) return setErro('Selecione o cargo.');
 
     const itensValidos = itens.filter((l) => l.itemId && l.descricao.trim() && Number(l.quantidade) > 0);
     if (itensValidos.length === 0) {
@@ -635,8 +591,12 @@ export function RequisicaoPublica() {
     }
     if (prioridade === 'urgente' && !justificativaUrgencia.trim()) return setErro('Justifique a urgência.');
 
-    const itensSemFoto = itensValidos.filter((l) => (l.fotos?.length ?? 0) === 0);
+    const itensSemFoto = categoria === 'frota' ? [] : itensValidos.filter((l) => (l.fotos?.length ?? 0) === 0);
     if (itensSemFoto.length > 0) return setErro('Foto do item é obrigatória em todos os itens da requisição.');
+    if (categoria === 'frota') {
+      const semMotivo = itensValidos.some((l) => !l.observacao.trim());
+      if (semMotivo) return setErro('Informe o motivo da requisição para cada veículo.');
+    }
 
     if (prazo && new Date(prazo).getTime() < Date.now() - 60_000) {
       return setErro('Prazo desejado não pode ser no passado.');
@@ -702,22 +662,42 @@ export function RequisicaoPublica() {
       ).filter((u): u is string => !!u);
 
       const obsFinal = [
+        `cargo:${cargo}`,
         prazo ? `prazo:${prazo}` : '',
         `prioridade:${prioridade}`,
         observacao ? `obs:${observacao}` : '',
         anexosUrls.length ? `anexos_urls:${anexosUrls.join(',')}` : '',
       ].filter(Boolean).join(' | ');
       localStorage.setItem(IDENT_KEY, JSON.stringify({ nome: nome.trim(), tel }));
-      const { error } = await supabase.from('requisicoes_almoxarifado').insert({
-        solicitante_id: null,
-        solicitante_nome: nome.trim(),
-        telefone: tel,
-        obra: obraFinal,
-        observacao: obsFinal,
-        itens: itensPayload,
-      });
+      const { data: inserted, error } = await supabase
+        .from('requisicoes_almoxarifado')
+        .insert({
+          solicitante_id: null,
+          solicitante_nome: nome.trim(),
+          telefone: tel,
+          obra: obraFinal,
+          observacao: obsFinal,
+          itens: itensPayload,
+        })
+        .select('id, criado_em')
+        .single();
 
       if (error) throw error;
+
+      try {
+        if (inserted?.criado_em) {
+          const { count } = await supabase
+            .from('requisicoes_almoxarifado')
+            .select('id', { count: 'exact', head: true })
+            .eq('status', 'pendente')
+            .lt('criado_em', inserted.criado_em);
+          setPosicaoFila((count ?? 0) + 1);
+        } else {
+          setPosicaoFila(null);
+        }
+      } catch {
+        setPosicaoFila(null);
+      }
 
       const base = window.location.origin;
       setLinkFila(`${base}/fila?tel=${tel}&nome=${encodeURIComponent(nome.trim())}`);
@@ -748,6 +728,11 @@ export function RequisicaoPublica() {
             <div className="text-5xl mb-4">✅</div>
             <h2 className="text-2xl font-extrabold text-white mb-2">Requisição enviada!</h2>
             <p className="text-[#b8c5eb] mb-8">O almoxarifado recebeu seu pedido e entrará em contato.</p>
+            {posicaoFila != null && (
+              <div className="mb-6 inline-flex px-4 py-2 rounded-full bg-[rgba(92,155,255,0.18)] border border-[rgba(92,155,255,0.45)] text-[#8fb2ff] font-extrabold text-sm">
+                Posição na fila: #{posicaoFila}
+              </div>
+            )}
             <a
               href={linkFila}
               className="block bg-[linear-gradient(180deg,#4b7bf0,#3d6fe0)] hover:opacity-90 text-white font-extrabold py-4 px-6 rounded-[18px] transition mb-4 shadow-[0_10px_24px_rgba(52,104,223,0.35)]"
@@ -760,9 +745,12 @@ export function RequisicaoPublica() {
                 setItens([{ uid: uid(), itemId: null, codigo: null, descricao: '', quantidade: '1', unidade: 'un', observacao: '', fotos: [], fotosUrls: [] }]);
                 setObservacao('');
                 setJustificativaUrgencia('');
+                setCargo('');
                 setPrazo('');
                 setPrioridade('normal');
                 setAnexos([]);
+                setAudioUrl('');
+                setPosicaoFila(null);
               }}
               className="text-[#b8c5eb] hover:text-white text-sm transition"
             >
@@ -878,16 +866,39 @@ export function RequisicaoPublica() {
               </div>
             </div>
 
-            <div className="flex flex-col gap-2.5">
-              <label className={styles.label}>Prazo Desejado</label>
-              <input
-                type="datetime-local"
-                step="60"
-                className={styles.input}
-                value={prazo}
-                min={prazoMinimo}
-                onChange={(e) => setPrazo(e.target.value)}
-              />
+            <div className="flex flex-col gap-2.5 mb-4">
+              <label className={styles.label}>Cargo do Solicitante *</label>
+              <select className={styles.input} value={cargo} onChange={(e) => setCargo(e.target.value)} style={selectFieldStyle} required>
+                <option value="" style={selectOptionStyle}>Selecione o cargo</option>
+                {CARGOS.map((c) => (
+                  <option key={c} value={c} style={selectOptionStyle}>{c}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
+              <div className="flex flex-col gap-2.5">
+                <label className={styles.label}>Data da Solicitação *</label>
+                <input type="text" className={styles.input + ' cursor-not-allowed opacity-80'} value={dataSolicitacao} readOnly />
+              </div>
+              <div className="flex flex-col gap-2.5">
+                <label className={styles.label}>Prazo Desejado</label>
+                <input
+                  type="datetime-local"
+                  step="60"
+                  min={minPrazo}
+                  className={styles.input}
+                  value={prazo}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (v && v < minPrazo) {
+                      setPrazo(minPrazo);
+                    } else {
+                      setPrazo(v);
+                    }
+                  }}
+                />
+              </div>
             </div>
           </section>
 
@@ -897,7 +908,7 @@ export function RequisicaoPublica() {
 
             <div className="flex flex-col gap-3 mb-4">
               <label className={styles.label}>
-                Itens da Requisição
+                {categoria === 'frota' ? 'Veículos da Requisição' : 'Itens da Requisição'}
                 <span className="ml-2 normal-case font-semibold text-[#89a2e2] text-[0.8rem]">
                   ({categoria === 'insumos'
                     ? `${insumos.length} itens cadastrados`
@@ -926,7 +937,7 @@ export function RequisicaoPublica() {
               <div className="flex gap-2.5 mt-3">
                 <button type="button" className={styles.btnSmall} onClick={addLinha}>
                   <Plus size={15} />
-                  Adicionar item
+                  {categoria === 'frota' ? 'Adicionar veículo' : 'Adicionar item'}
                 </button>
               </div>
 
@@ -934,7 +945,8 @@ export function RequisicaoPublica() {
                 Cada linha é buscada diretamente do cadastro de{' '}
                 <strong className="text-white">
                   {categoria === 'insumos' ? 'Insumos' : categoria === 'ferramentas' ? 'Ferramentas' : 'Frota'}
-                </strong>.
+                </strong>
+                . Cadastre novos itens nas páginas correspondentes para que apareçam aqui.
               </div>
             </div>
 
@@ -972,13 +984,34 @@ export function RequisicaoPublica() {
 
           {/* Anexos */}
           <section className={styles.section}>
-            <h4 className={styles.h4}>Anexos e Registros</h4>
+            {camMode && (
+              <CameraModal
+                mode={camMode}
+                onCapture={(file) => setAnexos((prev) => [...prev, file])}
+                onClose={() => setCamMode(null)}
+              />
+            )}
+            <h4 className={styles.h4}>
+              {categoria === 'frota' ? 'Áudio (opcional)' : 'Anexos e Registros'}
+            </h4>
             <div className="flex gap-2.5 flex-wrap mb-3.5">
-              <label className={styles.btnSmall + ' cursor-pointer'}>
-                <Paperclip size={15} />
-                Anexar arquivos
-                <input ref={fileInputRef} type="file" className="hidden" multiple accept="image/*,video/*,audio/*,application/pdf" onChange={(e) => handleFiles(e.target.files)} />
-              </label>
+              {categoria !== 'frota' && (
+                <>
+                  <label className={styles.btnSmall + ' cursor-pointer'}>
+                    <Paperclip size={15} />
+                    Anexar arquivos
+                    <input ref={fileInputRef} type="file" className="hidden" multiple accept="image/*,video/*,audio/*,application/pdf" onChange={(e) => handleFiles(e.target.files)} />
+                  </label>
+                  <button type="button" className={styles.btnSmall} onClick={() => setCamMode('photo')}>
+                    <Camera size={15} />
+                    Tirar foto
+                  </button>
+                  <button type="button" className={styles.btnSmall} onClick={() => setCamMode('video')}>
+                    <Video size={15} />
+                    Gravar vídeo
+                  </button>
+                </>
+              )}
               {!gravando ? (
                 <button type="button" className={styles.btnSmall} onClick={iniciarGravacao}><Mic size={15} />Gravar áudio</button>
               ) : (
@@ -995,15 +1028,17 @@ export function RequisicaoPublica() {
               </div>
             )}
 
-            <div
-              className="rounded-[18px] border border-dashed border-[rgba(113,154,255,0.45)] bg-[rgba(8,24,64,0.24)] px-5 py-8 text-center text-[#b8c5eb]"
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={(e) => { e.preventDefault(); handleFiles(e.dataTransfer.files); }}
-            >
-              {anexos.length === 0
-                ? 'Arraste fotos, vídeos, áudios ou PDFs aqui, ou use o botão acima.'
-                : `${anexos.length} arquivo${anexos.length > 1 ? 's' : ''} selecionado${anexos.length > 1 ? 's' : ''}.`}
-            </div>
+            {categoria !== 'frota' && (
+              <div
+                className="rounded-[18px] border border-dashed border-[rgba(113,154,255,0.45)] bg-[rgba(8,24,64,0.24)] px-5 py-8 text-center text-[#b8c5eb]"
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => { e.preventDefault(); handleFiles(e.dataTransfer.files); }}
+              >
+                {anexos.length === 0
+                  ? 'Arraste fotos, vídeos, áudios ou PDFs aqui, ou use o botão acima.'
+                  : `${anexos.length} arquivo${anexos.length > 1 ? 's' : ''} selecionado${anexos.length > 1 ? 's' : ''}.`}
+              </div>
+            )}
 
             {anexos.length > 0 && (
               <div className="grid gap-3 mt-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4">
@@ -1018,6 +1053,12 @@ export function RequisicaoPublica() {
             )}
           </section>
 
+          {cargo && cargo !== 'Engenheiro' && cargo !== 'Almoxarifado' && (
+            <div className="px-5 py-4 rounded-[18px] bg-[rgba(255,202,87,0.12)] border border-[rgba(255,202,87,0.35)] text-[#ffca57] text-[0.95rem] mb-5">
+              Atenção: esta solicitação será encaminhada para aprovação do responsável antes do atendimento.
+            </div>
+          )}
+
           {erro && (
             <div className="px-5 py-4 rounded-[18px] bg-[rgba(255,107,107,0.12)] border border-[rgba(255,107,107,0.35)] text-[#ff9797] mb-5">
               {erro}
@@ -1025,9 +1066,14 @@ export function RequisicaoPublica() {
           )}
 
           {sucesso && (
-            <div className="px-5 py-4 rounded-[18px] bg-[rgba(54,196,133,0.15)] border border-[rgba(54,196,133,0.4)] text-[#6be3a5] mb-5 flex items-center gap-2">
+            <div className="px-5 py-4 rounded-[18px] bg-[rgba(54,196,133,0.15)] border border-[rgba(54,196,133,0.4)] text-[#6be3a5] mb-5 flex items-center gap-2 flex-wrap">
               <CheckCircle2 size={18} />
-              Requisição enviada com sucesso! O almoxarifado foi notificado.
+              <span>Requisição enviada com sucesso! O almoxarifado foi notificado.</span>
+              {posicaoFila != null && (
+                <span className="ml-2 px-3 py-1 rounded-full bg-[rgba(92,155,255,0.18)] border border-[rgba(92,155,255,0.45)] text-[#5c9bff] font-extrabold text-[0.85rem]">
+                  Posição na fila: #{posicaoFila}
+                </span>
+              )}
             </div>
           )}
 
@@ -1047,7 +1093,3 @@ export function RequisicaoPublica() {
     </div>
   );
 }
-
-
-
-
