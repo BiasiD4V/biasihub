@@ -547,6 +547,7 @@ export function Requisicoes() {
   }, [dataSolicitacao]);
   const [prazo, setPrazo] = useState('');
   const [prioridade, setPrioridade] = useState<'normal' | 'urgente' | 'baixo'>('normal');
+  const [entregaSolicitada, setEntregaSolicitada] = useState(false);
   const [observacao, setObservacao] = useState('');
   const [justificativaUrgencia, setJustificativaUrgencia] = useState('');
 
@@ -837,6 +838,7 @@ export function Requisicoes() {
         `cargo:${cargo}`,
         prazo ? `prazo:${prazo}` : '',
         `prioridade:${prioridade}`,
+        `entrega:${entregaSolicitada ? 'sim' : 'nao'}`,
         observacao ? `obs:${observacao}` : '',
         anexosUrls.length ? `anexos_urls:${anexosUrls.join(',')}` : '',
       ]
@@ -879,6 +881,7 @@ export function Requisicoes() {
       setCargo('');
       setPrazo('');
       setPrioridade('normal');
+      setEntregaSolicitada(false);
       setObservacao('');
       setJustificativaUrgencia('');
       setAnexos([]);
@@ -1234,6 +1237,26 @@ export function Requisicoes() {
                     />
                   </div>
                 </div>
+
+                <div className="mt-4 flex flex-col gap-2.5">
+                  <label className={styles.label}>Entrega na obra?</label>
+                  <select
+                    className={styles.input}
+                    value={entregaSolicitada ? 'sim' : 'nao'}
+                    onChange={(e) => setEntregaSolicitada(e.target.value === 'sim')}
+                    style={selectFieldStyle}
+                  >
+                    <option value="nao" style={selectOptionStyle}>
+                      Não, apenas separar/retirar
+                    </option>
+                    <option value="sim" style={selectOptionStyle}>
+                      Sim, precisa entregar na obra
+                    </option>
+                  </select>
+                  <p className="m-0 text-[#89a2e2] text-[0.85rem]">
+                    Quando marcar sim, o rastreio mostra a fase "A caminho" antes de receber.
+                  </p>
+                </div>
               </section>
 
               {/* Detalhes da Requisição (Itens) */}
@@ -1583,6 +1606,9 @@ export function Requisicoes() {
                               const iniciadoIso = r.iniciado_em || extrairTimestamp(r.observacao || undefined, 'separacao_iniciada');
                               const finalizadoIso = r.finalizado_em || extrairTimestamp(r.observacao || undefined, 'separacao_finalizada');
                               const emSeparacao = !!iniciadoIso && !finalizadoIso;
+                              const entregaSolicitadaCard = ['sim', 's', 'true', '1', 'yes'].includes(
+                                String(extrairTimestamp(r.observacao || undefined, 'entrega') || '').trim().toLowerCase()
+                              );
                               const anexosUrls = (extrairTimestamp(r.observacao || undefined, 'anexos_urls') || '')
                                 .split(',')
                                 .map((s) => s.trim())
@@ -1600,7 +1626,9 @@ export function Requisicoes() {
 
                               const numeroPedido = r.id.replace(/-/g, '').slice(-6).toUpperCase();
                               // Fase atual derivada dos itens
-                              const FASES_LBL = ['Separando', 'Separado', 'Finalizado', 'Recebido'];
+                              const FASES_LBL = entregaSolicitadaCard
+                                ? ['Separando', 'Separado', 'A caminho', 'Recebido']
+                                : ['Separando', 'Separado', 'Finalizado', 'Recebido'];
                               const faseAtual = itensRaw.reduce<number>((max, i) => {
                                 const f = Number(i.fase_rastreio ?? 0);
                                 return Number.isFinite(f) && f > max ? f : max;

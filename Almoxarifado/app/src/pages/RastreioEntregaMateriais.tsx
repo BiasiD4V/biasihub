@@ -46,6 +46,7 @@ interface PedidoEntrega {
   responsavelSeparacao: string;
   motorista: string;
   recebedor: string;
+  entregaSolicitada: boolean;
   confirmandoBaixa: boolean;
   detalhesAbertos: boolean;
   anexosGerais: AnexoGeral[];
@@ -53,7 +54,8 @@ interface PedidoEntrega {
 }
 
 const STORAGE_BUCKET = 'requisicoes';
-const FASES = ['Separando', 'Separado', 'Finalizado', 'Recebido'] as const;
+const FASES_SEM_ENTREGA = ['Separando', 'Separado', 'Finalizado', 'Recebido'] as const;
+const FASES_COM_ENTREGA = ['Separando', 'Separado', 'A caminho', 'Recebido'] as const;
 const FASE_INDICES: FaseRastreio[] = [0, 1, 2, 3];
 
 function normalizeDisplayText(value: string | null | undefined): string {
@@ -82,6 +84,18 @@ function parseObsMeta(observacao: string | null): Record<string, string> {
       if (key) meta[key] = value;
     });
   return meta;
+}
+
+function metaSim(value: string | undefined): boolean {
+  return ['sim', 's', 'true', '1', 'yes'].includes(String(value || '').trim().toLowerCase());
+}
+
+function fasesDoPedido(pedido: Pick<PedidoEntrega, 'entregaSolicitada'>) {
+  return pedido.entregaSolicitada ? FASES_COM_ENTREGA : FASES_SEM_ENTREGA;
+}
+
+function nomeFase(pedido: Pick<PedidoEntrega, 'entregaSolicitada'>, fase: FaseRastreio) {
+  return fasesDoPedido(pedido)[fase];
 }
 
 function faseFallback(status: StatusRequisicao): FaseRastreio {
@@ -263,6 +277,7 @@ function mapRowToPedido(row: RequisicaoComJoin & { telefone?: string | null; sol
     responsavelSeparacao: normalizeDisplayText(meta.responsavel || '-'),
     motorista: normalizeDisplayText(meta.motorista || '-'),
     recebedor: normalizeDisplayText(meta.recebedor || '-'),
+    entregaSolicitada: metaSim(meta.entrega || meta.entrega_solicitada),
     confirmandoBaixa: false,
     detalhesAbertos: false,
     anexosGerais: parseAnexosGerais(meta),
@@ -410,7 +425,7 @@ export function RastreioEntregaMateriais() {
   function avancarFase(pedido: PedidoEntrega) {
     if (pedido.fase >= 3) return;
     if (!todasFotosDaFase(pedido, pedido.fase)) {
-      showToast(`Faltam fotos da fase "${FASES[pedido.fase]}". Tire uma foto para cada item antes de avançar.`);
+      showToast(`Faltam fotos da fase "${nomeFase(pedido, pedido.fase)}". Tire uma foto para cada item antes de avançar.`);
       return;
     }
     const next = (pedido.fase + 1) as FaseRastreio;
@@ -448,7 +463,7 @@ export function RastreioEntregaMateriais() {
 
   async function registrarFotoFase(pedido: PedidoEntrega, itemId: string, fase: FaseRastreio, file: File) {
     setSavingId(pedido.id);
-    showToast(`Enviando foto da fase ${FASES[fase]}...`);
+    showToast(`Enviando foto da fase ${nomeFase(pedido, fase)}...`);
     try {
       let ref = await uploadFotoFase(file, pedido.id, itemId, fase);
       if (!ref) {
@@ -472,7 +487,7 @@ export function RastreioEntregaMateriais() {
       const { error } = await supabase.from('requisicoes_almoxarifado').update({ itens: itensPayload }).eq('id', pedido.id);
       if (error) throw error;
 
-      showToast(`Foto da fase "${FASES[fase]}" registrada.`);
+      showToast(`Foto da fase "${nomeFase(pedido, fase)}" registrada.`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Não foi possível registrar a foto.';
       showToast(msg);
@@ -561,7 +576,7 @@ export function RastreioEntregaMateriais() {
         <div className="rt-topo">
           <div>
             <h1>Rastreio de entrega de materiais</h1>
-            <p>Tire uma foto em cada uma das 4 fases: Separando → Separado → Finalizado → Recebido.</p>
+            <p>Tire uma foto em cada uma das 4 fases. Com entrega: Separando → Separado → A caminho → Recebido.</p>
           </div>
           <button type="button" className="rt-refresh" onClick={() => void carregarPedidos()}>
             <RefreshCw size={15} /> Atualizar
@@ -571,7 +586,7 @@ export function RastreioEntregaMateriais() {
         <div className="rt-resumo">
           <div className="rt-resumo-card"><span>Separando</span><strong>{resumo.separando}</strong></div>
           <div className="rt-resumo-card"><span>Separado</span><strong>{resumo.separado}</strong></div>
-          <div className="rt-resumo-card"><span>Finalizado</span><strong>{resumo.aCaminho}</strong></div>
+          <div className="rt-resumo-card"><span>Finalizado / A caminho</span><strong>{resumo.aCaminho}</strong></div>
           <div className="rt-resumo-card"><span>Recebido</span><strong>{resumo.entregue}</strong></div>
         </div>
 
@@ -586,6 +601,7 @@ export function RastreioEntregaMateriais() {
         ) : (
           <div className="rt-lista">
             {pedidos.map((pedido) => {
+              const fasesPedido = fasesDoPedido(pedido);
               const filaIndex = filaIndexById.get(pedido.id);
               const naFrente = pedido.fase === 3 ? 0 : filaIndex ?? 0;
               const posicao = pedido.fase === 3 ? 'Concluído' : naFrente + 1;
@@ -606,11 +622,11 @@ export function RastreioEntregaMateriais() {
                       <div className="rt-meta">
                         Tipo: {pedido.tipo} | Solicitante: {pedido.solicitante} | Cargo: {pedido.cargo} | Tel: {pedido.telefone}
                         <br />
-                        Data: {pedido.data} | Prazo: {pedido.prazo} | Anexos: {pedido.anexos}
+                        Data: {pedido.data} | Prazo: {pedido.prazo} | Entrega: {pedido.entregaSolicitada ? 'Sim' : 'Não'} | Anexos: {pedido.anexos}
                       </div>
                     </div>
 
-                    <div className={`rt-badge-fase ${faseBadgeClass(pedido.fase)}`}>{FASES[pedido.fase].toUpperCase()}</div>
+                    <div className={`rt-badge-fase ${faseBadgeClass(pedido.fase)}`}>{nomeFase(pedido, pedido.fase).toUpperCase()}</div>
                   </div>
 
                   <div className="rt-fila">
@@ -621,7 +637,7 @@ export function RastreioEntregaMateriais() {
                   </div>
 
                   <div className="rt-tracker">
-                    {FASES.map((faseNome, faseIndex) => {
+                    {fasesPedido.map((faseNome, faseIndex) => {
                       let classe = '';
                       if (faseIndex < pedido.fase) classe = 'completed';
                       if (faseIndex === pedido.fase) classe = 'active';
@@ -709,10 +725,10 @@ export function RastreioEntregaMateriais() {
                               const cls = isDone ? 'done' : isActive ? 'active' : '';
                               return (
                                 <div key={`${item.id}-f${faseIdx}`} className={`rt-fotos-card ${cls}`}>
-                                  <h4>Fase {faseIdx + 1}: {FASES[faseIdx]}</h4>
+                                  <h4>Fase {faseIdx + 1}: {nomeFase(pedido, faseIdx)}</h4>
                                   {url ? (
                                     <div style={{ width:'100%', height:120, borderRadius:8, overflow:'hidden', background:'#06183f' }}>
-                                      <img src={url} alt={FASES[faseIdx]} style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+                                      <img src={url} alt={nomeFase(pedido, faseIdx)} style={{ width:'100%', height:'100%', objectFit:'cover' }} />
                                     </div>
                                   ) : (
                                     <div style={{ width:'100%', height:120, borderRadius:8, border:'1px dashed rgba(120,160,255,0.3)', display:'flex', alignItems:'center', justifyContent:'center', color:'#8aa3e2', fontSize:12 }}>
@@ -759,7 +775,7 @@ export function RastreioEntregaMateriais() {
                       onClick={() => avancarFase(pedido)}
                       disabled={savingId === pedido.id || pedido.fase >= 3 || !faseCompleta}
                       type="button"
-                      title={!faseCompleta ? `Tire a foto de "${FASES[pedido.fase]}" de todos os itens antes de avançar` : undefined}
+                      title={!faseCompleta ? `Tire a foto de "${nomeFase(pedido, pedido.fase)}" de todos os itens antes de avançar` : undefined}
                     >
                       Avançar fase
                     </button>

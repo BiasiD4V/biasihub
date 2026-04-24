@@ -451,6 +451,7 @@ export function RequisicaoPublica() {
     return local.toISOString().slice(0, 16);
   }, [dataSolicitacao]);
   const [prioridade, setPrioridade] = useState<'normal' | 'urgente' | 'baixo'>('normal');
+  const [entregaSolicitada, setEntregaSolicitada] = useState(false);
   const [observacao, setObservacao] = useState('');
   const [justificativaUrgencia, setJustificativaUrgencia] = useState('');
 
@@ -665,6 +666,7 @@ export function RequisicaoPublica() {
         `cargo:${cargo}`,
         prazo ? `prazo:${prazo}` : '',
         `prioridade:${prioridade}`,
+        `entrega:${entregaSolicitada ? 'sim' : 'nao'}`,
         observacao ? `obs:${observacao}` : '',
         anexosUrls.length ? `anexos_urls:${anexosUrls.join(',')}` : '',
       ].filter(Boolean).join(' | ');
@@ -748,6 +750,7 @@ export function RequisicaoPublica() {
                 setCargo('');
                 setPrazo('');
                 setPrioridade('normal');
+                setEntregaSolicitada(false);
                 setAnexos([]);
                 setAudioUrl('');
                 setPosicaoFila(null);
@@ -899,6 +902,22 @@ export function RequisicaoPublica() {
                   }}
                 />
               </div>
+            </div>
+
+            <div className="mt-4 flex flex-col gap-2.5">
+              <label className={styles.label}>Entrega na obra?</label>
+              <select
+                className={styles.input}
+                value={entregaSolicitada ? 'sim' : 'nao'}
+                onChange={(e) => setEntregaSolicitada(e.target.value === 'sim')}
+                style={selectFieldStyle}
+              >
+                <option value="nao" style={selectOptionStyle}>Não, apenas separar/retirar</option>
+                <option value="sim" style={selectOptionStyle}>Sim, precisa entregar na obra</option>
+              </select>
+              <p className="m-0 text-[#89a2e2] text-[0.85rem]">
+                Se marcar sim, o rastreio mostra a fase "A caminho" antes de receber.
+              </p>
             </div>
           </section>
 

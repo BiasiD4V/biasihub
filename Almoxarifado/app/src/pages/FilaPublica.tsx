@@ -105,7 +105,7 @@ function extrairMeta(observacao: string | null) {
       if (idx > 0) {
         const chave = parte.slice(0, idx).trim();
         const valor = parte.slice(idx + 1).trim();
-        if (['prazo', 'prioridade', 'obs', 'cargo'].includes(chave)) {
+        if (['prazo', 'prioridade', 'obs', 'cargo', 'entrega'].includes(chave)) {
           meta[chave] = valor;
           return;
         }
@@ -117,8 +117,14 @@ function extrairMeta(observacao: string | null) {
     cargo: meta.cargo,
     prazo: formatPrazo(meta.prazo),
     prioridade: meta.prioridade,
+    entregaSolicitada: ['sim', 's', 'true', '1', 'yes'].includes(String(meta.entrega || '').trim().toLowerCase()),
     observacao: meta.obs || textos.join(' | '),
   };
+}
+
+function labelEtapa(status: StatusPublico, entregaSolicitada: boolean) {
+  if (status === 'finalizado' && entregaSolicitada) return 'A caminho';
+  return STATUS_LABEL[status].label;
 }
 
 function useIdentidadePublica(params: URLSearchParams) {
@@ -298,7 +304,7 @@ export function FilaPublica() {
                     <p className="text-[#8fa6da] text-xs mt-1">{formatData(p.criado_em)}</p>
                   </div>
                   <span className={`shrink-0 rounded-full border px-3 py-1 text-[0.72rem] font-black uppercase tracking-wide ${st.bg} ${st.border} ${st.color}`}>
-                    {st.label}
+                    {labelEtapa(statusPublico, meta.entregaSolicitada)}
                   </span>
                 </div>
 
@@ -321,7 +327,7 @@ export function FilaPublica() {
                         <div key={etapa} className="flex-1">
                           <div className={`h-2 rounded-full ${ativa ? 'bg-[#5c9bff]' : 'bg-white/10'}`} />
                           <p className={`mt-1 text-[0.6rem] text-center font-bold ${ativa ? 'text-[#cfe0ff]' : 'text-[#607399]'}`}>
-                            {STATUS_LABEL[etapa].label}
+                            {labelEtapa(etapa, meta.entregaSolicitada)}
                           </p>
                         </div>
                       );
@@ -357,6 +363,9 @@ export function FilaPublica() {
                       Cargo: {meta.cargo}
                     </span>
                   )}
+                  <span className="rounded-full bg-white/[0.05] border border-white/10 px-3 py-1">
+                    Entrega: {meta.entregaSolicitada ? 'Sim' : 'Não'}
+                  </span>
                 </div>
 
                 {meta.observacao && (
