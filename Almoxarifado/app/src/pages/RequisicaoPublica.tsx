@@ -93,9 +93,9 @@ function datetimeLocalNow(): string {
 
 const styles = {
   page: 'min-h-screen w-full bg-gradient-to-b from-[#071b49] to-[#0b2260] text-[#f4f7ff] font-[Inter,Segoe_UI,Arial,sans-serif]',
-  container: 'w-full max-w-[800px] mx-auto px-4 pt-6 pb-10',
+  container: 'w-full max-w-[800px] mx-auto px-3 sm:px-4 pt-5 sm:pt-6 pb-10',
   card: 'rounded-[28px] border border-[rgba(113,154,255,0.28)] bg-[linear-gradient(180deg,rgba(24,55,120,0.92),rgba(20,48,111,0.95))] shadow-[0_22px_45px_rgba(0,0,0,0.28)]',
-  section: 'rounded-[28px] border border-[rgba(113,154,255,0.28)] bg-[linear-gradient(180deg,rgba(24,55,120,0.92),rgba(20,48,111,0.95))] shadow-[0_22px_45px_rgba(0,0,0,0.28)] p-6 mb-5',
+  section: 'rounded-[24px] sm:rounded-[28px] border border-[rgba(113,154,255,0.28)] bg-[linear-gradient(180deg,rgba(24,55,120,0.92),rgba(20,48,111,0.95))] shadow-[0_22px_45px_rgba(0,0,0,0.28)] p-4 sm:p-6 mb-5',
   input: 'w-full rounded-[18px] border border-[#3560b8] bg-[rgba(10,30,77,0.32)] text-[#f4f7ff] px-4 py-4 outline-none placeholder:text-[#b8c5eb] min-h-[54px] focus:border-[#5c89ff] transition-colors',
   inputCompact: 'w-full rounded-[14px] border border-[#3560b8] bg-[rgba(10,30,77,0.32)] text-[#f4f7ff] px-3 py-3 outline-none placeholder:text-[#b8c5eb] min-h-[48px] focus:border-[#5c89ff] transition-colors',
   label: 'font-extrabold uppercase text-[0.9rem] text-[#f4f7ff] tracking-wide',
@@ -259,9 +259,9 @@ function ItemRow({
 
   const mostrarUnidade = categoria === 'insumos';
   const isFrota = categoria === 'frota';
-  const gridCols = mostrarUnidade
-    ? 'minmax(0,2.2fr) 120px 180px 52px'
-    : 'minmax(0,2.2fr) 120px 52px';
+  const gridClass = mostrarUnidade
+    ? 'grid gap-3 items-start grid-cols-1 sm:grid-cols-[minmax(0,2.2fr)_120px_180px_52px]'
+    : 'grid gap-3 items-start grid-cols-1 sm:grid-cols-[minmax(0,2.2fr)_120px_52px]';
 
   return (
     <div className="p-3.5 rounded-[18px] border border-[rgba(113,154,255,0.28)] bg-[rgba(8,24,64,0.24)]">
@@ -278,7 +278,7 @@ function ItemRow({
           onClose={() => setCamOpen(false)}
         />
       )}
-      <div className="grid gap-3 items-start" style={{ gridTemplateColumns: gridCols }}>
+      <div className={gridClass}>
         <div>
           <Autocomplete
             items={autoItems}
