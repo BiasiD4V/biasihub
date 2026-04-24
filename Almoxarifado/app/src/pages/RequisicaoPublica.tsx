@@ -1,0 +1,1053 @@
+﻿import { useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { supabase } from '../infrastructure/supabase/client';
+import { Camera, CheckCircle2, Mic, Package, Paperclip, Plus, StopCircle, Truck, Wrench, X } from 'lucide-react';
+
+/* ======================================================================
+   TIPOS / CONSTANTES
+   ====================================================================== */
+
+type CategoriaType = 'insumos' | 'ferramentas' | 'frota';
+
+type InsumoOpt = {
+  id: string;
+  codigo: string;
+  descricao: string;
+  unidade: string | null;
+  grupo: string | null;
+};
+
+type FerramentaOpt = {
+  id: string;
+  codigo: string;
+  descricao: string;
+  unidade: string | null;
+  marca: string | null;
+  categoria: string | null;
+  estoque_atual: number | null;
+};
+
+type VeiculoOpt = {
+  id: string;
+  placa: string | null;
+  modelo: string;
+  marca: string | null;
+};
+
+type ItemLinha = {
+  uid: string;
+  itemId: string | null;
+  codigo: string | null;
+  descricao: string;
+  quantidade: string;
+  unidade: string;
+  observacao: string;
+  fotos: File[];
+  fotosUrls: string[];
+  marca?: string | null;
+  categoria?: string | null;
+  grupo?: string | null;
+  placa?: string | null;
+  modelo?: string | null;
+};
+
+const STORAGE_BUCKET = 'requisicoes';
+
+const OBRAS_PADRAO: string[] = [];
+
+const UNIDADES = ['un', 'pç', 'cx', 'm', 'm²', 'm³', 'kg', 'L', 'mL', 'rolo', 'par', 'saco', 'barra', 'jogo'];
+const IDENT_KEY = 'biasi_public_ident_v1';
+
+/* ======================================================================
+   UTIL
+   ====================================================================== */
+
+function uid() {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function normalizeDisplayText(value: string | null | undefined): string {
+  const raw = (value ?? '').trim();
+  if (!raw) return '';
+  const hasMojibake = /(?:[\u00C2\u00C3][\u0080-\u00BF]|\uFFFD)/.test(raw);
+  if (!hasMojibake) return raw;
+  const bytes = Uint8Array.from(raw, (ch) => ch.charCodeAt(0) & 0xff);
+  const decoded = new TextDecoder('utf-8', { fatal: false }).decode(bytes).trim();
+  if (decoded && !decoded.includes('\uFFFD')) return decoded;
+  return raw.replace(/\uFFFD/g, '').trim();
+}
+
+function datetimeLocalNow(): string {
+  const now = new Date();
+  now.setSeconds(0, 0);
+  const offset = now.getTimezoneOffset();
+  const local = new Date(now.getTime() - offset * 60_000);
+  return local.toISOString().slice(0, 16);
+}
+
+/* ======================================================================
+   ESTILOS
+   ====================================================================== */
+
+const styles = {
+  page: 'min-h-screen w-full bg-gradient-to-b from-[#071b49] to-[#0b2260] text-[#f4f7ff] font-[Inter,Segoe_UI,Arial,sans-serif]',
+  container: 'w-full max-w-[800px] mx-auto px-4 pt-6 pb-10',
+  card: 'rounded-[28px] border border-[rgba(113,154,255,0.28)] bg-[linear-gradient(180deg,rgba(24,55,120,0.92),rgba(20,48,111,0.95))] shadow-[0_22px_45px_rgba(0,0,0,0.28)]',
+  section: 'rounded-[28px] border border-[rgba(113,154,255,0.28)] bg-[linear-gradient(180deg,rgba(24,55,120,0.92),rgba(20,48,111,0.95))] shadow-[0_22px_45px_rgba(0,0,0,0.28)] p-6 mb-5',
+  input: 'w-full rounded-[18px] border border-[#3560b8] bg-[rgba(10,30,77,0.32)] text-[#f4f7ff] px-4 py-4 outline-none placeholder:text-[#b8c5eb] min-h-[54px] focus:border-[#5c89ff] transition-colors',
+  inputCompact: 'w-full rounded-[14px] border border-[#3560b8] bg-[rgba(10,30,77,0.32)] text-[#f4f7ff] px-3 py-3 outline-none placeholder:text-[#b8c5eb] min-h-[48px] focus:border-[#5c89ff] transition-colors',
+  label: 'font-extrabold uppercase text-[0.9rem] text-[#f4f7ff] tracking-wide',
+  btn: 'inline-flex items-center justify-center gap-2 font-extrabold py-3 px-5 rounded-[18px] border border-[rgba(113,154,255,0.28)] bg-white/[0.03] text-[#f4f7ff] cursor-pointer transition-all hover:-translate-y-[1px] hover:bg-white/[0.06]',
+  btnPrimary: 'inline-flex items-center justify-center gap-2 font-extrabold py-3 px-5 rounded-[18px] border-transparent bg-[linear-gradient(180deg,#4b7bf0,#3d6fe0)] text-white shadow-[0_10px_24px_rgba(52,104,223,0.35)] cursor-pointer transition-all hover:-translate-y-[1px]',
+  btnSmall: 'inline-flex items-center justify-center gap-2 font-extrabold py-2.5 px-4 rounded-[14px] border border-[rgba(113,154,255,0.28)] bg-white/[0.03] text-[#f4f7ff] text-[0.9rem] cursor-pointer transition-all hover:bg-white/[0.06]',
+  btnDanger: 'inline-flex items-center justify-center gap-2 font-extrabold py-2.5 px-4 rounded-[14px] border border-[rgba(255,107,107,0.4)] bg-[rgba(255,107,107,0.08)] text-[#ff9797] text-[0.9rem] cursor-pointer transition-all hover:bg-[rgba(255,107,107,0.15)]',
+  h4: 'text-[#4f80f5] font-extrabold uppercase tracking-[0.1em] text-[1.15rem] m-0 mb-5 pb-3 border-b border-white/50',
+  pill: 'inline-flex items-center px-3.5 py-2 rounded-full bg-[rgba(10,30,77,0.45)] font-extrabold text-[0.9rem] uppercase',
+};
+
+const selectOptionStyle = { color: '#f4f7ff', backgroundColor: '#102a67' };
+const selectFieldStyle = { colorScheme: 'dark' } as const;
+
+/* ======================================================================
+   AUTOCOMPLETE GENÉRICO
+   ====================================================================== */
+
+type AutocompleteItem = { id: string; titulo: string; sub?: string };
+
+function Autocomplete<T extends AutocompleteItem>({
+  items,
+  placeholder,
+  loading,
+  valueId,
+  onSelect,
+}: {
+  items: T[];
+  placeholder: string;
+  loading: boolean;
+  valueId: string | null;
+  onSelect: (item: T | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!valueId) { setQuery(''); return; }
+    const sel = items.find((i) => i.id === valueId);
+    if (sel) setQuery(sel.titulo);
+  }, [valueId, items]);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  const filtered = useMemo(() => {
+    const q = query.toLowerCase().trim();
+    if (!q) return items.slice(0, 15);
+    return items
+      .filter((i) => i.titulo.toLowerCase().includes(q) || (i.sub || '').toLowerCase().includes(q))
+      .slice(0, 15);
+  }, [query, items]);
+
+  return (
+    <div ref={wrapRef} className="relative">
+      <input
+        type="text"
+        className={styles.inputCompact}
+        placeholder={loading ? 'Carregando...' : placeholder}
+        value={query}
+        onChange={(e) => { setQuery(e.target.value); setOpen(true); if (valueId) onSelect(null); }}
+        onFocus={() => setOpen(true)}
+      />
+      {open && !loading && (
+        <div className="absolute left-0 right-0 top-full mt-1 z-50 rounded-[14px] overflow-hidden border border-[rgba(113,154,255,0.45)] bg-[#0d2258] shadow-xl">
+          <ul className="max-h-64 overflow-y-auto">
+            {filtered.length === 0 ? (
+              <li className="px-3 py-3 text-[0.85rem] text-[#b8c5eb]">Nenhum resultado</li>
+            ) : (
+              filtered.map((it) => (
+                <li
+                  key={it.id}
+                  className="px-3 py-2.5 text-[0.9rem] text-[#f4f7ff] hover:bg-white/10 cursor-pointer border-b border-white/5 last:border-b-0"
+                  onMouseDown={() => { onSelect(it); setQuery(it.titulo); setOpen(false); }}
+                >
+                  <p className="font-bold leading-tight">{it.titulo}</p>
+                  {it.sub && <p className="text-[0.78rem] text-[#b8c5eb] mt-0.5">{it.sub}</p>}
+                </li>
+              ))
+            )}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ======================================================================
+   LINHA DE ITEM
+   ====================================================================== */
+
+function ItemRow({
+  linha,
+  categoria,
+  insumos,
+  ferramentas,
+  veiculos,
+  loading,
+  onChange,
+  onRemove,
+}: {
+  linha: ItemLinha;
+  categoria: CategoriaType;
+  insumos: InsumoOpt[];
+  ferramentas: FerramentaOpt[];
+  veiculos: VeiculoOpt[];
+  loading: boolean;
+  onChange: (patch: Partial<ItemLinha>) => void;
+  onRemove: () => void;
+}) {
+  const [deleteArmed, setDeleteArmed] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [cameraError, setCameraError] = useState('');
+
+  const autoItems = useMemo<AutocompleteItem[]>(() => {
+    if (categoria === 'insumos') {
+      return insumos.map((i) => ({
+        id: i.id,
+        titulo: `${i.codigo} - ${normalizeDisplayText(i.descricao)}`,
+        sub: `${i.unidade || 'un'}${i.grupo ? ` • ${i.grupo}` : ''}`,
+      }));
+    }
+    if (categoria === 'ferramentas') {
+      return ferramentas.map((f) => ({
+        id: f.id,
+        titulo: `${f.codigo} - ${normalizeDisplayText(f.descricao)}`,
+        sub: `${f.marca || ''}${f.marca ? ' • ' : ''}${f.unidade || 'un'}${f.estoque_atual != null ? ` • estoque ${f.estoque_atual}` : ''}`,
+      }));
+    }
+    return veiculos.map((v) => ({
+      id: v.id,
+      titulo: `${v.placa ? v.placa + ' - ' : ''}${v.modelo}`,
+      sub: v.marca || '',
+    }));
+  }, [categoria, insumos, ferramentas, veiculos]);
+
+  function handleSelect(item: AutocompleteItem | null) {
+    if (!item) { onChange({ itemId: null, codigo: null, descricao: '', unidade: linha.unidade }); return; }
+    if (categoria === 'insumos') {
+      const raw = insumos.find((i) => i.id === item.id);
+      if (!raw) return;
+      onChange({ itemId: raw.id, codigo: raw.codigo, descricao: normalizeDisplayText(raw.descricao), unidade: raw.unidade || linha.unidade || 'un', grupo: raw.grupo });
+    } else if (categoria === 'ferramentas') {
+      const raw = ferramentas.find((f) => f.id === item.id);
+      if (!raw) return;
+      onChange({ itemId: raw.id, codigo: raw.codigo, descricao: normalizeDisplayText(raw.descricao), unidade: raw.unidade || linha.unidade || 'un', marca: raw.marca, categoria: raw.categoria });
+    } else {
+      const raw = veiculos.find((v) => v.id === item.id);
+      if (!raw) return;
+      onChange({ itemId: raw.id, codigo: raw.placa, descricao: `${raw.placa ? raw.placa + ' - ' : ''}${raw.modelo}`, unidade: 'uso', placa: raw.placa, modelo: raw.modelo, marca: raw.marca });
+    }
+  }
+
+  function stopCameraStream() {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+  }
+
+  function closeCamera() {
+    stopCameraStream();
+    setCameraOpen(false);
+  }
+
+  async function openCamera() {
+    setCameraError('');
+    if (!navigator.mediaDevices?.getUserMedia) {
+      fileInputRef.current?.click();
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' } },
+        audio: false,
+      });
+      streamRef.current = stream;
+      setCameraOpen(true);
+      requestAnimationFrame(() => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          void videoRef.current.play();
+        }
+      });
+    } catch {
+      fileInputRef.current?.click();
+    }
+  }
+
+  function capturePhoto() {
+    const video = videoRef.current;
+    if (!video || video.videoWidth === 0 || video.videoHeight === 0) {
+      setCameraError('Não foi possível capturar a foto.');
+      return;
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      setCameraError('Não foi possível processar a imagem.');
+      return;
+    }
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        setCameraError('Não foi possível gerar a imagem.');
+        return;
+      }
+      const photoFile = new File([blob], `foto-item-${Date.now()}.jpg`, { type: 'image/jpeg' });
+      onChange({
+        fotos: [...(linha.fotos || []), photoFile],
+        fotosUrls: [...(linha.fotosUrls || []), URL.createObjectURL(photoFile)],
+      });
+      closeCamera();
+    }, 'image/jpeg', 0.92);
+  }
+
+  useEffect(() => {
+    return () => stopCameraStream();
+  }, []);
+
+  return (
+    <div className="p-3.5 rounded-[18px] border border-[rgba(113,154,255,0.28)] bg-[rgba(8,24,64,0.24)]">
+      <div className="grid gap-3 items-start" style={{ gridTemplateColumns: 'minmax(0,2.2fr) 120px 180px 52px' }}>
+        <div>
+          <Autocomplete
+            items={autoItems}
+            placeholder={
+              categoria === 'insumos'
+                ? 'Buscar insumo por código ou descrição...'
+                : categoria === 'ferramentas'
+                ? 'Buscar ferramenta por código, descrição ou marca...'
+                : 'Buscar veículo por placa ou modelo...'
+            }
+            loading={loading}
+            valueId={linha.itemId}
+            onSelect={handleSelect}
+          />
+        </div>
+        <input
+          type="number"
+          min="1"
+          step="any"
+          className={styles.inputCompact}
+          placeholder="Qtd"
+          value={linha.quantidade}
+          onChange={(e) => onChange({ quantidade: e.target.value })}
+        />
+        <div>
+          <select className={styles.inputCompact} value={linha.unidade} onChange={(e) => onChange({ unidade: e.target.value })} style={selectFieldStyle}>
+            {UNIDADES.map((u) => <option key={u} value={u} style={selectOptionStyle}>{u}</option>)}
+            {linha.unidade && !UNIDADES.includes(linha.unidade) && (
+              <option value={linha.unidade} style={selectOptionStyle}>{linha.unidade}</option>
+            )}
+          </select>
+        </div>
+        <button
+          type="button"
+          onClick={() => { if (deleteArmed) onRemove(); else { setDeleteArmed(true); setTimeout(() => setDeleteArmed(false), 2500); } }}
+          className={`w-[52px] h-[52px] rounded-[14px] border cursor-pointer font-extrabold text-xl transition ${deleteArmed ? 'border-[rgba(255,107,107,0.6)] bg-[rgba(255,107,107,0.12)] text-[#ff6b6b]' : 'border-[rgba(113,154,255,0.28)] bg-white/[0.03] text-[#f4f7ff]'}`}
+          title={deleteArmed ? 'Clique de novo para confirmar' : 'Remover item'}
+        >
+          <X size={18} className="mx-auto" />
+        </button>
+      </div>
+      <div className="mt-3">
+        <input
+          type="text"
+          className={styles.inputCompact}
+          placeholder="Observação do item (opcional)"
+          value={linha.observacao}
+          onChange={(e) => onChange({ observacao: e.target.value })}
+        />
+      </div>
+      <div className="mt-2 flex items-start gap-3 flex-wrap">
+        <button type="button" className={styles.btnSmall + ' text-[0.8rem] py-1.5'} onClick={openCamera}>
+          <Camera size={13} />
+          {linha.fotosUrls.length > 0 ? `Adicionar foto (${linha.fotosUrls.length})` : 'Foto do item'}
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          multiple
+          className="hidden"
+          onChange={(e) => {
+            const files = Array.from(e.target.files || []);
+            if (files.length === 0) return;
+            onChange({
+              fotos: [...(linha.fotos || []), ...files],
+              fotosUrls: [...(linha.fotosUrls || []), ...files.map((f) => URL.createObjectURL(f))],
+            });
+            e.target.value = '';
+          }}
+        />
+        {linha.fotosUrls.length > 0 && (
+          <div className="flex items-center gap-2 flex-wrap">
+            {linha.fotosUrls.map((url, idx) => (
+              <div key={idx} className="relative">
+                <img src={url} alt={`foto-${idx}`} className="w-12 h-12 object-cover rounded-[10px] border border-[rgba(113,154,255,0.4)]" />
+                <button
+                  type="button"
+                  onClick={() =>
+                    onChange({
+                      fotos: linha.fotos.filter((_, i) => i !== idx),
+                      fotosUrls: linha.fotosUrls.filter((_, i) => i !== idx),
+                    })
+                  }
+                  className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-[#ff6b6b] text-white text-[0.7rem] grid place-items-center border border-white/30 leading-none"
+                  title="Remover foto"
+                >
+                  <X size={10} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      {cameraOpen && (
+        <div className="fixed inset-0 z-[120] bg-black/75 flex items-center justify-center p-4">
+          <div className="w-full max-w-[520px] rounded-[20px] border border-[rgba(113,154,255,0.4)] bg-[linear-gradient(180deg,rgba(24,55,120,0.98),rgba(20,48,111,0.98))] p-4">
+            <p className="text-sm font-bold text-white mb-3">Câmera do item</p>
+            <video ref={videoRef} autoPlay playsInline muted className="w-full rounded-[14px] bg-black max-h-[60vh] object-cover" />
+            {cameraError && <p className="text-[0.8rem] text-[#ffb4b4] mt-2">{cameraError}</p>}
+            <div className="mt-3 flex flex-wrap gap-2 justify-end">
+              <button type="button" onClick={closeCamera} className={styles.btnSmall + ' text-[0.82rem]'}>Cancelar</button>
+              <button type="button" onClick={capturePhoto} className={styles.btnPrimary + ' text-[0.82rem]'}>Capturar foto</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ======================================================================
+   TIPO-CARD
+   ====================================================================== */
+
+function TipoCard({ active, onClick, pill, icon, titulo, descricao }: {
+  active: boolean;
+  onClick: () => void;
+  pill: string;
+  icon: JSX.Element;
+  titulo: string;
+  descricao: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`text-left relative p-7 min-h-[210px] rounded-[24px] cursor-pointer transition-all border ${
+        active
+          ? 'border-[rgba(92,137,255,0.65)] bg-[linear-gradient(180deg,rgba(25,57,130,0.98),rgba(20,47,110,0.92))] shadow-[0_0_0_2px_rgba(92,137,255,0.35)]'
+          : 'border-[rgba(113,154,255,0.28)] bg-[linear-gradient(180deg,rgba(18,45,109,0.94),rgba(20,47,110,0.84))] hover:-translate-y-[2px] hover:border-[#3560b8]'
+      }`}
+    >
+      <div className={styles.pill + ' mb-5 text-white'}>{pill}</div>
+      <div className="w-[62px] h-[62px] rounded-2xl grid place-items-center border border-[#3560b8] bg-[rgba(12,29,77,0.35)] mb-4 text-[1.9rem]">
+        {icon}
+      </div>
+      <h3 className="m-0 mb-2 text-[1.2rem] font-extrabold text-white">{titulo}</h3>
+      <p className="m-0 text-white/90 leading-[1.5]">{descricao}</p>
+    </button>
+  );
+}
+
+/* ======================================================================
+   PÁGINA PRINCIPAL
+   ====================================================================== */
+
+export function RequisicaoPublica() {
+  const [params] = useSearchParams();
+  const obraParam = params.get('obra') || '';
+  const telParam = params.get('tel') || '';
+  const nomeParam = params.get('nome') || '';
+
+  const [categoria, setCategoria] = useState<CategoriaType>('insumos');
+
+  /* dados da solicitação */
+  const [obras, setObras] = useState<string[]>(OBRAS_PADRAO);
+  const [obra, setObra] = useState(obraParam);
+  const [obraOutro, setObraOutro] = useState('');
+  const [nome, setNome] = useState(nomeParam);
+  const [telefone, setTelefone] = useState(telParam);
+  const [prazo, setPrazo] = useState('');
+  const [prazoMinimo] = useState(datetimeLocalNow);
+  const [prioridade, setPrioridade] = useState<'normal' | 'urgente' | 'baixo'>('normal');
+  const [observacao, setObservacao] = useState('');
+  const [justificativaUrgencia, setJustificativaUrgencia] = useState('');
+
+  /* itens */
+  const [itens, setItens] = useState<ItemLinha[]>([
+    { uid: uid(), itemId: null, codigo: null, descricao: '', quantidade: '1', unidade: 'un', observacao: '', fotos: [], fotosUrls: [] },
+  ]);
+
+  /* catálogos */
+  const [insumos, setInsumos] = useState<InsumoOpt[]>([]);
+  const [ferramentas, setFerramentas] = useState<FerramentaOpt[]>([]);
+  const [veiculos, setVeiculos] = useState<VeiculoOpt[]>([]);
+  const [loadingCatalogos, setLoadingCatalogos] = useState(false);
+
+  /* anexos */
+  const [anexos, setAnexos] = useState<File[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  /* áudio */
+  const [gravando, setGravando] = useState(false);
+  const [audioUrl, setAudioUrl] = useState('');
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+
+  /* envio */
+  const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState('');
+  const [sucesso, setSucesso] = useState(false);
+  const [linkFila, setLinkFila] = useState('');
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(IDENT_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as { nome?: string; tel?: string };
+      if (!nomeParam && parsed?.nome && !nome) setNome(parsed.nome);
+      if (!telParam && parsed?.tel && !telefone) setTelefone(parsed.tel.replace(/\D/g, '').slice(0, 11));
+    } catch {
+      // ignore parse errors
+    }
+  }, []);
+
+  /* ---------- Carrega catálogos ---------- */
+  useEffect(() => {
+    async function carregar() {
+      setLoadingCatalogos(true);
+      try {
+        const [obrasRes, insumosRes, ferrRes, veicRes] = await Promise.all([
+          supabase.from('obras').select('nome').order('nome'),
+          supabase.from('itens_almoxarifado').select('id,codigo,descricao,unidade,grupo').eq('ativo', true).eq('tipo', 'material').order('descricao').limit(5000),
+          supabase.from('itens_almoxarifado').select('id,codigo,descricao,unidade,marca,categoria,estoque_atual').eq('ativo', true).eq('tipo', 'ferramenta').order('descricao'),
+          supabase.from('veiculos').select('id,placa,modelo,marca').eq('ativo', true).order('modelo'),
+        ]);
+        if (obrasRes.data && obrasRes.data.length > 0) setObras(obrasRes.data.map((o: { nome: string }) => o.nome));
+        setInsumos((insumosRes.data || []) as InsumoOpt[]);
+        setFerramentas((ferrRes.data || []) as FerramentaOpt[]);
+        setVeiculos((veicRes.data || []) as VeiculoOpt[]);
+      } catch (err) {
+        console.error('[RequisicaoPublica] erro ao carregar catálogos:', err);
+      } finally {
+        setLoadingCatalogos(false);
+      }
+    }
+    void carregar();
+  }, []);
+
+  /* ---------- Troca de categoria reseta itens ---------- */
+  function handleSetCategoria(c: CategoriaType) {
+    if (c === categoria) return;
+    setCategoria(c);
+    const unidadeDefault = c === 'frota' ? 'uso' : 'un';
+    setItens([{ uid: uid(), itemId: null, codigo: null, descricao: '', quantidade: '1', unidade: unidadeDefault, observacao: '', fotos: [], fotosUrls: [] }]);
+  }
+
+  function addLinha() {
+    setItens((prev) => [...prev, { uid: uid(), itemId: null, codigo: null, descricao: '', quantidade: '1', unidade: categoria === 'frota' ? 'uso' : 'un', observacao: '', fotos: [], fotosUrls: [] }]);
+  }
+
+  function updateLinha(u: string, patch: Partial<ItemLinha>) {
+    setItens((prev) => prev.map((l) => (l.uid === u ? { ...l, ...patch } : l)));
+  }
+
+  function removeLinha(u: string) {
+    setItens((prev) => (prev.length > 1 ? prev.filter((l) => l.uid !== u) : prev));
+  }
+
+  function handleFiles(files: FileList | null) {
+    if (!files) return;
+    setAnexos((prev) => [...prev, ...Array.from(files)]);
+  }
+
+  function removeAnexo(i: number) {
+    setAnexos((prev) => prev.filter((_, idx) => idx !== i));
+  }
+
+  async function iniciarGravacao() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioChunksRef.current = [];
+      const mr = new MediaRecorder(stream);
+      mr.ondataavailable = (e) => audioChunksRef.current.push(e.data);
+      mr.onstop = () => {
+        const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        setAudioUrl(URL.createObjectURL(blob));
+        setAnexos((prev) => [...prev, new File([blob], `audio-${Date.now()}.webm`, { type: 'audio/webm' })]);
+        stream.getTracks().forEach((t) => t.stop());
+      };
+      mediaRecorderRef.current = mr;
+      mr.start();
+      setGravando(true);
+    } catch { setErro('Não foi possível acessar o microfone.'); }
+  }
+
+  function pararGravacao() { mediaRecorderRef.current?.stop(); setGravando(false); }
+
+  /* ---------- Enviar ---------- */
+  async function enviar(e?: React.FormEvent) {
+    e?.preventDefault();
+    setErro('');
+
+    const obraFinal = obra === 'Outro' ? obraOutro.trim() : obra;
+    if (!obraFinal) return setErro('Selecione a obra.');
+    if (!nome.trim()) return setErro('Informe seu nome.');
+    if (!telefone.trim()) return setErro('Informe seu WhatsApp.');
+
+    const itensValidos = itens.filter((l) => l.itemId && l.descricao.trim() && Number(l.quantidade) > 0);
+    if (itensValidos.length === 0) {
+      return setErro(
+        categoria === 'insumos'
+          ? 'Selecione ao menos um item do estoque com quantidade válida.'
+          : categoria === 'ferramentas'
+          ? 'Selecione ao menos uma ferramenta do cadastro com quantidade válida.'
+          : 'Selecione ao menos um veículo da frota.'
+      );
+    }
+    if (prioridade === 'urgente' && !justificativaUrgencia.trim()) return setErro('Justifique a urgência.');
+
+    const itensSemFoto = itensValidos.filter((l) => (l.fotos?.length ?? 0) === 0);
+    if (itensSemFoto.length > 0) return setErro('Foto do item é obrigatória em todos os itens da requisição.');
+
+    if (prazo && new Date(prazo).getTime() < Date.now() - 60_000) {
+      return setErro('Prazo desejado não pode ser no passado.');
+    }
+
+    setSalvando(true);
+    try {
+      const tipoJson = categoria === 'insumos' ? 'material' : categoria === 'ferramentas' ? 'ferramenta' : 'carro';
+      const tel = telefone.replace(/\D/g, '');
+
+      // ---------- Upload de fotos por item e anexos gerais para o Storage ----------
+      async function tryUpload(file: File, prefix: string): Promise<string | null> {
+        try {
+          const safeName = file.name.replace(/[^\w.\-]+/g, '_');
+          const path = `public/${tel || 'anon'}/${Date.now()}_${prefix}_${safeName}`;
+          const { error: upErr } = await supabase.storage
+            .from(STORAGE_BUCKET)
+            .upload(path, file, { upsert: false, contentType: file.type || undefined });
+          if (upErr) {
+            console.warn('[RequisicaoPublica] upload falhou', upErr);
+            return null;
+          }
+          const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
+          return data.publicUrl || null;
+        } catch (err) {
+          console.warn('[RequisicaoPublica] upload exception', err);
+          return null;
+        }
+      }
+
+      const itensPayload = await Promise.all(
+        itensValidos.map(async (l, idx) => {
+          const urls = (
+            await Promise.all((l.fotos || []).map((f, i) => tryUpload(f, `item${idx}_${i}`)))
+          ).filter((u): u is string => !!u);
+          return {
+            tipo: tipoJson,
+            item_id: l.itemId,
+            codigo: l.codigo,
+            descricao: l.descricao,
+            nome: l.descricao,
+            quantidade: Number(l.quantidade),
+            unidade: l.unidade,
+            observacao: l.observacao || null,
+            marca: l.marca ?? null,
+            categoria_ferramenta: l.categoria ?? null,
+            grupo: l.grupo ?? null,
+            placa: l.placa ?? null,
+            modelo: l.modelo ?? null,
+            urgente: prioridade === 'urgente' ? 'sim' : 'não',
+            justificativa_urgencia: prioridade === 'urgente' ? justificativaUrgencia : '',
+            choice_estoque: 'ok',
+            foto_material: urls[0] || null,
+            fotos_urls: urls,
+            fase_rastreio: 0,
+          };
+        })
+      );
+
+      // Upload dos anexos gerais (documentos, áudios, fotos/vídeos gerais)
+      const anexosUrls = (
+        await Promise.all(anexos.map((f, i) => tryUpload(f, `anexo${i}`)))
+      ).filter((u): u is string => !!u);
+
+      const obsFinal = [
+        prazo ? `prazo:${prazo}` : '',
+        `prioridade:${prioridade}`,
+        observacao ? `obs:${observacao}` : '',
+        anexosUrls.length ? `anexos_urls:${anexosUrls.join(',')}` : '',
+      ].filter(Boolean).join(' | ');
+      localStorage.setItem(IDENT_KEY, JSON.stringify({ nome: nome.trim(), tel }));
+      const { error } = await supabase.from('requisicoes_almoxarifado').insert({
+        solicitante_id: null,
+        solicitante_nome: nome.trim(),
+        telefone: tel,
+        obra: obraFinal,
+        observacao: obsFinal,
+        itens: itensPayload,
+      });
+
+      if (error) throw error;
+
+      const base = window.location.origin;
+      setLinkFila(`${base}/fila?tel=${tel}&nome=${encodeURIComponent(nome.trim())}`);
+      setSucesso(true);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setErro(msg);
+    } finally {
+      setSalvando(false);
+    }
+  }
+
+  /* ======================================================================
+     SUCESSO
+     ====================================================================== */
+
+  if (sucesso) {
+    return (
+      <div className={styles.page}>
+        <Link
+          to="/obra"
+          className="fixed top-4 left-4 z-[130] inline-flex items-center gap-2 rounded-xl border border-[rgba(113,154,255,0.35)] bg-[rgba(8,24,64,0.8)] px-3 py-2 text-xs font-bold text-white/95 hover:bg-[rgba(8,24,64,0.95)] transition"
+        >
+          ← Voltar ao início
+        </Link>
+        <div className="min-h-screen flex items-center justify-center p-4">
+          <div className="rounded-[28px] border border-[rgba(113,154,255,0.28)] bg-[linear-gradient(180deg,rgba(24,55,120,0.92),rgba(20,48,111,0.95))] shadow-[0_22px_45px_rgba(0,0,0,0.28)] p-10 max-w-md w-full text-center">
+            <div className="text-5xl mb-4">✅</div>
+            <h2 className="text-2xl font-extrabold text-white mb-2">Requisição enviada!</h2>
+            <p className="text-[#b8c5eb] mb-8">O almoxarifado recebeu seu pedido e entrará em contato.</p>
+            <a
+              href={linkFila}
+              className="block bg-[linear-gradient(180deg,#4b7bf0,#3d6fe0)] hover:opacity-90 text-white font-extrabold py-4 px-6 rounded-[18px] transition mb-4 shadow-[0_10px_24px_rgba(52,104,223,0.35)]"
+            >
+              Ver minha fila de pedidos
+            </a>
+            <button
+              onClick={() => {
+                setSucesso(false);
+                setItens([{ uid: uid(), itemId: null, codigo: null, descricao: '', quantidade: '1', unidade: 'un', observacao: '', fotos: [], fotosUrls: [] }]);
+                setObservacao('');
+                setJustificativaUrgencia('');
+                setPrazo('');
+                setPrioridade('normal');
+                setAnexos([]);
+              }}
+              className="text-[#b8c5eb] hover:text-white text-sm transition"
+            >
+              Fazer outra requisição
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  /* ======================================================================
+     RENDER
+     ====================================================================== */
+
+  return (
+    <div className={styles.page}>
+      <div className={styles.container}>
+        <div className="mb-4">
+          <Link
+            to="/obra"
+            className="inline-flex items-center gap-2 rounded-xl border border-[rgba(113,154,255,0.35)] bg-[rgba(8,24,64,0.45)] px-3 py-2 text-xs font-bold text-white/95 hover:bg-[rgba(8,24,64,0.65)] transition"
+          >
+            ← Voltar ao início
+          </Link>
+        </div>
+        {/* Hero */}
+        <section className={styles.card + ' p-8 mb-6'}>
+          <span className="inline-flex items-center gap-2 px-3.5 py-2 rounded-full border border-[#3560b8] bg-[rgba(7,22,64,0.28)] font-extrabold tracking-[0.08em] text-[0.9rem] mb-4 uppercase">
+            <Package size={14} />
+            Almoxarifado · Biasi Engenharia
+          </span>
+          <h2 className="m-0 mb-3 text-[2.6rem] leading-[1.05] tracking-[-0.03em]">Ficha de Requisição</h2>
+          <p className="m-0 opacity-90 text-base leading-[1.45]">
+            Solicite materiais, ferramentas ou veículos da frota. Escolha a categoria abaixo, preencha os campos e envie.
+          </p>
+        </section>
+
+        {/* Tipo de Requisição */}
+        <div className="font-extrabold uppercase tracking-[0.08em] text-[1.15rem] mt-5 mb-4">Tipo de Requisição</div>
+        <section className="grid gap-3.5 mb-5 grid-cols-1 sm:grid-cols-3">
+          <TipoCard
+            active={categoria === 'insumos'}
+            onClick={() => handleSetCategoria('insumos')}
+            pill="Itens"
+            icon={<Package size={32} strokeWidth={2.2} />}
+            titulo="Item de Estoque"
+            descricao="Solicite itens cadastrados no estoque do almoxarifado."
+          />
+          <TipoCard
+            active={categoria === 'ferramentas'}
+            onClick={() => handleSetCategoria('ferramentas')}
+            pill="Ferramentas"
+            icon={<Wrench size={32} strokeWidth={2.2} />}
+            titulo="Ferramenta / Equipamento"
+            descricao="Retirada ou reserva de ferramentas e equipamentos."
+          />
+          <TipoCard
+            active={categoria === 'frota'}
+            onClick={() => handleSetCategoria('frota')}
+            pill="Uso de Frota"
+            icon={<Truck size={32} strokeWidth={2.2} />}
+            titulo="Carro / Frota"
+            descricao="Solicite veículo da frota para operações em obra."
+          />
+        </section>
+
+        <form onSubmit={enviar}>
+          {/* Dados da Solicitação */}
+          <section className={styles.section}>
+            <h4 className={styles.h4}>Dados da Solicitação</h4>
+
+            <div className="flex flex-col gap-2.5 mb-4">
+              <label className={styles.label}>Obra *</label>
+              <select className={styles.input} value={obra} onChange={(e) => setObra(e.target.value)} style={selectFieldStyle} required>
+                <option value="" style={selectOptionStyle}>Selecione a obra</option>
+                {obras.map((o) => <option key={o} value={o} style={selectOptionStyle}>{o}</option>)}
+                <option value="Outro" style={selectOptionStyle}>Outro</option>
+              </select>
+              {obra === 'Outro' && (
+                <input
+                  type="text"
+                  className={styles.input}
+                  placeholder="Digite o nome da obra"
+                  value={obraOutro}
+                  onChange={(e) => setObraOutro(e.target.value)}
+                />
+              )}
+            </div>
+
+            <div className="grid gap-4 grid-cols-1 md:grid-cols-2 mb-4">
+              <div className="flex flex-col gap-2.5">
+                <label className={styles.label}>Seu nome *</label>
+                <input
+                  type="text"
+                  className={styles.input}
+                  placeholder="Nome completo"
+                  value={nome}
+                  onChange={(e) => setNome(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="flex flex-col gap-2.5">
+                <label className={styles.label}>WhatsApp *</label>
+                <input
+                  type="tel"
+                  className={styles.input}
+                  placeholder="(11) 99999-9999"
+                  value={telefone}
+                  onChange={(e) => setTelefone(e.target.value)}
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2.5">
+              <label className={styles.label}>Prazo Desejado</label>
+              <input
+                type="datetime-local"
+                step="60"
+                className={styles.input}
+                value={prazo}
+                min={prazoMinimo}
+                onChange={(e) => setPrazo(e.target.value)}
+              />
+            </div>
+          </section>
+
+          {/* Detalhes da Requisição */}
+          <section className={styles.section}>
+            <h4 className={styles.h4}>Detalhes da Requisição</h4>
+
+            <div className="flex flex-col gap-3 mb-4">
+              <label className={styles.label}>
+                Itens da Requisição
+                <span className="ml-2 normal-case font-semibold text-[#89a2e2] text-[0.8rem]">
+                  ({categoria === 'insumos'
+                    ? `${insumos.length} itens cadastrados`
+                    : categoria === 'ferramentas'
+                    ? `${ferramentas.length} ferramentas cadastradas`
+                    : `${veiculos.length} veículos ativos`})
+                </span>
+              </label>
+
+              <div className="flex flex-col gap-3">
+                {itens.map((linha) => (
+                  <ItemRow
+                    key={linha.uid}
+                    linha={linha}
+                    categoria={categoria}
+                    insumos={insumos}
+                    ferramentas={ferramentas}
+                    veiculos={veiculos}
+                    loading={loadingCatalogos}
+                    onChange={(patch) => updateLinha(linha.uid, patch)}
+                    onRemove={() => removeLinha(linha.uid)}
+                  />
+                ))}
+              </div>
+
+              <div className="flex gap-2.5 mt-3">
+                <button type="button" className={styles.btnSmall} onClick={addLinha}>
+                  <Plus size={15} />
+                  Adicionar item
+                </button>
+              </div>
+
+              <div className="text-[#b8c5eb] text-[0.9rem] leading-[1.5] mt-2">
+                Cada linha é buscada diretamente do cadastro de{' '}
+                <strong className="text-white">
+                  {categoria === 'insumos' ? 'Insumos' : categoria === 'ferramentas' ? 'Ferramentas' : 'Frota'}
+                </strong>.
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2.5 mb-4">
+              <label className={styles.label}>Prioridade</label>
+              <select className={styles.input} value={prioridade} onChange={(e) => setPrioridade(e.target.value as 'normal' | 'urgente' | 'baixo')} style={selectFieldStyle}>
+                <option value="normal" style={selectOptionStyle}>Prioridade Normal</option>
+                <option value="urgente" style={selectOptionStyle}>Alta Prioridade (Urgente)</option>
+                <option value="baixo" style={selectOptionStyle}>Baixa Prioridade</option>
+              </select>
+            </div>
+
+            {prioridade === 'urgente' && (
+              <div className="flex flex-col gap-2.5 mb-4">
+                <label className={styles.label}>Justificativa da Urgência *</label>
+                <textarea
+                  className={styles.input + ' min-h-[100px] resize-y'}
+                  placeholder="Explique por que é urgente"
+                  value={justificativaUrgencia}
+                  onChange={(e) => setJustificativaUrgencia(e.target.value)}
+                />
+              </div>
+            )}
+
+            <div className="flex flex-col gap-2.5">
+              <label className={styles.label}>Observação</label>
+              <textarea
+                className={styles.input + ' min-h-[100px] resize-y'}
+                placeholder="Observação (opcional)"
+                value={observacao}
+                onChange={(e) => setObservacao(e.target.value)}
+              />
+            </div>
+          </section>
+
+          {/* Anexos */}
+          <section className={styles.section}>
+            <h4 className={styles.h4}>Anexos e Registros</h4>
+            <div className="flex gap-2.5 flex-wrap mb-3.5">
+              <label className={styles.btnSmall + ' cursor-pointer'}>
+                <Paperclip size={15} />
+                Anexar arquivos
+                <input ref={fileInputRef} type="file" className="hidden" multiple accept="image/*,video/*,audio/*,application/pdf" onChange={(e) => handleFiles(e.target.files)} />
+              </label>
+              {!gravando ? (
+                <button type="button" className={styles.btnSmall} onClick={iniciarGravacao}><Mic size={15} />Gravar áudio</button>
+              ) : (
+                <button type="button" onClick={pararGravacao} className="inline-flex items-center gap-2 font-extrabold py-2.5 px-4 rounded-[14px] border border-[rgba(255,107,107,0.5)] bg-[rgba(255,107,107,0.12)] text-[#ff9797] text-[0.9rem] cursor-pointer animate-pulse">
+                  <StopCircle size={15} />Parar gravação
+                </button>
+              )}
+            </div>
+            {audioUrl && (
+              <div className="mb-3.5 flex items-center gap-3 px-4 py-3 rounded-[14px] border border-[rgba(113,154,255,0.3)] bg-[rgba(8,24,64,0.3)]">
+                <Mic size={16} className="text-[#5c9bff] shrink-0" />
+                <audio controls src={audioUrl} className="flex-1 h-8" />
+                <button type="button" onClick={() => { setAudioUrl(''); setAnexos((prev) => prev.filter((f) => !f.name.startsWith('audio-'))); }} className="text-[#ff9797] text-[0.78rem] shrink-0">remover</button>
+              </div>
+            )}
+
+            <div
+              className="rounded-[18px] border border-dashed border-[rgba(113,154,255,0.45)] bg-[rgba(8,24,64,0.24)] px-5 py-8 text-center text-[#b8c5eb]"
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => { e.preventDefault(); handleFiles(e.dataTransfer.files); }}
+            >
+              {anexos.length === 0
+                ? 'Arraste fotos, vídeos, áudios ou PDFs aqui, ou use o botão acima.'
+                : `${anexos.length} arquivo${anexos.length > 1 ? 's' : ''} selecionado${anexos.length > 1 ? 's' : ''}.`}
+            </div>
+
+            {anexos.length > 0 && (
+              <div className="grid gap-3 mt-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4">
+                {anexos.map((f, i) => (
+                  <div key={i} className="rounded-[14px] border border-[rgba(113,154,255,0.28)] bg-[rgba(8,24,64,0.32)] p-3 flex flex-col gap-2">
+                    <div className="text-[0.8rem] text-[#b8c5eb] truncate" title={f.name}>{f.name}</div>
+                    <div className="text-[0.72rem] text-[#89a2e2]">{(f.size / 1024).toFixed(1)} KB</div>
+                    <button type="button" className={styles.btnDanger + ' text-[0.8rem] py-2'} onClick={() => removeAnexo(i)}>Remover</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          {erro && (
+            <div className="px-5 py-4 rounded-[18px] bg-[rgba(255,107,107,0.12)] border border-[rgba(255,107,107,0.35)] text-[#ff9797] mb-5">
+              {erro}
+            </div>
+          )}
+
+          {sucesso && (
+            <div className="px-5 py-4 rounded-[18px] bg-[rgba(54,196,133,0.15)] border border-[rgba(54,196,133,0.4)] text-[#6be3a5] mb-5 flex items-center gap-2">
+              <CheckCircle2 size={18} />
+              Requisição enviada com sucesso! O almoxarifado foi notificado.
+            </div>
+          )}
+
+          <div className="flex justify-end mt-6">
+            <button
+              type="submit"
+              disabled={salvando}
+              className={styles.btnPrimary + ' py-4 px-8 text-[1.05rem] disabled:opacity-50'}
+            >
+              {salvando ? 'Enviando...' : 'Enviar Solicitação'}
+            </button>
+          </div>
+        </form>
+
+        <p className="text-center text-[#4f6ab5] text-xs mt-8">BiasíHub · Almoxarifado · Biasi Engenharia e Instalações</p>
+      </div>
+    </div>
+  );
+}
+
+
+
+

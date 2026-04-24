@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react';
+﻿import { useMemo, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
   ArrowLeftRight,
+  Bot,
   Calendar,
   ClipboardList,
   FileSpreadsheet,
@@ -11,13 +12,13 @@ import {
   Menu,
   MessageCircle,
   Package,
-  Sparkles,
   Truck,
   Laptop,
   X,
   BarChart3,
   Wrench,
   Users,
+  Building2,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../infrastructure/supabase/client';
@@ -32,41 +33,47 @@ const NAV_SECTIONS = [
     items: [{ to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' }],
   },
   {
-    label: 'Solicitacoes',
+    label: 'Requisições',
     items: [
-      { to: '/solicitacoes', icon: Sparkles, label: 'Solicitacoes' },
-      { to: '/requisicoes', icon: ClipboardList, label: 'Requisicoes' },
+      { to: '/requisicoes', icon: ClipboardList, label: 'Requisições' },
+      { to: '/solicitacoes/gerenciar', icon: ClipboardList, label: 'Gerenciar Solicitações' },
+      { to: '/solicitacoes/rastreio', icon: Truck, label: 'Rastreio de Entrega' },
+      { to: '/solicitacoes/historico', icon: FileSpreadsheet, label: 'Histórico por Pessoa' },
     ],
   },
   {
     label: 'Almoxarifado',
-    items: [
-      { to: '/estoque', icon: Package, label: 'Itens' },
-      { to: '/ferramentas', icon: Wrench, label: 'Ferramentas' },
-      { to: '/movimentacoes', icon: ArrowLeftRight, label: 'Movimentacoes' },
-    ],
+      items: [
+        { to: '/estoque', icon: Package, label: 'Itens' },
+        { to: '/ferramentas', icon: Wrench, label: 'Ferramentas' },
+        { to: '/movimentacoes', icon: ArrowLeftRight, label: 'Movimentações' },
+        { to: '/obras', icon: Building2, label: 'Obras' },
+      ],
   },
   {
     label: 'Frota',
     items: [
-      { to: '/frota', icon: Truck, label: 'Veiculos' },
-      { to: '/calendario', icon: Calendar, label: 'Calendario' },
+      { to: '/frota', icon: Truck, label: 'Veículos' },
+      { to: '/calendario', icon: Calendar, label: 'Calendário' },
     ],
   },
   {
-    label: 'Analise',
-    items: [{ to: '/relatorios', icon: FileSpreadsheet, label: 'Relatorios' }],
+    label: 'Análise',
+    items: [{ to: '/relatorios', icon: FileSpreadsheet, label: 'Relatórios' }],
   },
   {
     label: 'Time',
     items: [
-      { to: '/reunioes', icon: Users, label: 'Reunioes' },
+      { to: '/reunioes', icon: Users, label: 'Reuniões' },
       { to: '/membros', icon: Users, label: 'Membros' },
     ],
   },
   {
     label: 'Sistema',
-    items: [{ to: '/meus-dispositivos', icon: Laptop, label: 'Meus dispositivos' }],
+    items: [
+      { to: '/agentes', icon: Bot, label: 'Agentes' },
+      { to: '/meus-dispositivos', icon: Laptop, label: 'Meus dispositivos' },
+    ],
   },
 ];
 
@@ -74,6 +81,22 @@ const IS_ELECTRON = navigator.userAgent.includes('Electron');
 const HUB_URL = IS_ELECTRON
   ? (import.meta.env.DEV ? 'http://localhost:5176/' : 'app://hub.local/')
   : 'https://biasihub-portal.vercel.app/';
+const HUB_REDIRECT_TIMEOUT_MS = 5000;
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs = HUB_REDIRECT_TIMEOUT_MS): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('timeout')), timeoutMs);
+    promise
+      .then((value) => {
+        clearTimeout(timer);
+        resolve(value);
+      })
+      .catch((err) => {
+        clearTimeout(timer);
+        reject(err);
+      });
+  });
+}
 
 export function Sidebar({ onAbrirChat }: SidebarProps) {
   const { usuario, logout } = useAuth();
@@ -85,7 +108,7 @@ export function Sidebar({ onAbrirChat }: SidebarProps) {
     return usuario.nome
       .split(' ')
       .slice(0, 2)
-      .map((n) => n[0])
+      .map((n: string) => n[0])
       .join('')
       .toUpperCase();
   }, [usuario?.nome]);
@@ -99,7 +122,7 @@ export function Sidebar({ onAbrirChat }: SidebarProps) {
     try {
       const {
         data: { session },
-      } = await supabase.auth.getSession();
+      } = await withTimeout(supabase.auth.getSession());
 
       if (session?.access_token && session?.refresh_token) {
         const hash = [
@@ -115,11 +138,11 @@ export function Sidebar({ onAbrirChat }: SidebarProps) {
       // fallback abaixo
     }
 
-    // fallback: sessão "lembrar de mim" salva refresh token em localStorage
+    // fallback: sessao "lembrar de mim" salva refresh token em localStorage
     try {
       const refreshToken = localStorage.getItem('remember_me_refresh_token');
       if (refreshToken) {
-        const { data, error } = await supabase.auth.refreshSession({ refresh_token: refreshToken });
+        const { data, error } = await withTimeout(supabase.auth.refreshSession({ refresh_token: refreshToken }));
         const refreshed = data.session;
         if (!error && refreshed?.access_token && refreshed.refresh_token) {
           const hash = [
@@ -220,7 +243,7 @@ export function Sidebar({ onAbrirChat }: SidebarProps) {
             <span className="text-white text-xs font-black tracking-tighter">{iniciais}</span>
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-white text-[11px] font-black uppercase tracking-widest truncate">{usuario?.nome?.split(' ')[0] ?? 'Usuario'}</p>
+            <p className="text-white text-[11px] font-black uppercase tracking-widest truncate">{usuario?.nome?.split(' ')[0] ?? 'Usuário'}</p>
             <p className="text-[#FFC82D] text-[9px] uppercase font-black tracking-[0.3em] truncate mt-0.5">{usuario?.papel ?? ''}</p>
           </div>
         </div>
