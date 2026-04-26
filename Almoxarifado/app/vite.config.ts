@@ -6,7 +6,7 @@ import { writeFileSync } from 'fs'
 const buildVersion = Date.now().toString();
 
 export default defineConfig({
-  base: './',
+  base: '/',
   plugins: [
     react(),
     {

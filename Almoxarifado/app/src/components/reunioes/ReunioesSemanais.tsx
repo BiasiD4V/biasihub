@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+﻿import React, { useState, useEffect, useCallback } from 'react';
 import {
   Calendar, ChevronLeft, Trash, Save, Info, Plus, ChevronDown, RefreshCw
 } from 'lucide-react';
@@ -109,7 +109,7 @@ export function ReunioesSemanais({ membrosDisponiveis }: { membrosDisponiveis: s
       : '';
 
     const statusCor = (s: string) =>
-      s === 'Concluída' ? '#16a34a' : s === 'Em andamento' ? '#d97706' : '#6b7280';
+      s === 'Concluida' ? '#16a34a' : s === 'Em andamento' ? '#d97706' : '#6b7280';
 
     const blocos = Object.entries(porResponsavel)
       .map(([nome, acoes]) => `
@@ -119,7 +119,7 @@ export function ReunioesSemanais({ membrosDisponiveis }: { membrosDisponiveis: s
             ${acoes.map(a => `
               <li>
                 <span class="acao">${a.acao}</span>
-                <span class="meta">de: ${a.membro} &nbsp;·&nbsp; <span style="color:${statusCor(a.status)}">${a.status}</span></span>
+                <span class="meta">de: ${a.membro} &nbsp; - &nbsp; <span style="color:${statusCor(a.status)}">${a.status}</span></span>
               </li>
             `).join('')}
           </ul>
@@ -148,9 +148,9 @@ export function ReunioesSemanais({ membrosDisponiveis }: { membrosDisponiveis: s
 </head>
 <body>
   <h1>${selecionada.titulo}</h1>
-  <div class="sub">Data: ${dataBR}${selecionada.resumo ? ' · ' + selecionada.resumo : ''}</div>
-  ${blocos || '<p style="color:#94a3b8">Nenhuma resolução registrada.</p>'}
-  <div class="footer">Gerado pelo BiasíHub · ${new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}</div>
+  <div class="sub">Data: ${dataBR}${selecionada.resumo ? '  -  ' + selecionada.resumo : ''}</div>
+      ${blocos || '<p style="color:#94a3b8">Nenhuma resolução registrada.</p>'}
+  <div class="footer">Gerado pelo BiasiHub  -  ${new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}</div>
 </body>
 </html>`;
 
@@ -203,7 +203,7 @@ export function ReunioesSemanais({ membrosDisponiveis }: { membrosDisponiveis: s
         ) : semanas.length === 0 ? (
           <div className="premium-glass bg-white/40 border-2 border-dashed border-slate-200 rounded-[32px] p-20 text-center">
              <Calendar size={48} className="text-slate-200 mx-auto mb-4" />
-             <p className="text-slate-400 font-bold italic">Nenhuma reunião registrada ainda.</p>
+	             <p className="text-slate-400 font-bold italic">Nenhuma reunião registrada ainda.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
@@ -250,7 +250,7 @@ export function ReunioesSemanais({ membrosDisponiveis }: { membrosDisponiveis: s
               <h2 className="text-2xl font-black text-slate-800 tracking-tight">{selecionada?.titulo || 'Nova Reunião'}</h2>
               <div className="flex items-center gap-2 mt-1">
                  <span className="pill green text-[10px]">{new Date(selecionada?.data || '').toLocaleDateString('pt-BR')}</span>
-                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Editor de Resoluções</span>
+	                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Editor de Resoluções</span>
               </div>
            </div>
         </div>
@@ -266,15 +266,15 @@ export function ReunioesSemanais({ membrosDisponiveis }: { membrosDisponiveis: s
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Configurações Básicas */}
+	        {/* Configurações Básicas */}
         <div className="lg:col-span-1 space-y-6">
            <div className="premium-glass bg-white/60 p-8 rounded-[32px] border-2 border-white shadow-xl">
               <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
-                 <Info size={14} className="text-blue-500" /> Metadados da Reunião
+	                 <Info size={14} className="text-blue-500" /> Metadados da Reunião
               </h3>
               <div className="space-y-5">
                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Título</label>
+	                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Título</label>
                     <input 
                       type="text" 
                       value={selecionada?.titulo || ''} 
@@ -298,17 +298,17 @@ export function ReunioesSemanais({ membrosDisponiveis }: { membrosDisponiveis: s
                       value={selecionada?.resumo || ''} 
                       onChange={e => setSelecionada(s => s ? ({...s, resumo: e.target.value}) : null)}
                       className="w-full px-5 py-4 font-medium bg-white/50 border-2 border-slate-100 rounded-2xl focus:border-blue-400 transition-all text-sm resize-none"
-                      placeholder="Destaques principais da reunião..."
+	                      placeholder="Destaques principais da reunião..."
                     />
                  </div>
               </div>
            </div>
         </div>
 
-        {/* Cards dos Membros */}
+	        {/* Cards dos Membros */}
         <div className="lg:col-span-2 space-y-6 pb-20">
            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-xs font-black text-slate-500 uppercase tracking-[0.2em] ml-2">Cards Resolucionais do Time</h3>
+	              <h3 className="text-xs font-black text-slate-500 uppercase tracking-[0.2em] ml-2">Cards Resolutivos do Time</h3>
               <span className="text-[10px] font-bold text-slate-400 uppercase">{selecionada?.dados.length} pessoas</span>
            </div>
 
@@ -328,15 +328,15 @@ export function ReunioesSemanais({ membrosDisponiveis }: { membrosDisponiveis: s
                     </div>
                  </div>
                  <div className="flex items-center gap-3">
-                    <span className={`pill text-[9px] ${card.solutions.every(s => s.status === 'Concluída') ? 'green' : 'blue'}`}>
-                      {card.solutions.length} ações
+	                    <span className={`pill text-[9px] ${card.solutions.every(s => s.status === 'Concluída') ? 'green' : 'blue'}`}>
+	                      {card.solutions.length} ações
                     </span>
                     <ChevronDown size={18} className="text-slate-300 transition-transform group-open:rotate-180" />
                  </div>
                </summary>
                <div className="px-6 pb-8 pt-2 space-y-6">
                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-blue-600/60 uppercase tracking-widest ml-2">Dificuldade / Problema</label>
+	                    <label className="text-[10px] font-black text-blue-600/60 uppercase tracking-widest ml-2">Dificuldade / Problema</label>
                     <textarea 
                       value={card.problem}
                       onChange={e => {
@@ -345,17 +345,17 @@ export function ReunioesSemanais({ membrosDisponiveis }: { membrosDisponiveis: s
                         setSelecionada({...selecionada, dados: novados});
                       }}
                       className="w-full px-6 py-5 bg-slate-50 border-2 border-transparent rounded-[24px] focus:bg-white focus:border-blue-200 transition-all text-sm font-medium leading-relaxed"
-                      placeholder={`O que está travando o(a) ${card.name} esta semana?`}
+	                      placeholder={`O que está travando o(a) ${card.name} esta semana?`}
                     />
                  </div>
 
                  <div className="space-y-4">
-                    <label className="text-[10px] font-black text-emerald-600/60 uppercase tracking-widest ml-2">Plano de Ação</label>
+	                    <label className="text-[10px] font-black text-emerald-600/60 uppercase tracking-widest ml-2">Plano de Ação</label>
                     <div className="space-y-3">
                       {card.solutions.map((sol, solIdx) => (
                         <div key={solIdx} className="bg-slate-50/50 border border-slate-100 rounded-3xl p-5 space-y-4">
                           <div className="flex items-center justify-between">
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Resolução {solIdx + 1}</span>
+	                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Resolução {solIdx + 1}</span>
                             <button 
                               onClick={() => {
                                 const novados = [...selecionada.dados];
@@ -376,7 +376,7 @@ export function ReunioesSemanais({ membrosDisponiveis }: { membrosDisponiveis: s
                               setSelecionada({...selecionada, dados: novados});
                             }}
                             className="w-full bg-transparent border-none p-0 text-sm font-bold text-slate-700 focus:ring-0 resize-none"
-                            placeholder="Descreva a ação corretiva..."
+	                            placeholder="Descreva a ação corretiva..."
                             rows={2}
                           />
                           <div className="flex flex-col sm:flex-row gap-3 pt-3 border-t border-slate-200/50">
@@ -427,11 +427,16 @@ export function ReunioesSemanais({ membrosDisponiveis }: { membrosDisponiveis: s
                                     setSelecionada({...selecionada, dados: novados});
                                   }}
                                   className={`w-full border-none rounded-xl px-3 py-2 text-xs font-black uppercase tracking-wider ${
-                                    sol.status === 'Concluída' ? 'bg-emerald-100 text-emerald-700' : 
+                                    sol.status === 'Concluída' ? 'bg-emerald-100 text-emerald-700' :
                                     sol.status === 'Em andamento' ? 'bg-amber-100 text-amber-700' : 'bg-slate-200 text-slate-700'
                                   }`}
                                 >
-                                  {['Parado', 'Em andamento', 'Concluída'].map(st => <option key={st} value={st}>{st}</option>)}
+                                  {[
+                                    { value: 'Parado', label: 'Parado' },
+                                    { value: 'Em andamento', label: 'Em andamento' },
+                                    { value: 'Concluída', label: 'Concluída' },
+                                  ].map(st => <option key={st.value} value={st.value}>{st.label}</option>)}
+
                                 </select>
                              </div>
                           </div>
@@ -446,7 +451,7 @@ export function ReunioesSemanais({ membrosDisponiveis }: { membrosDisponiveis: s
                       }}
                       className="w-full py-4 border-2 border-dashed border-slate-200 rounded-[24px] text-[10px] font-black text-slate-400 uppercase tracking-widest hover:border-emerald-300 hover:text-emerald-500 hover:bg-emerald-50 transition-all"
                     >
-                      + Nova Resolução para {card.name}
+	                      + Nova Resolução para {card.name}
                     </button>
                  </div>
                </div>
@@ -477,3 +482,4 @@ export function ReunioesSemanais({ membrosDisponiveis }: { membrosDisponiveis: s
     </div>
   );
 }
+

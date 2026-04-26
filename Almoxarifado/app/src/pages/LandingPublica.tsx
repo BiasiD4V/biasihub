@@ -54,7 +54,7 @@ export function LandingPublica() {
     }
 
     if (telFmt.length < 10) {
-      setErroIdent('Informe um WhatsApp valido para continuar.');
+      setErroIdent('Informe um WhatsApp válido para continuar.');
       return null;
     }
 
@@ -93,7 +93,7 @@ export function LandingPublica() {
           <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mb-2">
             Almoxarifado - Biasi Engenharia
           </p>
-          <h1 className="text-3xl font-black text-white leading-tight">O que voce precisa fazer?</h1>
+          <h1 className="text-3xl font-black text-white leading-tight">O que você precisa fazer?</h1>
         </div>
 
         <div className="space-y-3 mb-8">
@@ -117,7 +117,7 @@ export function LandingPublica() {
           {erroIdent && <p className="text-amber-400 text-xs px-1">{erroIdent}</p>}
 
           <p className="text-[11px] text-slate-400 px-1">
-            Nome e WhatsApp ficam salvos neste aparelho para nao precisar digitar sempre.
+            Nome e WhatsApp ficam salvos neste aparelho para não precisar digitar sempre.
           </p>
         </div>
 
@@ -128,8 +128,8 @@ export function LandingPublica() {
           >
             <span className="text-3xl">📋</span>
             <div>
-              <p className="font-bold text-white text-base leading-tight">Fazer Requisicao</p>
-              <p className="text-indigo-300 text-xs mt-0.5">Pedir material, ferramenta ou veiculo</p>
+              <p className="font-bold text-white text-base leading-tight">Fazer Requisição</p>
+              <p className="text-indigo-300 text-xs mt-0.5">Pedir material, ferramenta ou veículo</p>
             </div>
           </button>
 
@@ -140,12 +140,12 @@ export function LandingPublica() {
             <span className="text-3xl">📦</span>
             <div>
               <p className="font-bold text-white text-base leading-tight">Ver meus pedidos</p>
-              <p className="text-slate-400 text-xs mt-0.5">Acompanhar status das requisicoes</p>
+              <p className="text-slate-400 text-xs mt-0.5">Acompanhar status das requisições</p>
             </div>
           </button>
         </div>
 
-        <p className="text-center text-slate-600 text-xs mt-10">BiasiHub - Biasi Engenharia e Instalacoes</p>
+        <p className="text-center text-slate-600 text-xs mt-10">BiasiHub - Biasi Engenharia e Instalações</p>
       </div>
     </div>
   );

@@ -1,4 +1,4 @@
-export interface Membro {
+﻿export interface Membro {
   id: string;
   nome: string;
   email: string;
@@ -79,10 +79,10 @@ export function formatTempoOnline(conectadoDesde: string | null): string {
   const diff = Date.now() - new Date(conectadoDesde).getTime();
   const min = Math.floor(diff / 60000);
   if (min < 1) return 'Online agora';
-  if (min < 60) return `Online há ${min}min`;
+  if (min < 60) return `Online ha ${min}min`;
   const h = Math.floor(min / 60);
-  if (h < 24) return `Online há ${h}h${min % 60 > 0 ? `${min % 60}min` : ''}`;
-  return `Online há ${Math.floor(h / 24)}d`;
+  if (h < 24) return `Online ha ${h}h${min % 60 > 0 ? `${min % 60}min` : ''}`;
+  return `Online ha ${Math.floor(h / 24)}d`;
 }
 
 export function formatUltimoVisto(ultimoVisto: string | null): string {
@@ -90,10 +90,11 @@ export function formatUltimoVisto(ultimoVisto: string | null): string {
   const diff = Date.now() - new Date(ultimoVisto).getTime();
   const min = Math.floor(diff / 60000);
   if (min < 1) return 'Visto agora';
-  if (min < 60) return `Visto há ${min}min`;
+  if (min < 60) return `Visto ha ${min}min`;
   const h = Math.floor(min / 60);
-  if (h < 24) return `Visto há ${h}h`;
+  if (h < 24) return `Visto ha ${h}h`;
   const d = Math.floor(h / 24);
   if (d === 1) return 'Visto ontem';
-  return `Visto há ${d}d`;
+  return `Visto ha ${d}d`;
 }
+

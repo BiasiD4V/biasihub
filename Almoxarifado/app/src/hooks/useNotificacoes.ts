@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+﻿import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../infrastructure/supabase/client';
 import { useAuth } from '../context/AuthContext';
 
@@ -79,3 +79,4 @@ export async function criarNotificacaoGestores(
 
   await supabase.from('notificacoes_almoxarifado').insert(rows);
 }
+

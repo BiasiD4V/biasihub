@@ -3,6 +3,7 @@ import { Camera, Loader2, RefreshCw } from 'lucide-react';
 import type { Requisicao, StatusRequisicao } from '../domain/entities/Requisicao';
 import { supabase } from '../infrastructure/supabase/client';
 import { CameraModal } from '../components/CameraModal';
+import { useAuth } from '../context/AuthContext';
 
 type FaseRastreio = 0 | 1 | 2 | 3;
 type JsonMap = Record<string, unknown>;
@@ -38,6 +39,7 @@ interface PedidoEntrega {
   telefone: string;
   data: string;
   prazo: string;
+  devolucao: string;
   anexos: number;
   fase: FaseRastreio;
   status: StatusRequisicao;
@@ -47,6 +49,7 @@ interface PedidoEntrega {
   motorista: string;
   recebedor: string;
   entregaSolicitada: boolean;
+  isFrota: boolean;
   confirmandoBaixa: boolean;
   detalhesAbertos: boolean;
   anexosGerais: AnexoGeral[];
@@ -191,6 +194,7 @@ function statusByPhase(currentStatus: StatusRequisicao, fase: FaseRastreio): Sta
 }
 
 function itensQueExigemFoto(pedido: PedidoEntrega): ItemRastreio[] {
+  if (pedido.isFrota) return [];
   return pedido.itens.filter((item) => item.choice === 'ok');
 }
 
@@ -246,14 +250,16 @@ async function uploadFotoFase(file: File, pedidoId: string, itemId: string, fase
 
 function mapRowToPedido(row: RequisicaoComJoin & { telefone?: string | null; solicitante_nome?: string | null }): PedidoEntrega {
   const meta = parseObsMeta(row.observacao);
-  const itens = parseItems(row.itens, row.status);
+  const status = (row.status || 'pendente') as StatusRequisicao;
+  const itens = parseItems(row.itens, status);
   const fase =
-    row.status === 'entregue'
+    status === 'entregue'
       ? 3
-      : itens.reduce<FaseRastreio>((maxFase, item) => (item.faseRastreio > maxFase ? item.faseRastreio : maxFase), faseFallback(row.status));
+      : itens.reduce<FaseRastreio>((maxFase, item) => (item.faseRastreio > maxFase ? item.faseRastreio : maxFase), faseFallback(status));
 
   const primeiroItem = itens[0];
   const tipoRaw = normalizeDisplayText(String((primeiroItem?.raw.tipo as string | undefined) || 'Material')).toLowerCase();
+  const isFrota = tipoRaw === 'carro' || itens.some((item) => Boolean(item.raw.placa || item.raw.modelo));
   const tipo = tipoRaw === 'ferramenta' ? 'Ferramenta' : tipoRaw === 'carro' ? 'Veículo' : 'Material';
   const resumoItem = itens.length <= 1 ? primeiroItem?.descricao || '-' : `${primeiroItem?.descricao || '-'} (+${itens.length - 1} itens)`;
 
@@ -269,15 +275,17 @@ function mapRowToPedido(row: RequisicaoComJoin & { telefone?: string | null; sol
     telefone: normalizeDisplayText(row.telefone || meta.telefone || '-'),
     data: formatarData(row.data_solicitacao),
     prazo: normalizeDisplayText(meta.prazo || '-'),
+    devolucao: normalizeDisplayText(meta.devolucao || '-'),
     anexos: Number(meta.anexos || 0),
     fase,
-    status: row.status,
+    status,
     criadoEm: row.criado_em,
     observacao: normalizeDisplayText(meta.obs || '-'),
     responsavelSeparacao: normalizeDisplayText(meta.responsavel || '-'),
     motorista: normalizeDisplayText(meta.motorista || '-'),
     recebedor: normalizeDisplayText(meta.recebedor || '-'),
     entregaSolicitada: metaSim(meta.entrega || meta.entrega_solicitada),
+    isFrota,
     confirmandoBaixa: false,
     detalhesAbertos: false,
     anexosGerais: parseAnexosGerais(meta),
@@ -301,6 +309,7 @@ function applyItemMeta(item: ItemRastreio, fase: FaseRastreio): JsonMap {
 }
 
 export function RastreioEntregaMateriais() {
+  const { usuario } = useAuth();
   const [pedidos, setPedidos] = useState<PedidoEntrega[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState<string | null>(null);
@@ -346,13 +355,13 @@ export function RastreioEntregaMateriais() {
       const { data, error } = await supabase
         .from('requisicoes_almoxarifado')
         .select('*, telefone, solicitante_nome, solicitante:usuarios!requisicoes_almoxarifado_solicitante_id_fkey(nome)')
-        .in('status', ['aprovada', 'pendente'])
+        .eq('status', 'aprovada')
         .order('criado_em', { ascending: true });
 
       if (error) throw error;
 
       const rows = (data || []) as (RequisicaoComJoin & { telefone?: string | null; solicitante_nome?: string | null })[];
-      setPedidos(rows.map(mapRowToPedido));
+      setPedidos(rows.map(mapRowToPedido).filter((pedido) => !pedido.isFrota));
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Não foi possível carregar o rastreio.';
       showToast(msg);
@@ -449,6 +458,7 @@ export function RastreioEntregaMateriais() {
         .eq('id', pedido.id);
 
       if (error) throw error;
+      await registrarMovimentacoesSaida(pedido);
       // Após sucesso, realtime/reload tira da lista
       setPedidos((prev) => prev.filter((item) => item.id !== pedido.id));
       showToast('Baixa final concluída.');
@@ -458,6 +468,33 @@ export function RastreioEntregaMateriais() {
       await carregarPedidos();
     } finally {
       setSavingId(null);
+    }
+  }
+
+  async function registrarMovimentacoesSaida(pedido: PedidoEntrega) {
+    if (pedido.isFrota) return;
+    if (!usuario?.id) {
+      showToast('Baixa concluída, mas usuário não identificado para registrar movimentação.');
+      return;
+    }
+
+    const rows = pedido.itens
+      .filter((item) => item.choice === 'ok' && item.raw.item_id)
+      .map((item) => ({
+        item_id: String(item.raw.item_id),
+        tipo: 'saida',
+        quantidade: Number(item.raw.quantidade ?? 0) || 1,
+        obra: pedido.obra,
+        observacao: `Saída vinculada ao rastreio da requisição ${pedido.id}`,
+        data: new Date().toISOString().slice(0, 10),
+        responsavel_id: usuario.id,
+      }));
+
+    if (rows.length === 0) return;
+    const { error } = await supabase.from('movimentacoes_almoxarifado').insert(rows);
+    if (error) {
+      console.warn('[RastreioEntregaMateriais] falha ao registrar movimentações:', error.message);
+      showToast(`Baixa concluída, mas a movimentação não foi registrada: ${error.message}`);
     }
   }
 

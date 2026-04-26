@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { FileSpreadsheet, FileText, Download, Calendar, Filter, Package, ArrowLeftRight, ClipboardList, Truck } from 'lucide-react';
 import { supabase } from '../infrastructure/supabase/client';
 import * as XLSX from 'xlsx';
@@ -143,7 +143,7 @@ export function Relatorios() {
     const ws = XLSX.utils.json_to_sheet(dados);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Relatório');
-    const relLabel = RELATORIOS.find(r => r.id === tipo)?.label || 'Relatorio';
+    const relLabel = RELATORIOS.find(r => r.id === tipo)?.label || 'Relatório';
     XLSX.writeFile(wb, `${relLabel} - ${new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')}.xlsx`);
   }
 
@@ -152,10 +152,10 @@ export function Relatorios() {
     const doc = new jsPDF({ orientation: dados[0] && Object.keys(dados[0]).length > 5 ? 'landscape' : 'portrait' });
     const relLabel = RELATORIOS.find(r => r.id === tipo)?.label || 'Relatório';
 
-    // Cabeçalho
+    // Cabeçalho.
     doc.setFontSize(16);
     doc.setTextColor(30, 41, 59);
-    doc.text(`Biasi Engenharia — ${relLabel}`, 14, 18);
+    doc.text(`Biasi Engenharia  -  ${relLabel}`, 14, 18);
     doc.setFontSize(9);
     doc.setTextColor(100, 116, 139);
     doc.text(`Gerado em ${new Date().toLocaleString('pt-BR')}`, 14, 26);
@@ -291,7 +291,7 @@ export function Relatorios() {
               <p className="text-sm font-semibold text-slate-700">{relAtual.label}</p>
               <p className="text-xs text-slate-400 mt-0.5">
                 {((window as any).__relatorioCache || preview).length} registro(s)
-                {mostraFiltroData ? ` · ${formatData(dataInicio)} a ${formatData(dataFim)}` : ''}
+                {mostraFiltroData ? `  -  ${formatData(dataInicio)} a ${formatData(dataFim)}` : ''}
               </p>
             </div>
             <div className="flex gap-2">
@@ -356,3 +356,5 @@ export function Relatorios() {
     </div>
   );
 }
+
+

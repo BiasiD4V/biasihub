@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+﻿import { useEffect, useRef, useState } from 'react';
 import {
   Plus, Truck, Wrench, MapPin, Calendar, DollarSign, X,
   ChevronDown, ChevronRight, Building2, HardHat, User,
@@ -93,20 +93,40 @@ export function Frota() {
   const isGestor = ['gestor', 'admin', 'dono'].includes(usuario?.papel ?? '');
 
   async function carregar() {
-    const { data } = await supabase.from('veiculos').select('*').eq('ativo', true).order('modelo');
-    setVeiculos(data || []);
-    setLoading(false);
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.from('veiculos').select('*').eq('ativo', true).order('modelo');
+      if (error) throw error;
+      setVeiculos(data || []);
+    } catch (err) {
+      console.error('[Frota] erro ao carregar veiculos:', err);
+      setVeiculos([]);
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function carregarDetalhes(veiculoId: string) {
-    const [{ data: m }, { data: a }, { data: ab }] = await Promise.all([
-      supabase.from('manutencoes_veiculo').select('*').eq('veiculo_id', veiculoId).order('data', { ascending: false }),
-      supabase.from('acidentes_veiculo').select('*').eq('veiculo_id', veiculoId).order('data', { ascending: false }),
-      supabase.from('abastecimentos_veiculo').select('*').eq('veiculo_id', veiculoId).order('data', { ascending: false }),
-    ]);
-    setManutencoes(prev => ({ ...prev, [veiculoId]: m || [] }));
-    setAcidentes(prev => ({ ...prev, [veiculoId]: a || [] }));
-    setAbastecimentos(prev => ({ ...prev, [veiculoId]: ab || [] }));
+    try {
+      const [{ data: m, error: mErr }, { data: a, error: aErr }, { data: ab, error: abErr }] = await Promise.all([
+        supabase.from('manutencoes_veiculo').select('*').eq('veiculo_id', veiculoId).order('data', { ascending: false }),
+        supabase.from('acidentes_veiculo').select('*').eq('veiculo_id', veiculoId).order('data', { ascending: false }),
+        supabase.from('abastecimentos_veiculo').select('*').eq('veiculo_id', veiculoId).order('data', { ascending: false }),
+      ]);
+
+      if (mErr) throw mErr;
+      if (aErr) throw aErr;
+      if (abErr) throw abErr;
+
+      setManutencoes(prev => ({ ...prev, [veiculoId]: m || [] }));
+      setAcidentes(prev => ({ ...prev, [veiculoId]: a || [] }));
+      setAbastecimentos(prev => ({ ...prev, [veiculoId]: ab || [] }));
+    } catch (err) {
+      console.error('[Frota] erro ao carregar detalhes do veiculo:', err);
+      setManutencoes(prev => ({ ...prev, [veiculoId]: [] }));
+      setAcidentes(prev => ({ ...prev, [veiculoId]: [] }));
+      setAbastecimentos(prev => ({ ...prev, [veiculoId]: [] }));
+    }
   }
 
   useEffect(() => { carregar(); }, []);
@@ -123,7 +143,7 @@ export function Frota() {
     }
   }
 
-  // ── Salvar veículo ─────────────────────────────────────────────────────────
+  // -- Salvar veiculo ---------------------------------------------------------
   async function salvarVeiculo() {
     if (!formVeiculo.placa.trim() || !formVeiculo.modelo.trim()) { setErro('Placa e modelo são obrigatórios'); return; }
     setSalvando(true); setErro('');
@@ -150,7 +170,7 @@ export function Frota() {
     setSalvando(false);
   }
 
-  // ── Salvar manutenção ──────────────────────────────────────────────────────
+  // -- Salvar manutencao ------------------------------------------------------
   async function salvarManutencao() {
     if (!formManut.tipo || !formManut.data) { setErro('Tipo e data são obrigatórios'); return; }
     setSalvando(true); setErro('');
@@ -172,7 +192,7 @@ export function Frota() {
     setFormManut({ tipo: 'Preventiva', data: new Date().toISOString().split('T')[0], data_saida: '', km: '', custo: '', oficina: '', descricao: '' });
   }
 
-  // ── Salvar acidente com fotos ──────────────────────────────────────────────
+  // -- Salvar acidente com fotos ----------------------------------------------
   async function salvarAcidente() {
     if (!formAcidente.data) { setErro('Data é obrigatória'); return; }
     setSalvando(true); setErro('');
@@ -209,7 +229,7 @@ export function Frota() {
     setFormAcidente({ data: new Date().toISOString().split('T')[0], local: '', descricao: '', custo_reparo: '', fotos: [] });
   }
 
-  // ── Salvar abastecimento ───────────────────────────────────────────────────
+  // -- Salvar abastecimento ---------------------------------------------------
   async function salvarAbastecimento() {
     if (!formAbast.data || !formAbast.litros || !formAbast.valor_total) { setErro('Data, litros e valor são obrigatórios'); return; }
     setSalvando(true); setErro('');
@@ -291,7 +311,7 @@ export function Frota() {
         </div>
       )}
 
-      {/* Lista de veículos */}
+      {/* Lista de veiculos */}
       {loading ? (
         <div className="text-center text-slate-400 text-sm py-12">Carregando...</div>
       ) : veiculos.length === 0 ? (
@@ -318,7 +338,7 @@ export function Frota() {
 
             return (
               <div key={v.id} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                {/* Linha principal do veículo */}
+                {/* Linha principal do veiculo */}
                 <div className="flex items-start gap-4 px-5 py-4">
                   <div className={`rounded-xl p-2.5 flex-shrink-0 mt-0.5 ${v.status === 'manutencao' ? 'bg-amber-100' : v.status === 'em_uso' ? 'bg-blue-100' : 'bg-green-100'}`}>
                     <Truck size={20} className={v.status === 'manutencao' ? 'text-amber-600' : v.status === 'em_uso' ? 'text-blue-600' : 'text-green-600'} />
@@ -332,7 +352,7 @@ export function Frota() {
                       {v.ano && <span className="text-xs text-slate-400">{v.ano}</span>}
                     </div>
 
-                    {/* Status + localização */}
+                    {/* Status + localizacao */}
                     <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                       <span className={`inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full ${cfg.corBg} ${cfg.cor}`}>
                         {cfg.label}
@@ -353,22 +373,22 @@ export function Frota() {
                       )}
                     </div>
 
-                    {/* Custos + ocorrências */}
+                    {/* Custos + ocorrencias */}
                     {(manutV.length > 0 || acidentesV.length > 0) && (
                       <div className="flex items-center gap-3 mt-1 flex-wrap">
                         {manutV.length > 0 && (
                           <span className="flex items-center gap-1 text-[11px] text-slate-400">
-                            <Wrench size={10} />{manutV.length} manutenção(ões) · {fmtBRL(custoManut)}
+                            <Wrench size={10} />{manutV.length} manutenção(ões)  -  {fmtBRL(custoManut)}
                           </span>
                         )}
                         {acidentesV.length > 0 && (
                           <span className="flex items-center gap-1 text-[11px] text-red-400">
-                            <AlertTriangle size={10} />{acidentesV.length} acidente(s) · {fmtBRL(custoAcid)}
+                            <AlertTriangle size={10} />{acidentesV.length} acidente(s)  -  {fmtBRL(custoAcid)}
                           </span>
                         )}
                         {abastV.length > 0 && (
                           <span className="flex items-center gap-1 text-[11px] text-blue-400">
-                            <Droplets size={10} />{abastV.length} abast. · {totalLitros.toFixed(1)}L
+                            <Droplets size={10} />{abastV.length} abast.  -  {totalLitros.toFixed(1)}L
                           </span>
                         )}
                         {custoTotal > 0 && (manutV.length > 0 || acidentesV.length > 0) && (
@@ -380,7 +400,7 @@ export function Frota() {
                     )}
                   </div>
 
-                  {/* Botões */}
+                  {/* Botoes */}
                   <div className="flex items-center gap-1.5 flex-shrink-0">
                     {isGestor && (
                       <>
@@ -416,12 +436,12 @@ export function Frota() {
                       {(['manutencao', 'acidente', 'abastecimento'] as const).map(a => (
                         <button key={a} onClick={() => setAbaExpandida(prev => ({ ...prev, [v.id]: a }))}
                           className={`px-4 py-2.5 text-xs font-medium transition-colors ${aba === a ? 'text-blue-600 border-b-2 border-blue-600' : 'text-slate-500 hover:text-slate-700'}`}>
-                          {a === 'manutencao' ? `🔧 Manutenções (${manutV.length})` : a === 'acidente' ? `⚠️ Acidentes (${acidentesV.length})` : `⛽ Abastecimentos (${abastV.length})`}
+                          {a === 'manutencao' ? `[FERR] Manutenções (${manutV.length})` : a === 'acidente' ? `! Acidentes (${acidentesV.length})` : `⛽ Abastecimentos (${abastV.length})`}
                         </button>
                       ))}
                     </div>
 
-                    {/* Tab manutenção */}
+                    {/* Tab manutencao */}
                     {aba === 'manutencao' && (
                       manutV.length === 0 ? (
                         <p className="px-5 py-4 text-sm text-slate-400">Nenhuma manutenção registrada</p>
@@ -446,12 +466,12 @@ export function Frota() {
                                     : <span className="text-amber-500">Em andamento</span>}
                                 </td>
                                 <td className="px-4 py-2.5 text-xs font-medium text-slate-700">{m.tipo}</td>
-                                <td className="px-4 py-2.5 text-xs text-slate-500 hidden md:table-cell">{m.oficina || '—'}</td>
+                                <td className="px-4 py-2.5 text-xs text-slate-500 hidden md:table-cell">{m.oficina || ' - '}</td>
                                 <td className="px-4 py-2.5 text-xs font-semibold text-slate-700 text-right">{fmtBRL(Number(m.custo))}</td>
                               </tr>
                             ))}
                             <tr className="bg-slate-50 font-semibold">
-                              <td colSpan={3} className="px-4 py-2 text-xs text-slate-600">Total manutenções</td>
+                              <td colSpan={3} className="px-4 py-2 text-xs text-slate-600">Total de manutenções</td>
                               <td className="hidden md:table-cell" />
                               <td className="px-4 py-2 text-xs text-right text-slate-800">{fmtBRL(custoManut)}</td>
                             </tr>
@@ -530,11 +550,11 @@ export function Frota() {
                                 {abastV.map(ab => (
                                   <tr key={ab.id} className="hover:bg-slate-50/50">
                                     <td className="px-4 py-2.5 text-xs text-slate-500">{new Date(ab.data).toLocaleDateString('pt-BR')}</td>
-                                    <td className="px-4 py-2.5 text-xs text-slate-500 hidden sm:table-cell">{Number(ab.km_atual) > 0 ? `${Number(ab.km_atual).toLocaleString('pt-BR')} km` : '—'}</td>
+                                    <td className="px-4 py-2.5 text-xs text-slate-500 hidden sm:table-cell">{Number(ab.km_atual) > 0 ? `${Number(ab.km_atual).toLocaleString('pt-BR')} km` : ' - '}</td>
                                     <td className="px-4 py-2.5 text-xs font-medium text-slate-700">{Number(ab.litros).toFixed(2)}L</td>
                                     <td className="px-4 py-2.5 text-xs text-slate-500 hidden md:table-cell">{fmtBRL(Number(ab.valor_total) / Number(ab.litros))}</td>
-                                    <td className="px-4 py-2.5 text-xs text-slate-500 hidden lg:table-cell">{ab.responsavel_nome || '—'}{ab.obra_atual ? ` · ${ab.obra_atual}` : ''}</td>
-                                    <td className="px-4 py-2.5 text-xs text-slate-500 hidden lg:table-cell">{ab.data_retorno ? new Date(ab.data_retorno).toLocaleDateString('pt-BR') : '—'}</td>
+                                    <td className="px-4 py-2.5 text-xs text-slate-500 hidden lg:table-cell">{ab.responsavel_nome || ' - '}{ab.obra_atual ? `  -  ${ab.obra_atual}` : ''}</td>
+                                    <td className="px-4 py-2.5 text-xs text-slate-500 hidden lg:table-cell">{ab.data_retorno ? new Date(ab.data_retorno).toLocaleDateString('pt-BR') : ' - '}</td>
                                     <td className="px-4 py-2.5 text-xs font-semibold text-slate-700 text-right">{fmtBRL(Number(ab.valor_total))}</td>
                                   </tr>
                                 ))}
@@ -558,7 +578,7 @@ export function Frota() {
         </div>
       )}
 
-      {/* ── Modal Veículo ── */}
+      {/* -- Modal Veiculo -- */}
       {modalVeiculo && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setModalVeiculo(false)}>
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
@@ -608,7 +628,7 @@ export function Frota() {
                 </div>
               </div>
 
-              {/* Localização */}
+              {/* Localizacao */}
               <div>
                 <label className="block text-xs font-medium text-slate-700 mb-1.5">Localização atual</label>
                 <div className="grid grid-cols-2 gap-2">
@@ -650,7 +670,7 @@ export function Frota() {
         </div>
       )}
 
-      {/* ── Modal Manutenção ── */}
+      {/* -- Modal Manutencao -- */}
       {modalManutencao && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setModalManutencao(null)}>
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md" onClick={e => e.stopPropagation()}>
@@ -713,7 +733,7 @@ export function Frota() {
         </div>
       )}
 
-      {/* ── Modal Acidente ── */}
+      {/* -- Modal Acidente -- */}
       {modalAcidente && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setModalAcidente(null)}>
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
@@ -792,7 +812,7 @@ export function Frota() {
         </div>
       )}
 
-      {/* ── Modal Abastecimento ── */}
+      {/* -- Modal Abastecimento -- */}
       {modalAbastecimento && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setModalAbastecimento(null)}>
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
@@ -835,7 +855,7 @@ export function Frota() {
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-700 mb-1.5">Obra atual</label>
-                  <input value={formAbast.obra_atual} onChange={e => setFormAbast(f => ({ ...f, obra_atual: e.target.value }))} placeholder="Onde está o veículo"
+                  <input value={formAbast.obra_atual} onChange={e => setFormAbast(f => ({ ...f, obra_atual: e.target.value }))} placeholder="Onde está o veiculo"
                     className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>
               </div>
@@ -862,7 +882,7 @@ export function Frota() {
         </div>
       )}
 
-      {/* ── Foto ampliada ── */}
+      {/* -- Foto ampliada -- */}
       {fotoAmpliada && (
         <div className="fixed inset-0 bg-black/90 z-[60] flex items-center justify-center p-4" onClick={() => setFotoAmpliada(null)}>
           <button className="absolute top-4 right-4 text-white p-2 hover:bg-white/10 rounded-lg"><X size={24} /></button>
@@ -872,3 +892,4 @@ export function Frota() {
     </div>
   );
 }
+

@@ -1,4 +1,4 @@
-export interface IPInfo {
+﻿export interface IPInfo {
   ip: string;
   country?: string;
   city?: string;
@@ -50,7 +50,7 @@ async function fetchIPFromService(): Promise<string> {
     }
   }
 
-  throw new Error('Nenhum serviço de IP disponível');
+  throw new Error('Nenhum servico de IP disponivel');
 }
 
 function generateDeviceFingerprint(): string {
@@ -79,3 +79,4 @@ export function generateSessionToken(): string {
     .join('')
     .substring(0, 64);
 }
+

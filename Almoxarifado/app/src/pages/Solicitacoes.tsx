@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import { Package, Wrench, MessageSquare, ChevronRight, Clock, CheckCircle, Loader2, History, X, Sparkles, Check, Trash2, Ban } from 'lucide-react';
 import { supabase } from '../infrastructure/supabase/client';
 import { useAuth } from '../context/AuthContext';
 
-// ── Definição do fluxo dinâmico ──────────────────────────────────────────────
+// -- Definição do fluxo dinâmico ----------------------------------------------
 
 type Categoria = 'materiais' | 'ferramentas' | 'outro';
 type Prioridade = 'baixa' | 'normal' | 'alta' | 'urgente';
@@ -17,7 +17,7 @@ interface Subcategoria {
 const CATEGORIAS: { id: Categoria; label: string; icone: typeof Package; descricao: string }[] = [
   {
     id: 'materiais',
-    label: 'Matérias / Materiais',
+    label: 'Materiais',
     icone: Package,
     descricao: 'Separação, frete, busca em obra',
   },
@@ -52,7 +52,7 @@ const SUBCATEGORIAS: Record<Categoria, Subcategoria[]> = {
   ],
 };
 
-// ── Tipos Supabase ────────────────────────────────────────────────────────────
+// -- Tipos Supabase ------------------------------------------------------------
 
 interface SolicitacaoRow {
   id: string;
@@ -82,7 +82,7 @@ const PRIORIDADE_CONFIG: Record<Prioridade, { label: string; cor: string }> = {
   urgente: { label: 'Urgente', cor: 'text-red-600'   },
 };
 
-// ── Componente principal ──────────────────────────────────────────────────────
+// -- Componente principal ------------------------------------------------------
 
 export function Solicitacoes() {
   const { usuario } = useAuth();
@@ -93,13 +93,12 @@ export function Solicitacoes() {
   const [categoria, setCategoria] = useState<Categoria | null>(null);
   const [subcategoria, setSubcategoria] = useState<string | null>(null);
 
-  // Resultado da IA
+  // Resultado do envio
   const [resultado, setResultado] = useState<{
     prioridade: Prioridade;
     disponivel_amanha: boolean;
     prazo_sugerido: string;
     mensagem: string;
-    processado_por_ia: boolean;
   } | null>(null);
 
   // Histórico
@@ -109,73 +108,70 @@ export function Solicitacoes() {
 
   const isGestor = usuario?.papel === 'gestor' || usuario?.papel === 'admin' || usuario?.papel === 'dono';
 
-  // ── Carrega histórico ──────────────────────────────────────────────────────
+  // -- Carrega histórico ------------------------------------------------------
 
   async function carregarHistorico() {
     setLoadingHistorico(true);
-    const query = supabase
-      .from('solicitacoes_almoxarifado')
-      .select('*, solicitante:usuarios!solicitacoes_almoxarifado_solicitante_id_fkey(nome)')
-      .order('criado_em', { ascending: false })
-      .limit(50);
+    try {
+      const query = supabase
+        .from('solicitacoes_almoxarifado')
+        .select('*, solicitante:usuarios!solicitacoes_almoxarifado_solicitante_id_fkey(nome)')
+        .order('criado_em', { ascending: false })
+        .limit(50);
 
-    // Gestor vê tudo; outros só veem as próprias
-    if (!isGestor) {
-      query.eq('solicitante_id', usuario!.id);
+      // Gestor vê tudo; outros só veem as próprias
+      if (!isGestor) {
+        query.eq('solicitante_id', usuario!.id);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      setHistorico((data || []) as unknown as SolicitacaoRow[]);
+    } catch (err) {
+      console.error('[Solicitações] erro ao carregar histórico:', err);
+      setHistorico([]);
+    } finally {
+      setLoadingHistorico(false);
     }
-
-    const { data } = await query;
-    setHistorico((data || []) as unknown as SolicitacaoRow[]);
-    setLoadingHistorico(false);
   }
 
   useEffect(() => {
     if (usuario) carregarHistorico();
   }, [usuario]);
 
-  // ── Envio da solicitação ───────────────────────────────────────────────────
+  // -- Envio da solicitação ---------------------------------------------------
 
   async function enviar() {
     if (!texto.trim() || !categoria) return;
     setEtapa('processando');
 
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData.session?.access_token;
-
-      const res = await fetch('/api/solicitar', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ texto: texto.trim(), categoria, subcategoria }),
-      });
-
-      const analise = await res.json();
-
-      // Salvar no banco
       await supabase.from('solicitacoes_almoxarifado').insert({
         solicitante_id: usuario!.id,
         texto: texto.trim(),
         categoria,
         subcategoria,
-        prioridade: analise.prioridade || 'normal',
-        prazo_sugerido: analise.prazo_sugerido || null,
-        mensagem_ia: analise.mensagem || null,
+        prioridade: 'normal',
+        prazo_sugerido: null,
+        mensagem_ia: null,
         status: 'pendente',
       });
 
-      setResultado(analise);
+      setResultado({
+        prioridade: 'normal',
+        disponivel_amanha: true,
+        prazo_sugerido: 'A definir',
+        mensagem: 'Sua solicitação foi registrada com sucesso e será analisada pela equipe do almoxarifado.',
+      });
       setEtapa('resultado');
-      carregarHistorico();
+      void carregarHistorico();
     } catch (err) {
       console.error('Erro ao enviar solicitação:', err);
       setEtapa('form');
     }
   }
 
-  function novasolicitacao() {
+  function novaSolicitacao() {
     setTexto('');
     setCategoria(null);
     setSubcategoria(null);
@@ -199,7 +195,7 @@ export function Solicitacoes() {
     carregarHistorico();
   }
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  // -- Render -----------------------------------------------------------------
 
   const subcatsAtivas = categoria ? SUBCATEGORIAS[categoria] : [];
 
@@ -212,7 +208,7 @@ export function Solicitacoes() {
           Solicitações
         </h1>
         <p className="text-sm text-slate-500 mt-1">
-          Abra demandas para o almoxarifado. A IA classifica, prioriza e sugere prazos automaticamente.
+          Abra demandas para o almoxarifado.
         </p>
       </div>
 
@@ -325,12 +321,8 @@ export function Solicitacoes() {
                 className="w-full flex items-center justify-center gap-2.5 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400 text-white font-semibold text-sm transition-colors"
               >
                 <Sparkles size={16} />
-                Enviar para análise com IA
+                Enviar Solicitação
               </button>
-
-              <p className="text-center text-[11px] text-slate-400">
-                A IA irá classificar a demanda, verificar disponibilidade e sugerir um prazo
-              </p>
             </div>
           )}
 
@@ -340,9 +332,9 @@ export function Solicitacoes() {
               <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Loader2 size={28} className="text-blue-600 animate-spin" />
               </div>
-              <h3 className="text-lg font-semibold text-slate-800 mb-2">Analisando sua solicitação...</h3>
+              <h3 className="text-lg font-semibold text-slate-800 mb-2">Registrando sua solicitação...</h3>
               <p className="text-sm text-slate-500">
-                A IA está classificando, verificando disponibilidade e calculando o melhor prazo
+                Aguarde enquanto sua solicitação é registrada
               </p>
             </div>
           )}
@@ -365,10 +357,10 @@ export function Solicitacoes() {
                   </div>
                   <div>
                     <p className="font-semibold text-slate-800 text-sm">
-                      {resultado.disponivel_amanha ? 'Solicitação Registrada!' : 'Verificação de Prazo Necessária'}
+                      Solicitação registrada!
                     </p>
                     <p className="text-xs text-slate-500">
-                      {resultado.processado_por_ia ? '✨ Análise feita por IA' : 'Processado automaticamente'}
+                      Processado com sucesso
                     </p>
                   </div>
                 </div>
@@ -390,7 +382,7 @@ export function Solicitacoes() {
               </div>
 
               <button
-                onClick={novasolicitacao}
+                  onClick={novaSolicitacao}
                 className="w-full py-3 rounded-xl border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
               >
                 Nova Solicitação
@@ -501,3 +493,4 @@ export function Solicitacoes() {
     </div>
   );
 }
+

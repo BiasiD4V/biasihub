@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js'
+﻿import { createClient } from '@supabase/supabase-js'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -10,11 +10,45 @@ if (!supabaseUrl || !supabaseAnonKey) {
   );
 }
 
+const SUPABASE_TIMEOUT_MS = 12000;
+
+async function fetchWithTimeout(input: RequestInfo | URL, init?: RequestInit) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), SUPABASE_TIMEOUT_MS);
+  const onAbort = () => controller.abort();
+
+  if (init?.signal) {
+    if (init.signal.aborted) {
+      controller.abort();
+    } else {
+      init.signal.addEventListener('abort', onAbort, { once: true });
+    }
+  }
+
+  try {
+    return await fetch(input, {
+      ...init,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeout);
+    if (init?.signal) {
+      init.signal.removeEventListener('abort', onAbort);
+    }
+  }
+}
+
 export const supabase = createClient(
   supabaseUrl || 'https://placeholder.supabase.co',
-  supabaseAnonKey || 'placeholder'
+  supabaseAnonKey || 'placeholder',
+  {
+    global: {
+      fetch: fetchWithTimeout,
+    },
+  }
 )
 
 export function sanitizeFilterValue(value: string): string {
   return value.replace(/[,()]/g, '')
 }
+

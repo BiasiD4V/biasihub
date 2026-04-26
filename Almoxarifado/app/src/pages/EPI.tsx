@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import { HardHat, Plus, X, AlertTriangle, CheckCircle, RotateCcw, Search } from 'lucide-react';
 import { supabase } from '../infrastructure/supabase/client';
 import { useAuth } from '../context/AuthContext';
@@ -46,7 +46,7 @@ export function EPI() {
   const isGestor = ['gestor', 'admin', 'dono'].includes(usuario?.papel || '');
   const [aba, setAba] = useState<Aba>('entregas');
 
-  // Catálogo
+  // Catalogo
   const [catalogo, setCatalogo] = useState<EPICatalogo[]>([]);
   const [modalCatalogo, setModalCatalogo] = useState(false);
   const [formCatalogo, setFormCatalogo] = useState({ nome: '', descricao: '', ca: '', validade_meses: '' });
@@ -67,65 +67,104 @@ export function EPI() {
   useEffect(() => { carregarCatalogo(); carregarEntregas(); }, []);
 
   async function carregarCatalogo() {
-    const { data } = await supabase.from('epis_catalogo').select('*').eq('ativo', true).order('nome');
-    setCatalogo(data || []);
+    try {
+      const { data, error } = await supabase.from('epis_catalogo').select('*').eq('ativo', true).order('nome');
+      if (error) throw error;
+      setCatalogo(data || []);
+    } catch (err) {
+      console.error('[EPI] erro ao carregar catalogo:', err);
+      setCatalogo([]);
+    }
   }
 
   async function carregarEntregas() {
     setLoading(true);
-    const { data } = await supabase
-      .from('entregas_epi')
-      .select('*, epis_catalogo(nome, ca)')
-      .order('criado_em', { ascending: false });
-    setEntregas(data || []);
-    setLoading(false);
+    try {
+      const { data, error } = await supabase
+        .from('entregas_epi')
+        .select('*, epis_catalogo(nome, ca)')
+        .order('criado_em', { ascending: false });
 
-    // Atualizar status de vencidos automaticamente
-    const hoje = new Date().toISOString().split('T')[0];
-    const vencidos = (data || []).filter(e => e.status === 'ativo' && e.data_validade < hoje);
-    if (vencidos.length) {
-      await supabase.from('entregas_epi').update({ status: 'vencido' }).in('id', vencidos.map(v => v.id));
-      vencidos.forEach(v => criarNotificacaoGestores('epi_vencendo', `EPI vencido: ${v.epis_catalogo?.nome || 'EPI'} — ${v.colaborador_nome}`));
-      carregarEntregas();
+      if (error) throw error;
+      const lista = data || [];
+      setEntregas(lista);
+
+      // Atualiza status de vencidos automaticamente sem recursao
+      const hoje = new Date().toISOString().split('T')[0];
+      const vencidos = lista.filter(e => e.status === 'ativo' && e.data_validade < hoje);
+      if (vencidos.length) {
+        const ids = vencidos.map(v => v.id);
+        const { error: updateError } = await supabase
+          .from('entregas_epi')
+          .update({ status: 'vencido' })
+          .in('id', ids);
+
+        if (!updateError) {
+          const vencidosSet = new Set(ids);
+          setEntregas(prev => prev.map(e => (vencidosSet.has(e.id) ? { ...e, status: 'vencido' } : e)));
+          vencidos.forEach(v =>
+            criarNotificacaoGestores('epi_vencendo', `EPI vencido: ${v.epis_catalogo?.nome || 'EPI'} - ${v.colaborador_nome}`)
+          );
+        } else {
+          console.error('[EPI] erro ao atualizar vencidos:', updateError);
+        }
+      }
+    } catch (err) {
+      console.error('[EPI] erro ao carregar entregas:', err);
+      setEntregas([]);
+    } finally {
+      setLoading(false);
     }
   }
 
   async function salvarCatalogo() {
     setSalvando(true);
-    await supabase.from('epis_catalogo').insert({
-      nome: formCatalogo.nome,
-      descricao: formCatalogo.descricao || null,
-      ca: formCatalogo.ca || null,
-      validade_meses: formCatalogo.validade_meses ? Number(formCatalogo.validade_meses) : null,
-    });
-    setModalCatalogo(false);
-    setFormCatalogo({ nome: '', descricao: '', ca: '', validade_meses: '' });
-    carregarCatalogo();
-    setSalvando(false);
+    try {
+      const { error } = await supabase.from('epis_catalogo').insert({
+        nome: formCatalogo.nome,
+        descricao: formCatalogo.descricao || null,
+        ca: formCatalogo.ca || null,
+        validade_meses: formCatalogo.validade_meses ? Number(formCatalogo.validade_meses) : null,
+      });
+      if (error) throw error;
+      setModalCatalogo(false);
+      setFormCatalogo({ nome: '', descricao: '', ca: '', validade_meses: '' });
+      await carregarCatalogo();
+    } catch (err) {
+      console.error('[EPI] erro ao salvar catalogo:', err);
+    } finally {
+      setSalvando(false);
+    }
   }
 
   async function salvarEntrega() {
     setSalvando(true);
-    const epi = catalogo.find(e => e.id === formEntrega.epi_id);
-    const dataEntrega = new Date(formEntrega.data_entrega);
-    let dataValidade = new Date(dataEntrega);
-    if (epi?.validade_meses) dataValidade.setMonth(dataValidade.getMonth() + epi.validade_meses);
-    else dataValidade.setFullYear(dataValidade.getFullYear() + 1);
+    try {
+      const epi = catalogo.find(e => e.id === formEntrega.epi_id);
+      const dataEntrega = new Date(formEntrega.data_entrega);
+      const dataValidade = new Date(dataEntrega);
+      if (epi?.validade_meses) dataValidade.setMonth(dataValidade.getMonth() + epi.validade_meses);
+      else dataValidade.setFullYear(dataValidade.getFullYear() + 1);
 
-    await supabase.from('entregas_epi').insert({
-      epi_id: formEntrega.epi_id,
-      colaborador_nome: formEntrega.colaborador_nome,
-      obra: formEntrega.obra,
-      data_entrega: formEntrega.data_entrega,
-      data_validade: dataValidade.toISOString().split('T')[0],
-      quantidade: Number(formEntrega.quantidade),
-      observacao: formEntrega.observacao || null,
-      entregue_por: usuario?.id,
-    });
-    setModalEntrega(false);
-    setFormEntrega({ epi_id: '', colaborador_nome: '', obra: '', data_entrega: new Date().toISOString().split('T')[0], quantidade: '1', observacao: '' });
-    carregarEntregas();
-    setSalvando(false);
+      const { error } = await supabase.from('entregas_epi').insert({
+        epi_id: formEntrega.epi_id,
+        colaborador_nome: formEntrega.colaborador_nome,
+        obra: formEntrega.obra,
+        data_entrega: formEntrega.data_entrega,
+        data_validade: dataValidade.toISOString().split('T')[0],
+        quantidade: Number(formEntrega.quantidade),
+        observacao: formEntrega.observacao || null,
+        entregue_por: usuario?.id,
+      });
+      if (error) throw error;
+      setModalEntrega(false);
+      setFormEntrega({ epi_id: '', colaborador_nome: '', obra: '', data_entrega: new Date().toISOString().split('T')[0], quantidade: '1', observacao: '' });
+      await carregarEntregas();
+    } catch (err) {
+      console.error('[EPI] erro ao salvar entrega:', err);
+    } finally {
+      setSalvando(false);
+    }
   }
 
   async function registrarDevolucao(id: string) {
@@ -149,7 +188,7 @@ export function EPI() {
           <HardHat className="text-amber-500" size={26} />
           Controle de EPI
         </h1>
-        <p className="text-sm text-slate-500 mt-1">Gestão de Equipamentos de Proteção Individual — NR-6</p>
+        <p className="text-sm text-slate-500 mt-1">Gestão de Equipamentos de Protecao Individual  -  NR-6</p>
       </div>
 
       {/* Abas */}
@@ -157,7 +196,7 @@ export function EPI() {
         {([
           { id: 'entregas', label: 'Entregas' },
           { id: 'vencimentos', label: `Vencimentos${vencendo30dias.length ? ` (${vencendo30dias.length})` : ''}` },
-          { id: 'catalogo', label: 'Catálogo de EPIs' },
+          { id: 'catalogo', label: 'Catalogo de EPIs' },
         ] as { id: Aba; label: string }[]).map(a => (
           <button key={a.id} onClick={() => setAba(a.id)}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${aba === a.id ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
@@ -224,7 +263,7 @@ export function EPI() {
                           </td>
                           <td className="px-4 py-3">
                             {e.status === 'ativo' && isGestor && (
-                              <button onClick={() => registrarDevolucao(e.id)} title="Registrar devolução"
+                              <button onClick={() => registrarDevolucao(e.id)} title="Registrar devolucao"
                                 className="p-1.5 text-slate-400 hover:text-emerald-600 rounded-lg transition-colors">
                                 <RotateCcw size={15} />
                               </button>
@@ -247,7 +286,7 @@ export function EPI() {
           {vencendo30dias.length === 0 ? (
             <div className="bg-white rounded-xl border border-slate-200 py-12 text-center text-slate-400">
               <CheckCircle size={32} className="mx-auto mb-2 text-emerald-400" />
-              <p className="text-sm font-medium text-slate-600">Nenhum EPI vencendo nos próximos 30 dias</p>
+              <p className="text-sm font-medium text-slate-600">Nenhum EPI vencendo nos proximos 30 dias</p>
             </div>
           ) : (
             <>
@@ -260,7 +299,7 @@ export function EPI() {
                   <div key={e.id} className={`bg-white border rounded-xl p-4 flex items-center justify-between ${dias <= 7 ? 'border-rose-200' : 'border-amber-200'}`}>
                     <div>
                       <p className="font-medium text-slate-700">{e.epis_catalogo?.nome}</p>
-                      <p className="text-sm text-slate-500 mt-0.5">{e.colaborador_nome} — {e.obra}</p>
+                      <p className="text-sm text-slate-500 mt-0.5">{e.colaborador_nome}  -  {e.obra}</p>
                     </div>
                     <div className="text-right">
                       <p className={`font-bold ${dias <= 7 ? 'text-rose-600' : 'text-amber-600'}`}>{dias === 0 ? 'Vence hoje!' : `${dias} dia(s)`}</p>
@@ -274,7 +313,7 @@ export function EPI() {
         </div>
       )}
 
-      {/* ABA: CATÁLOGO */}
+      {/* ABA: CATALOGO */}
       {aba === 'catalogo' && (
         <>
           {isGestor && (
@@ -311,7 +350,7 @@ export function EPI() {
         </>
       )}
 
-      {/* Modal Catálogo */}
+      {/* Modal Catalogo */}
       {modalCatalogo && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl p-6 w-full max-w-md">
@@ -323,7 +362,7 @@ export function EPI() {
               <div>
                 <label className="block text-xs text-slate-500 mb-1">Nome *</label>
                 <input value={formCatalogo.nome} onChange={e => setFormCatalogo(p => ({ ...p, nome: e.target.value }))}
-                  placeholder="Ex: Capacete de segurança" className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  placeholder="Ex: Capacete de seguranca" className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
               <div>
                 <label className="block text-xs text-slate-500 mb-1">Certificado de Aprovação (CA)</label>
@@ -410,3 +449,4 @@ export function EPI() {
     </div>
   );
 }
+

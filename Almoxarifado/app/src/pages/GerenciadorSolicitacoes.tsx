@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Camera, Loader2, Play, RefreshCw } from 'lucide-react';
+import { Camera, CheckCircle2, Loader2, Play, RefreshCw, XCircle } from 'lucide-react';
 import type { Requisicao, StatusRequisicao } from '../domain/entities/Requisicao';
 import { supabase } from '../infrastructure/supabase/client';
 import { CameraModal } from '../components/CameraModal';
+import { useAuth } from '../context/AuthContext';
 
 type EscolhaItem = 'ok' | 'no';
 type FaseRastreio = 0 | 1 | 2 | 3;
@@ -22,6 +23,8 @@ interface ItemGerenciavel {
   // Todas as fotos — do Vercel (solicitante) + as do almoxarifado. Em ordem.
   fotosUrls: string[];
   observacaoItem: string;
+  tipo: string;
+  usoFrotaLabel: string;
   faseRastreio: FaseRastreio;
   raw: JsonMap;
 }
@@ -39,12 +42,18 @@ interface CardSolicitacao {
   solicitante: string;
   cargo: string;
   prazo: string;
+  devolucao: string;
   prioridade: string;
   dataSolicitacao: string;
   criadoEm: string;
   iniciadoEm: string | null;
+  solicitanteId: string | null;
   resumo: string;
   observacaoGeral: string;
+  isFrota: boolean;
+  entregaSolicitada: boolean;
+  frotaStatus: string;
+  motivoNegativa: string;
   anexosGerais: AnexoGeral[];
   itens: ItemGerenciavel[];
 }
@@ -96,6 +105,39 @@ function parseObsMeta(observacao: string | null): Record<string, string> {
   return meta;
 }
 
+function metaSim(value: unknown): boolean {
+  return ['sim', 's', 'true', '1', 'yes'].includes(String(value || '').trim().toLowerCase());
+}
+
+function cleanMetaValue(value: unknown): string {
+  return String(value ?? '').replace(/\|/g, '/').trim();
+}
+
+function upsertObsMeta(observacao: string | null, patch: Record<string, unknown>): string {
+  const keys = new Set(Object.keys(patch).map((key) => key.toLowerCase()));
+  const kept = String(observacao || '')
+    .split('|')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .filter((part) => {
+      const idx = part.indexOf(':');
+      if (idx <= 0) return true;
+      return !keys.has(part.slice(0, idx).trim().toLowerCase());
+    });
+
+  const next = Object.entries(patch)
+    .map(([key, value]) => [key, cleanMetaValue(value)] as const)
+    .filter(([, value]) => value.length > 0)
+    .map(([key, value]) => `${key}:${value}`);
+
+  return [...kept, ...next].join(' | ');
+}
+
+function dateOnly(value: string | null | undefined): string {
+  if (!value || value === '-') return new Date().toISOString().slice(0, 10);
+  return value.slice(0, 10);
+}
+
 function toFase(value: unknown, fallback: FaseRastreio): FaseRastreio {
   const parsed = Number(value);
   if (Number.isFinite(parsed)) {
@@ -139,6 +181,10 @@ function parseItems(rawItems: unknown, status: StatusRequisicao): ItemGerenciave
 
       const obsItemRaw = entry.observacao ?? entry.obs ?? '';
       const observacaoItem = normalizeDisplayText(typeof obsItemRaw === 'string' ? obsItemRaw : '');
+      const tipo = String(entry.tipo ?? '').trim().toLowerCase();
+      const usoRaw = normalizeDisplayText(String(entry.uso_frota_label ?? entry.uso_frota ?? '').trim());
+      const usoFrotaLabel =
+        usoRaw === 'visitar_obra' ? 'Visitar obra' : usoRaw === 'outros' ? 'Outros' : usoRaw;
 
       return {
         id: String(entry.item_id ?? entry.id ?? `${idx}`),
@@ -148,6 +194,8 @@ function parseItems(rawItems: unknown, status: StatusRequisicao): ItemGerenciave
         photoData,
         fotosUrls,
         observacaoItem,
+        tipo,
+        usoFrotaLabel,
         faseRastreio: toFase(entry.fase_rastreio, fallback),
         raw: entry,
       };
@@ -195,7 +243,9 @@ function formatarData(data: string): string {
 
 function mapRowToCard(row: RequisicaoComJoin): CardSolicitacao {
   const meta = parseObsMeta(row.observacao);
-  const itens = parseItems(row.itens, row.status);
+  const status = (row.status || 'pendente') as StatusRequisicao;
+  const itens = parseItems(row.itens, status);
+  const isFrota = itens.some((item) => item.tipo === 'carro' || Boolean(item.raw.placa || item.raw.modelo));
   const resumo = itens
     .slice(0, 2)
     .map((item) => item.descricao)
@@ -204,16 +254,22 @@ function mapRowToCard(row: RequisicaoComJoin): CardSolicitacao {
   return {
     id: row.id,
     obra: normalizeDisplayText(row.obra),
-    status: row.status,
+    status,
     solicitante: normalizeDisplayText(row.solicitante?.nome || (row as RequisicaoComJoin & { solicitante_nome?: string }).solicitante_nome || '-'),
+    solicitanteId: row.solicitante_id ?? null,
     cargo: normalizeDisplayText(meta.cargo || '-'),
     prazo: normalizeDisplayText(meta.prazo || '-'),
+    devolucao: normalizeDisplayText(meta.devolucao || '-'),
     prioridade: normalizeDisplayText(meta.prioridade || 'normal').toUpperCase(),
     dataSolicitacao: formatarData(row.data_solicitacao),
     criadoEm: row.criado_em,
     iniciadoEm: row.iniciado_em ?? null,
     resumo: resumo || 'Sem itens cadastrados',
     observacaoGeral: normalizeDisplayText(row.observacao || ''),
+    isFrota,
+    entregaSolicitada: metaSim(meta.entrega || meta.entrega_solicitada),
+    frotaStatus: normalizeDisplayText(meta.frota_status || ''),
+    motivoNegativa: normalizeDisplayText(meta.motivo_negativa || meta.frota_motivo_negativa || ''),
     anexosGerais: parseAnexosGerais(row.observacao),
     itens,
   };
@@ -230,6 +286,7 @@ function applyItemMeta(item: ItemGerenciavel): JsonMap {
 }
 
 function requestNeedsPhotos(card: CardSolicitacao): ItemGerenciavel[] {
+  if (card.isFrota) return [];
   return card.itens.filter((item) => item.choice === 'ok');
 }
 
@@ -268,11 +325,18 @@ function fileToDataUrl(file: File): Promise<string> {
 }
 
 export function GerenciadorSolicitacoes() {
+  const { usuario } = useAuth();
   const [cards, setCards] = useState<CardSolicitacao[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [toast, setToast] = useState('');
   const [camTarget, setCamTarget] = useState<{ cardId: string; itemId: string } | null>(null);
+  const [denyTarget, setDenyTarget] = useState<CardSolicitacao | null>(null);
+  const [denyMotivo, setDenyMotivo] = useState('');
+  const [freteTarget, setFreteTarget] = useState<CardSolicitacao | null>(null);
+  const [freteTipo, setFreteTipo] = useState<'biasi' | 'terceiro'>('biasi');
+  const [freteTerceiroNome, setFreteTerceiroNome] = useState('');
+  const [freteTerceiroContato, setFreteTerceiroContato] = useState('');
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const activeCards = useMemo(
@@ -325,7 +389,7 @@ export function GerenciadorSolicitacoes() {
       const { data, error } = await supabase
         .from('requisicoes_almoxarifado')
         .select('*, solicitante_nome, telefone, solicitante:usuarios!requisicoes_almoxarifado_solicitante_id_fkey(nome)')
-        .in('status', ['pendente', 'aprovada'])
+        .or('status.is.null,status.in.(pendente,aprovada)')
         .order('criado_em', { ascending: true });
 
       if (error) throw error;
@@ -378,7 +442,10 @@ export function GerenciadorSolicitacoes() {
     // Fallback: se a coluna nova (iniciado_em/finalizado_em/separador_id) não existir na base,
     // remove os campos extras e tenta de novo — assim a baixa funciona mesmo sem a migration rodada.
     if (error && /iniciado_em|finalizado_em|separador_id|column/i.test(error.message)) {
-      const fallback: Record<string, unknown> = { itens: payloadItems };
+      const fallback: Record<string, unknown> = { ...updates, itens: payloadItems };
+      delete fallback.iniciado_em;
+      delete fallback.finalizado_em;
+      delete fallback.separador_id;
       if (nextStatus) fallback.status = nextStatus;
       const retry = await supabase.from('requisicoes_almoxarifado').update(fallback).eq('id', card.id);
       error = retry.error;
@@ -397,7 +464,7 @@ export function GerenciadorSolicitacoes() {
     nextStatus?: StatusRequisicao,
     successMessage?: string,
     extraUpdates?: Record<string, unknown>
-  ) {
+  ): Promise<boolean> {
     const optimisticStatus = nextStatus ?? card.status;
 
     updateCardState(card.id, (current) => ({
@@ -413,13 +480,72 @@ export function GerenciadorSolicitacoes() {
     try {
       await persistCard(card, nextItems, nextStatus, extraUpdates);
       if (successMessage) showToast(successMessage);
+      return true;
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Não foi possível salvar as alterações.';
       showToast(msg);
       await carregarSolicitacoes();
+      return false;
     } finally {
       setSavingId(null);
     }
+  }
+
+  async function registrarMovimentacoesSaida(card: CardSolicitacao, nextItems: ItemGerenciavel[]) {
+    if (card.isFrota) return;
+    if (!usuario?.id) {
+      showToast('Requisição concluída, mas usuário não identificado para movimentação.');
+      return;
+    }
+
+    const rows = nextItems
+      .filter((item) => item.choice === 'ok' && item.raw.item_id)
+      .map((item) => ({
+        item_id: String(item.raw.item_id),
+        tipo: 'saida',
+        quantidade: Number(item.raw.quantidade ?? 0) || 1,
+        obra: card.obra,
+        observacao: `Saída vinculada à requisição ${card.id}`,
+        data: new Date().toISOString().slice(0, 10),
+        responsavel_id: usuario.id,
+      }));
+
+    if (rows.length === 0) return;
+    const { error } = await supabase.from('movimentacoes_almoxarifado').insert(rows);
+    if (error) {
+      console.warn('[GerenciadorSolicitacoes] falha ao registrar movimentações:', error.message);
+      showToast(`Requisição concluída, mas a movimentação não foi registrada: ${error.message}`);
+    }
+  }
+
+  async function criarAgendamentoFrota(card: CardSolicitacao) {
+    const veiculo = card.itens.find((item) => item.tipo === 'carro' || item.raw.placa || item.raw.modelo);
+    if (!veiculo?.raw.item_id) return;
+
+    const inicio = dateOnly(card.prazo);
+    const fimBase = dateOnly(card.devolucao || card.prazo);
+    const fim = fimBase < inicio ? inicio : fimBase;
+
+    const { error } = await supabase.from('agendamentos_almoxarifado').insert({
+      tipo: 'veiculo',
+      item_id: String(veiculo.raw.item_id),
+      item_descricao: veiculo.descricao,
+      solicitante_id: usuario?.id ?? null,
+      solicitante_nome: card.solicitante,
+      data_inicio: inicio,
+      data_fim: fim,
+      descricao: `Frota liberada pela requisição ${card.id}. Obra: ${card.obra}. Uso: ${veiculo.observacaoItem || veiculo.usoFrotaLabel || '-'}`,
+      status: 'ativo',
+    });
+
+    if (error) {
+      console.warn('[GerenciadorSolicitacoes] falha ao criar agendamento:', error.message);
+      showToast(`Veículo liberado, mas o calendário não foi atualizado: ${error.message}`);
+    }
+  }
+
+  function usuarioDecisaoLabel() {
+    return usuario?.nome || usuario?.email || usuario?.id || 'Almoxarifado';
   }
 
   function handleChoiceChange(card: CardSolicitacao, itemId: string, choice: EscolhaItem) {
@@ -485,9 +611,57 @@ export function GerenciadorSolicitacoes() {
       ...item,
       faseRastreio: (item.faseRastreio < 1 ? 1 : item.faseRastreio) as FaseRastreio,
     }));
-    void salvarAlteracoesLocais(card, nextItems, 'aprovada', 'Separação iniciada.', {
-      iniciado_em: new Date().toISOString(),
+    const now = new Date().toISOString();
+    const observacao = upsertObsMeta(card.observacaoGeral, {
+      decisao: 'aprovada',
+      aprovado_em: now,
+      decidido_por: usuarioDecisaoLabel(),
     });
+    void salvarAlteracoesLocais(card, nextItems, 'aprovada', 'Separação iniciada.', {
+      iniciado_em: now,
+      observacao,
+    });
+  }
+
+  function handleLiberarFrota(card: CardSolicitacao) {
+    setFreteTarget(card);
+    setFreteTipo('biasi');
+    setFreteTerceiroNome('');
+    setFreteTerceiroContato('');
+  }
+
+  function confirmarLiberarFrota() {
+    const card = freteTarget;
+    if (!card) return;
+    if (freteTipo === 'terceiro' && !freteTerceiroNome.trim()) {
+      showToast('Informe o nome da empresa/motorista do frete terceiro.');
+      return;
+    }
+    const now = new Date().toISOString();
+    const nextItems = card.itens.map((item) => ({
+      ...item,
+      faseRastreio: (item.faseRastreio < 1 ? 1 : item.faseRastreio) as FaseRastreio,
+    }));
+    const observacao = upsertObsMeta(card.observacaoGeral, {
+      decisao: 'frota_liberada',
+      frota_status: 'liberada',
+      frota_liberado_em: now,
+      frota_decidido_por: usuarioDecisaoLabel(),
+      aprovado_em: now,
+      decidido_por: usuarioDecisaoLabel(),
+      frete_tipo: freteTipo,
+      frete_terceiro_nome: freteTipo === 'terceiro' ? freteTerceiroNome.trim() : '',
+      frete_terceiro_contato: freteTipo === 'terceiro' ? freteTerceiroContato.trim() : '',
+    });
+
+    setFreteTarget(null);
+    void (async () => {
+      const ok = await salvarAlteracoesLocais(card, nextItems, 'aprovada', 'Veículo liberado.', {
+        iniciado_em: now,
+        observacao,
+      });
+      if (ok) await criarAgendamentoFrota(card);
+    })();
   }
 
   function handleDarBaixa(card: CardSolicitacao) {
@@ -505,10 +679,12 @@ export function GerenciadorSolicitacoes() {
       ...item,
       faseRastreio: 3 as FaseRastreio,
     }));
-    // Concluir requisição: marca entregue (some da lista) e registra finalizado_em
-    void salvarAlteracoesLocais(card, nextItems, 'entregue', 'Requisição concluída.', {
-      finalizado_em: new Date().toISOString(),
-    });
+    void (async () => {
+      const ok = await salvarAlteracoesLocais(card, nextItems, 'entregue', 'Requisição concluída.', {
+        finalizado_em: new Date().toISOString(),
+      });
+      if (ok) await registrarMovimentacoesSaida(card, nextItems);
+    })();
   }
 
   function handleCancelarBaixa(card: CardSolicitacao) {
@@ -518,6 +694,40 @@ export function GerenciadorSolicitacoes() {
     }));
     void salvarAlteracoesLocais(card, nextItems, 'pendente', 'Separação cancelada.', {
       iniciado_em: null,
+    });
+  }
+
+  function abrirNegativa(card: CardSolicitacao) {
+    setDenyTarget(card);
+    setDenyMotivo('');
+  }
+
+  function confirmarNegativa() {
+    const card = denyTarget;
+    const motivo = denyMotivo.trim();
+    if (!card) return;
+    if (!motivo) {
+      showToast('Informe o motivo da negativa.');
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const observacao = upsertObsMeta(card.observacaoGeral, {
+      decisao: card.isFrota ? 'frota_negada' : 'negada',
+      motivo_negativa: motivo,
+      frota_status: card.isFrota ? 'negada' : '',
+      frota_motivo_negativa: card.isFrota ? motivo : '',
+      negado_em: now,
+      frota_negado_em: card.isFrota ? now : '',
+      decidido_por: usuarioDecisaoLabel(),
+      frota_decidido_por: card.isFrota ? usuarioDecisaoLabel() : '',
+    });
+
+    setDenyTarget(null);
+    setDenyMotivo('');
+    void salvarAlteracoesLocais(card, card.itens, 'cancelada', 'Solicitação negada.', {
+      finalizado_em: now,
+      observacao,
     });
   }
 
@@ -597,6 +807,7 @@ export function GerenciadorSolicitacoes() {
                         <p className="m-0 mt-1 text-[#d4e0ff] text-sm md:text-base">{card.resumo}</p>
                         <p className="m-0 mt-2 text-[#9db2e7] text-xs md:text-sm">
                           Solicitante: {card.solicitante} | Cargo: {card.cargo} | Data: {card.dataSolicitacao} | Prazo: {card.prazo}
+                          {card.isFrota && card.devolucao !== '-' ? ` | Devolução: ${card.devolucao}` : ''}
                         </p>
                       </div>
 
@@ -606,6 +817,14 @@ export function GerenciadorSolicitacoes() {
                         </span>
                       </div>
                     </div>
+
+                    {card.isFrota && (
+                      <div className="mb-3 rounded-2xl border border-[rgba(92,155,255,0.28)] bg-[rgba(92,155,255,0.10)] px-4 py-3 text-sm text-[#d4e0ff]">
+                        {card.frotaStatus === 'liberada'
+                          ? 'Veículo liberado e enviado ao calendário.'
+                          : 'Aguardando resposta do almoxarifado para liberação do veículo.'}
+                      </div>
+                    )}
 
                     {card.anexosGerais.length > 0 && (
                       <div className="mb-3 rounded-2xl border border-[rgba(113,154,255,0.23)] bg-[rgba(10,30,77,0.28)] p-3">
@@ -669,6 +888,11 @@ export function GerenciadorSolicitacoes() {
                                 {item.observacaoItem && (
                                   <div className="mt-1 text-[11px] italic text-[#cbd6ff] whitespace-pre-wrap">
                                     &ldquo;{item.observacaoItem}&rdquo;
+                                  </div>
+                                )}
+                                {item.usoFrotaLabel && (
+                                  <div className="mt-1 text-[11px] font-bold text-[#8dffca]">
+                                    Uso: {item.usoFrotaLabel}
                                   </div>
                                 )}
                               </div>
@@ -753,7 +977,9 @@ export function GerenciadorSolicitacoes() {
 
                       <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-t border-[rgba(113,154,255,0.18)] bg-[rgba(255,255,255,0.03)]">
                         <span className="text-sm text-[#cad8ff]">
-                          {requestNeedsPhotos(card).length === 0
+                          {card.isFrota
+                            ? 'Pedido de frota: liberação/negativa define o próximo passo.'
+                            : requestNeedsPhotos(card).length === 0
                             ? 'Sem foto obrigatória (todos os itens marcados como Não).'
                             : photosComplete
                             ? 'Fotos obrigatórias completas.'
@@ -776,11 +1002,22 @@ export function GerenciadorSolicitacoes() {
                         <button
                           type="button"
                           disabled={isSaving}
-                          onClick={() => handleIniciarSeparacao(card)}
+                          onClick={() => (card.isFrota ? handleLiberarFrota(card) : handleIniciarSeparacao(card))}
                           className="inline-flex items-center gap-1.5 rounded-xl border border-[rgba(92,155,255,0.5)] bg-[rgba(92,155,255,0.18)] px-4 py-2 text-sm font-bold text-[#b8d3ff] disabled:opacity-50"
                         >
-                          <Play size={14} />
-                          Iniciar separação
+                          {card.isFrota ? <CheckCircle2 size={14} /> : <Play size={14} />}
+                          {card.isFrota ? 'Liberar veículo' : 'Iniciar separação'}
+                        </button>
+                      )}
+                      {card.status === 'pendente' && (
+                        <button
+                          type="button"
+                          disabled={isSaving}
+                          onClick={() => abrirNegativa(card)}
+                          className="inline-flex items-center gap-1.5 rounded-xl border border-[rgba(255,122,157,0.45)] bg-[rgba(255,122,157,0.12)] px-4 py-2 text-sm font-bold text-[#ffd9e3] disabled:opacity-50"
+                        >
+                          <XCircle size={14} />
+                          Negar solicitação
                         </button>
                       )}
                       <button
@@ -791,14 +1028,16 @@ export function GerenciadorSolicitacoes() {
                       >
                         Salvar conferência
                       </button>
-                      <button
-                        type="button"
-                        disabled={isSaving}
-                        onClick={() => handleDarBaixa(card)}
-                        className="inline-flex items-center rounded-xl border border-[rgba(54,196,133,0.35)] bg-[rgba(54,196,133,0.15)] px-4 py-2 text-sm font-bold text-[#8dffca] disabled:opacity-50"
-                      >
-                        Concluir requisição
-                      </button>
+                      {card.status === 'aprovada' && (
+                        <button
+                          type="button"
+                          disabled={isSaving}
+                          onClick={() => handleDarBaixa(card)}
+                          className="inline-flex items-center rounded-xl border border-[rgba(54,196,133,0.35)] bg-[rgba(54,196,133,0.15)] px-4 py-2 text-sm font-bold text-[#8dffca] disabled:opacity-50"
+                        >
+                          Concluir requisição
+                        </button>
+                      )}
                       {card.status === 'aprovada' && (
                         <button
                           type="button"
@@ -832,6 +1071,129 @@ export function GerenciadorSolicitacoes() {
           }}
           onClose={() => setCamTarget(null)}
         />
+      )}
+
+      {denyTarget && (
+        <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/65 p-4">
+          <div className="w-full max-w-lg rounded-2xl border border-[rgba(255,122,157,0.35)] bg-[linear-gradient(180deg,rgba(24,55,120,0.98),rgba(13,31,76,0.98))] p-5 shadow-2xl">
+            <h3 className="m-0 text-xl font-black">Negar solicitação</h3>
+            <p className="mt-2 text-sm text-[#cbd6ff]">
+              Informe o motivo. Esse texto aparecerá para o solicitante na fila.
+            </p>
+            <textarea
+              className="mt-4 min-h-[120px] w-full rounded-2xl border border-[rgba(255,122,157,0.35)] bg-[rgba(10,30,77,0.55)] px-4 py-3 text-sm text-white outline-none placeholder:text-[#9db2e7]"
+              placeholder="Motivo da negativa *"
+              value={denyMotivo}
+              onChange={(e) => setDenyMotivo(e.target.value)}
+              autoFocus
+            />
+            <div className="mt-4 flex flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setDenyTarget(null);
+                  setDenyMotivo('');
+                }}
+                className="rounded-xl border border-[rgba(113,154,255,0.35)] bg-[rgba(10,30,77,0.45)] px-4 py-2 text-sm font-bold"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={confirmarNegativa}
+                className="rounded-xl border border-[rgba(255,122,157,0.45)] bg-[rgba(255,122,157,0.15)] px-4 py-2 text-sm font-bold text-[#ffd9e3]"
+              >
+                Confirmar negativa
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {freteTarget && (
+        <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/65 p-4">
+          <div className="w-full max-w-lg rounded-2xl border border-[rgba(113,210,255,0.35)] bg-[linear-gradient(180deg,rgba(24,55,120,0.98),rgba(13,31,76,0.98))] p-5 shadow-2xl">
+            <h3 className="m-0 text-xl font-black">Liberar veículo</h3>
+            <p className="mt-2 text-sm text-[#cbd6ff]">
+              Informe quem fará o transporte. O solicitante verá esses dados no rastreio.
+            </p>
+
+            <div className="mt-4 flex flex-col gap-2">
+              <label className="text-xs font-bold uppercase tracking-[0.18em] text-[#9db2e7]">Tipo de frete</label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setFreteTipo('biasi')}
+                  className={`rounded-xl px-3 py-2.5 text-sm font-bold border transition ${
+                    freteTipo === 'biasi'
+                      ? 'border-[rgba(113,210,255,0.6)] bg-[rgba(113,210,255,0.18)] text-white'
+                      : 'border-[rgba(113,154,255,0.25)] bg-[rgba(10,30,77,0.45)] text-[#cbd6ff]'
+                  }`}
+                >
+                  Frota Biasi
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFreteTipo('terceiro')}
+                  className={`rounded-xl px-3 py-2.5 text-sm font-bold border transition ${
+                    freteTipo === 'terceiro'
+                      ? 'border-[rgba(113,210,255,0.6)] bg-[rgba(113,210,255,0.18)] text-white'
+                      : 'border-[rgba(113,154,255,0.25)] bg-[rgba(10,30,77,0.45)] text-[#cbd6ff]'
+                  }`}
+                >
+                  Frete terceirizado
+                </button>
+              </div>
+            </div>
+
+            {freteTipo === 'terceiro' && (
+              <div className="mt-4 grid gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-bold uppercase tracking-[0.18em] text-[#9db2e7]">Empresa / motorista *</label>
+                  <input
+                    type="text"
+                    className="rounded-xl border border-[rgba(113,154,255,0.35)] bg-[rgba(10,30,77,0.55)] px-3 py-2.5 text-sm text-white outline-none placeholder:text-[#9db2e7]"
+                    placeholder="Nome da transportadora ou motorista"
+                    value={freteTerceiroNome}
+                    onChange={(e) => setFreteTerceiroNome(e.target.value)}
+                    autoFocus
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-bold uppercase tracking-[0.18em] text-[#9db2e7]">Contato (telefone/WhatsApp)</label>
+                  <input
+                    type="text"
+                    className="rounded-xl border border-[rgba(113,154,255,0.35)] bg-[rgba(10,30,77,0.55)] px-3 py-2.5 text-sm text-white outline-none placeholder:text-[#9db2e7]"
+                    placeholder="(11) 99999-9999 (opcional)"
+                    value={freteTerceiroContato}
+                    onChange={(e) => setFreteTerceiroContato(e.target.value)}
+                  />
+                </div>
+              </div>
+            )}
+
+            <div className="mt-5 flex flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setFreteTarget(null);
+                  setFreteTerceiroNome('');
+                  setFreteTerceiroContato('');
+                }}
+                className="rounded-xl border border-[rgba(113,154,255,0.35)] bg-[rgba(10,30,77,0.45)] px-4 py-2 text-sm font-bold"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={confirmarLiberarFrota}
+                className="rounded-xl border border-[rgba(113,210,255,0.45)] bg-[rgba(113,210,255,0.18)] px-4 py-2 text-sm font-bold text-white"
+              >
+                Confirmar liberação
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {toast && (

@@ -232,7 +232,7 @@ export function ChatMessagesList({
                                <Smile size={14} />
                             </button>
                             {isMine && (
-                               <button onClick={() => { if (confirm('Purgar esta transmissao?')) onDeletarMensagem(msg.id); }} className="w-8 h-8 rounded-xl bg-slate-800 shadow-lg border border-slate-600 flex items-center justify-center text-slate-300 hover:text-rose-300 hover:scale-110 transition-all">
+                               <button onClick={() => { if (confirm('Purgar está transmissao?')) onDeletarMensagem(msg.id); }} className="w-8 h-8 rounded-xl bg-slate-800 shadow-lg border border-slate-600 flex items-center justify-center text-slate-300 hover:text-rose-300 hover:scale-110 transition-all">
                                   <Trash2 size={14} />
                                </button>
                             )}

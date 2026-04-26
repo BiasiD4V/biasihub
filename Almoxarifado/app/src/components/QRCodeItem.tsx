@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { QrCode, X, Printer } from 'lucide-react';
 
@@ -11,14 +11,14 @@ interface Props {
 
 export function QRCodeItem({ itemId, codigo, descricao, localizacao }: Props) {
   const [open, setOpen] = useState(false);
-  // URL que o scanner vai resolver — pode ser a página do item ou apenas o ID
+  // URL que o scanner vai resolver - pode ser a página do item ou apenas o ID
   const qrValue = `almoxarifado:item:${itemId}`;
 
   function imprimir() {
     const janela = window.open('', '_blank', 'width=400,height=500');
     if (!janela) return;
     janela.document.write(`
-      <html><head><title>Etiqueta QR — ${codigo}</title>
+      <html><head><title>Etiqueta QR  -  ${codigo}</title>
       <style>
         body { font-family: sans-serif; display:flex; flex-direction:column; align-items:center; padding:20px; }
         .titulo { font-size:18px; font-weight:bold; margin-bottom:4px; text-align:center; }
@@ -79,3 +79,4 @@ export function QRCodeItem({ itemId, codigo, descricao, localizacao }: Props) {
     </>
   );
 }
+

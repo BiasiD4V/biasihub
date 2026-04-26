@@ -19,7 +19,12 @@ export interface Requisicao {
   aprovado_por_id: string | null;
   criado_em: string;
   atualizado_em: string;
+  // Separação (almoxarifado) — opcionais; podem não existir nas migrações antigas
+  iniciado_em?: string | null;
+  finalizado_em?: string | null;
+  separador_id?: string | null;
   // join
   solicitante?: { nome: string };
   aprovado_por?: { nome: string };
+  separador?: { nome: string };
 }

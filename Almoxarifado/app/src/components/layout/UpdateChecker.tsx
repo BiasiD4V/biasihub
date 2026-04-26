@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import { X, ArrowLeft, Sparkles } from 'lucide-react';
 
 declare const __BUILD_VERSION__: string;
@@ -39,7 +39,7 @@ export function UpdateChecker() {
       }
     }
 
-    // Primeira verificação após 20s, depois a cada 5min
+    // Primeira verificação após 20s, depois a cada 5min.
     const t = setTimeout(verificar, 20000);
     const iv = setInterval(verificar, 5 * 60 * 1000);
     return () => { cancelado = true; clearTimeout(t); clearInterval(iv); };
@@ -53,7 +53,7 @@ export function UpdateChecker() {
       <div className="flex items-center gap-3 px-4 py-2 bg-indigo-600 text-white text-xs font-medium flex-shrink-0">
         <Sparkles size={13} className="flex-shrink-0 opacity-80" />
         <span className="flex-1">
-          Nova versão <strong>v{versaoNova}</strong> disponível — volte ao Hub para atualizar.
+          Nova versão <strong>v{versaoNova}</strong> disponível  -  volte ao Hub para atualizar.
         </span>
         <button
           onClick={() => { window.location.href = 'app://hub.local/'; }}
@@ -90,3 +90,4 @@ export function UpdateChecker() {
     </div>
   );
 }
+

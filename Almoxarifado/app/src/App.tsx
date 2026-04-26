@@ -2,6 +2,8 @@ import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { LayoutAutenticado } from './components/layout/LayoutAutenticado';
 import { AuthProvider } from './context/AuthContext';
+import { ChunkErrorBoundary } from './components/ChunkErrorBoundary';
+import { SuspenseFallback } from './components/SuspenseFallback';
 import { Login } from './pages/Login';
 import { RequisicaoPublica } from './pages/RequisicaoPublica';
 import { FilaPublica } from './pages/FilaPublica';
@@ -26,14 +28,11 @@ const Agentes = lazy(() => import('./pages/Agentes').then(m => ({ default: m.Age
 
 export default function App() {
   return (
-    <AuthProvider>
-      <BrowserRouter>
-        <Suspense fallback={
-          <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-            <div className="w-8 h-8 border-2 border-white/10 border-t-blue-500 rounded-full animate-spin" />
-          </div>
-        }>
-          <Routes>
+    <ChunkErrorBoundary>
+      <AuthProvider>
+        <BrowserRouter>
+          <Suspense fallback={<SuspenseFallback />}>
+            <Routes>
             {/* Rotas públicas — sem login */}
             <Route path="/obra" element={<LandingPublica />} />
             <Route path="/req" element={<RequisicaoPublica />} />
@@ -62,8 +61,9 @@ export default function App() {
             </Route>
             <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>
-        </Suspense>
-      </BrowserRouter>
-    </AuthProvider>
+          </Suspense>
+        </BrowserRouter>
+      </AuthProvider>
+    </ChunkErrorBoundary>
   );
 }

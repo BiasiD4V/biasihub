@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+﻿import { useState, useRef, useEffect } from 'react';
 import { Bell, Package, ClipboardList, HardHat, Wrench, CheckCheck, X, LucideIcon } from 'lucide-react';
 import { useNotificacoes, Notificacao } from '../hooks/useNotificacoes';
 
@@ -20,10 +20,10 @@ function tempoAtras(iso: string) {
   const diff = Date.now() - new Date(iso).getTime();
   const min = Math.floor(diff / 60000);
   if (min < 1) return 'agora';
-  if (min < 60) return `${min}min atrás`;
+  if (min < 60) return `${min}min atras`;
   const h = Math.floor(min / 60);
-  if (h < 24) return `${h}h atrás`;
-  return `${Math.floor(h / 24)}d atrás`;
+  if (h < 24) return `${h}h atras`;
+  return `${Math.floor(h / 24)}d atras`;
 }
 
 export function NotificacoesDropdown() {
@@ -59,7 +59,7 @@ export function NotificacoesDropdown() {
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
             <p className="text-sm font-semibold text-slate-700">
-              Notificações {naoLidas > 0 && <span className="text-rose-500">({naoLidas})</span>}
+              Notificacoes {naoLidas > 0 && <span className="text-rose-500">({naoLidas})</span>}
             </p>
             <div className="flex gap-1">
               {naoLidas > 0 && (
@@ -82,7 +82,7 @@ export function NotificacoesDropdown() {
             {notificacoes.length === 0 ? (
               <div className="py-8 text-center text-slate-400">
                 <Bell size={24} className="mx-auto mb-2 opacity-30" />
-                <p className="text-sm">Sem notificações</p>
+                <p className="text-sm">Sem notificacoes</p>
               </div>
             ) : (
               notificacoes.map(n => {
@@ -116,3 +116,4 @@ export function NotificacoesDropdown() {
     </div>
   );
 }
+

@@ -1,4 +1,4 @@
-import { supabase } from '../supabase/client';
+﻿import { supabase } from '../supabase/client';
 import { getDeviceIP, getDeviceName, getUserAgent, generateSessionToken } from './deviceService';
 
 export interface DeviceSession {
@@ -171,3 +171,4 @@ export function clearRememberedSession(): void {
   localStorage.removeItem(REFRESH_KEY);
   localStorage.removeItem(USERID_KEY);
 }
+

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import { Building2, Plus, X, Phone, Mail, User, Search, Pencil, CheckCircle } from 'lucide-react';
 import { supabase } from '../infrastructure/supabase/client';
 import { useAuth } from '../context/AuthContext';
@@ -40,9 +40,16 @@ export function Fornecedores() {
 
   async function carregar() {
     setLoading(true);
-    const { data } = await supabase.from('fornecedores').select('*').eq('ativo', true).order('nome');
-    setFornecedores(data || []);
-    setLoading(false);
+    try {
+      const { data, error } = await supabase.from('fornecedores').select('*').eq('ativo', true).order('nome');
+      if (error) throw error;
+      setFornecedores(data || []);
+    } catch (err) {
+      console.error('[Fornecedores] erro ao carregar:', err);
+      setFornecedores([]);
+    } finally {
+      setLoading(false);
+    }
   }
 
   function abrirNovo() {
@@ -63,18 +70,35 @@ export function Fornecedores() {
 
   async function salvar() {
     setSalvando(true);
-    const payload = { nome: form.nome, cnpj: form.cnpj || null, contato_nome: form.contato_nome || null, contato_telefone: form.contato_telefone || null, contato_email: form.contato_email || null, categorias: form.categorias.length ? form.categorias : null, observacao: form.observacao || null };
-    if (editando) {
-      await supabase.from('fornecedores').update(payload).eq('id', editando.id);
-      setSalvoId(editando.id);
-    } else {
-      const { data } = await supabase.from('fornecedores').insert(payload).select().single();
-      if (data) setSalvoId(data.id);
+    try {
+      const payload = {
+        nome: form.nome,
+        cnpj: form.cnpj || null,
+        contato_nome: form.contato_nome || null,
+        contato_telefone: form.contato_telefone || null,
+        contato_email: form.contato_email || null,
+        categorias: form.categorias.length ? form.categorias : null,
+        observacao: form.observacao || null,
+      };
+
+      if (editando) {
+        const { error } = await supabase.from('fornecedores').update(payload).eq('id', editando.id);
+        if (error) throw error;
+        setSalvoId(editando.id);
+      } else {
+        const { data, error } = await supabase.from('fornecedores').insert(payload).select().single();
+        if (error) throw error;
+        if (data) setSalvoId(data.id);
+      }
+
+      setModal(false);
+      await carregar();
+      setTimeout(() => setSalvoId(null), 3000);
+    } catch (err) {
+      console.error('[Fornecedores] erro ao salvar:', err);
+    } finally {
+      setSalvando(false);
     }
-    setModal(false);
-    carregar();
-    setSalvando(false);
-    setTimeout(() => setSalvoId(null), 3000);
   }
 
   async function desativar(id: string) {
@@ -96,7 +120,7 @@ export function Fornecedores() {
           <Building2 className="text-indigo-500" size={26} />
           Fornecedores
         </h1>
-        <p className="text-sm text-slate-500 mt-1">Cadastro e gestão de fornecedores</p>
+        <p className="text-sm text-slate-500 mt-1">Cadastro e gestao de fornecedores</p>
       </div>
 
       <div className="flex flex-wrap gap-3 mb-6">
@@ -231,3 +255,4 @@ export function Fornecedores() {
     </div>
   );
 }
+

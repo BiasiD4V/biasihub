@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Navigate, Outlet, useLocation } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../infrastructure/supabase/client';
 import { Sidebar } from './Sidebar';
@@ -7,8 +7,40 @@ import { UpdateChecker } from './UpdateChecker';
 import { NotificacoesDropdown } from '../NotificacoesDropdown';
 import { ChatMembros } from '../ChatMembros';
 
+function LoadingScreen({ erroConexao }: { erroConexao: string | null }) {
+  const [demorou, setDemorou] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setDemorou(true), 8000);
+    return () => clearTimeout(t);
+  }, []);
+
+  return (
+    <div className="biasi-shell-bg flex min-h-screen items-center justify-center p-6">
+      <div className="flex flex-col items-center gap-4 text-center max-w-sm">
+        <div className="h-10 w-10 animate-spin rounded-full border-b-2 border-[#FFC82D]" />
+        <p className="text-sm text-[#DCE8FF]">Carregando sessão...</p>
+        {(demorou || erroConexao) && (
+          <div className="space-y-3 mt-2">
+            <p className="text-xs text-[#9DB2E7] leading-relaxed">
+              {erroConexao
+                ? erroConexao
+                : 'Está demorando mais que o normal. Pode ser instabilidade da rede.'}
+            </p>
+            <button
+              onClick={() => window.location.reload()}
+              className="rounded-xl border border-[#FFC82D]/40 bg-[#FFC82D]/12 px-4 py-2 text-xs font-extrabold uppercase tracking-[0.18em] text-[#FFC82D] hover:bg-[#FFC82D] hover:text-slate-900 transition"
+            >
+              Recarregar
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function LayoutAutenticado() {
-  const { isAuthenticated, loading, usuario } = useAuth();
+  const { isAuthenticated, loading, usuario, erroConexao } = useAuth();
   const location = useLocation();
   const [chatAberto, setChatAberto] = useState(false);
 
@@ -57,7 +89,7 @@ export function LayoutAutenticado() {
   }, [usuario, location.pathname]);
 
   if (loading) {
-    return <div className="biasi-shell-bg min-h-screen" />;
+    return <LoadingScreen erroConexao={erroConexao} />;
   }
 
   if (!isAuthenticated) {

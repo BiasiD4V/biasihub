@@ -50,6 +50,7 @@ type ItemLinha = {
   grupo?: string | null;
   placa?: string | null;
   modelo?: string | null;
+  usoFrota?: string | null;
 };
 
 const STORAGE_BUCKET = 'requisicoes';
@@ -114,7 +115,7 @@ const selectFieldStyle = { colorScheme: 'dark' } as const;
    AUTOCOMPLETE GENÉRICO
    ====================================================================== */
 
-type AutocompleteItem = { id: string; titulo: string; sub?: string };
+type AutocompleteItem = { id: string; titulo: string; sub?: string; disabled?: boolean };
 
 function Autocomplete<T extends AutocompleteItem>({
   items,
@@ -174,11 +175,22 @@ function Autocomplete<T extends AutocompleteItem>({
               filtered.map((it) => (
                 <li
                   key={it.id}
-                  className="px-3 py-2.5 text-[0.9rem] text-[#f4f7ff] hover:bg-white/10 cursor-pointer border-b border-white/5 last:border-b-0"
-                  onMouseDown={() => { onSelect(it); setQuery(it.titulo); setOpen(false); }}
+                  className={`px-3 py-2.5 text-[0.9rem] border-b border-white/5 last:border-b-0 ${
+                    it.disabled
+                      ? 'opacity-50 cursor-not-allowed text-[#b8c5eb]'
+                      : 'text-[#f4f7ff] hover:bg-white/10 cursor-pointer'
+                  }`}
+                  onMouseDown={() => {
+                    if (it.disabled) return;
+                    onSelect(it);
+                    setQuery(it.titulo);
+                    setOpen(false);
+                  }}
                 >
                   <p className="font-bold leading-tight">{it.titulo}</p>
-                  {it.sub && <p className="text-[0.78rem] text-[#b8c5eb] mt-0.5">{it.sub}</p>}
+                  {it.sub && (
+                    <p className={`text-[0.78rem] mt-0.5 ${it.disabled ? 'text-[#ff9a8b]' : 'text-[#b8c5eb]'}`}>{it.sub}</p>
+                  )}
                 </li>
               ))
             )}
@@ -199,6 +211,7 @@ function ItemRow({
   insumos,
   ferramentas,
   veiculos,
+  veiculosOcupados,
   loading,
   onChange,
   onRemove,
@@ -208,6 +221,7 @@ function ItemRow({
   insumos: InsumoOpt[];
   ferramentas: FerramentaOpt[];
   veiculos: VeiculoOpt[];
+  veiculosOcupados: Set<string>;
   loading: boolean;
   onChange: (patch: Partial<ItemLinha>) => void;
   onRemove: () => void;
@@ -230,12 +244,18 @@ function ItemRow({
         sub: `${f.marca || ''}${f.marca ? ' • ' : ''}${f.unidade || 'un'}${f.estoque_atual != null ? ` • estoque ${f.estoque_atual}` : ''}`,
       }));
     }
-    return veiculos.map((v) => ({
-      id: v.id,
-      titulo: `${v.placa ? v.placa + ' - ' : ''}${v.modelo}`,
-      sub: v.marca || '',
-    }));
-  }, [categoria, insumos, ferramentas, veiculos]);
+    return veiculos.map((v) => {
+      const ocupado = veiculosOcupados.has(v.id);
+      return {
+        id: v.id,
+        titulo: `${v.placa ? v.placa + ' - ' : ''}${v.modelo}`,
+        sub: ocupado
+          ? 'Indisponível neste período'
+          : (v.marca || ''),
+        disabled: ocupado,
+      };
+    });
+  }, [categoria, insumos, ferramentas, veiculos, veiculosOcupados]);
 
   function handleSelect(item: AutocompleteItem | null) {
     if (!item) {
@@ -253,13 +273,16 @@ function ItemRow({
     } else {
       const raw = veiculos.find((v) => v.id === item.id);
       if (!raw) return;
+      if (veiculosOcupados.has(raw.id)) return;
       onChange({ itemId: raw.id, codigo: raw.placa, descricao: `${raw.placa ? raw.placa + ' - ' : ''}${raw.modelo}`, unidade: 'uso', placa: raw.placa, modelo: raw.modelo, marca: raw.marca });
     }
   }
 
   const mostrarUnidade = categoria === 'insumos';
   const isFrota = categoria === 'frota';
-  const gridClass = mostrarUnidade
+  const gridClass = isFrota
+    ? 'grid gap-3 items-start grid-cols-1 sm:grid-cols-[minmax(0,2.2fr)_52px]'
+    : mostrarUnidade
     ? 'grid gap-3 items-start grid-cols-1 sm:grid-cols-[minmax(0,2.2fr)_120px_180px_52px]'
     : 'grid gap-3 items-start grid-cols-1 sm:grid-cols-[minmax(0,2.2fr)_120px_52px]';
 
@@ -294,15 +317,17 @@ function ItemRow({
             onSelect={handleSelect}
           />
         </div>
-        <input
-          type="number"
-          min="1"
-          step="any"
-          className={styles.inputCompact}
-          placeholder="Qtd"
-          value={linha.quantidade}
-          onChange={(e) => onChange({ quantidade: e.target.value })}
-        />
+        {!isFrota && (
+          <input
+            type="number"
+            min="1"
+            step="any"
+            className={styles.inputCompact}
+            placeholder="Qtd"
+            value={linha.quantidade}
+            onChange={(e) => onChange({ quantidade: e.target.value })}
+          />
+        )}
         {mostrarUnidade && (
           <div>
             <select className={styles.inputCompact} value={linha.unidade} onChange={(e) => onChange({ unidade: e.target.value })} style={selectFieldStyle}>
@@ -323,14 +348,45 @@ function ItemRow({
         </button>
       </div>
       <div className="mt-3">
-        <input
-          type="text"
-          className={styles.inputCompact}
-          placeholder={isFrota ? 'Motivo da requisição *' : 'Observação do item (opcional)'}
-          value={linha.observacao}
-          onChange={(e) => onChange({ observacao: e.target.value })}
-          required={isFrota}
-        />
+        {isFrota ? (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <select
+              className={styles.inputCompact}
+              value={linha.usoFrota || ''}
+              onChange={(e) => {
+                const uso = e.target.value;
+                onChange({
+                  usoFrota: uso,
+                  observacao: uso === 'visitar_obra' ? 'Visitar obra' : '',
+                });
+              }}
+              style={selectFieldStyle}
+              required
+            >
+              <option value="" style={selectOptionStyle}>Para que vai usar? *</option>
+              <option value="visitar_obra" style={selectOptionStyle}>Visitar obra</option>
+              <option value="outros" style={selectOptionStyle}>Outros</option>
+            </select>
+            {linha.usoFrota === 'outros' && (
+              <input
+                type="text"
+                className={styles.inputCompact}
+                placeholder="Descreva o uso *"
+                value={linha.observacao}
+                onChange={(e) => onChange({ observacao: e.target.value })}
+                required
+              />
+            )}
+          </div>
+        ) : (
+          <input
+            type="text"
+            className={styles.inputCompact}
+            placeholder="Observação do item (opcional)"
+            value={linha.observacao}
+            onChange={(e) => onChange({ observacao: e.target.value })}
+          />
+        )}
       </div>
       {!isFrota && (
         <div className="mt-2 flex items-start gap-3 flex-wrap">
@@ -450,6 +506,7 @@ export function RequisicaoPublica() {
     const local = new Date(d.getTime() - off * 60_000);
     return local.toISOString().slice(0, 16);
   }, [dataSolicitacao]);
+  const [devolucaoFrota, setDevolucaoFrota] = useState('');
   const [prioridade, setPrioridade] = useState<'normal' | 'urgente' | 'baixo'>('normal');
   const [entregaSolicitada, setEntregaSolicitada] = useState(false);
   const [observacao, setObservacao] = useState('');
@@ -464,6 +521,7 @@ export function RequisicaoPublica() {
   const [insumos, setInsumos] = useState<InsumoOpt[]>([]);
   const [ferramentas, setFerramentas] = useState<FerramentaOpt[]>([]);
   const [veiculos, setVeiculos] = useState<VeiculoOpt[]>([]);
+  const [veiculosOcupados, setVeiculosOcupados] = useState<Set<string>>(() => new Set());
   const [loadingCatalogos, setLoadingCatalogos] = useState(false);
 
   /* anexos */
@@ -520,16 +578,60 @@ export function RequisicaoPublica() {
     void carregar();
   }, []);
 
+  /* ---------- Carros ocupados no período (frota) ---------- */
+  useEffect(() => {
+    if (categoria !== 'frota' || !prazo || !devolucaoFrota) {
+      setVeiculosOcupados(new Set());
+      return;
+    }
+    let cancelado = false;
+    async function carregarOcupados() {
+      try {
+        const inicio = new Date(prazo).toISOString();
+        const fim = new Date(devolucaoFrota).toISOString();
+        if (Number.isNaN(new Date(inicio).getTime()) || Number.isNaN(new Date(fim).getTime())) {
+          setVeiculosOcupados(new Set());
+          return;
+        }
+        const { data, error } = await supabase
+          .from('agendamentos_almoxarifado')
+          .select('item_id, status, data_inicio, data_fim')
+          .eq('tipo', 'veiculo')
+          .eq('status', 'ativo')
+          .lte('data_inicio', fim)
+          .gte('data_fim', inicio);
+        if (error) {
+          console.warn('[RequisicaoPublica] erro ao buscar agendamentos:', error);
+          return;
+        }
+        if (cancelado) return;
+        const ids = new Set<string>();
+        for (const row of data || []) {
+          if (row?.item_id) ids.add(String(row.item_id));
+        }
+        setVeiculosOcupados(ids);
+      } catch (err) {
+        console.warn('[RequisicaoPublica] exceção em ocupados', err);
+      }
+    }
+    void carregarOcupados();
+    return () => {
+      cancelado = true;
+    };
+  }, [categoria, prazo, devolucaoFrota]);
+
   /* ---------- Troca de categoria reseta itens ---------- */
   function handleSetCategoria(c: CategoriaType) {
     if (c === categoria) return;
     setCategoria(c);
+    setEntregaSolicitada(false);
+    setDevolucaoFrota('');
     const unidadeDefault = c === 'frota' ? 'uso' : 'un';
-    setItens([{ uid: uid(), itemId: null, codigo: null, descricao: '', quantidade: '1', unidade: unidadeDefault, observacao: '', fotos: [], fotosUrls: [] }]);
+    setItens([{ uid: uid(), itemId: null, codigo: null, descricao: '', quantidade: '1', unidade: unidadeDefault, observacao: '', fotos: [], fotosUrls: [], usoFrota: null }]);
   }
 
   function addLinha() {
-    setItens((prev) => [...prev, { uid: uid(), itemId: null, codigo: null, descricao: '', quantidade: '1', unidade: categoria === 'frota' ? 'uso' : 'un', observacao: '', fotos: [], fotosUrls: [] }]);
+    setItens((prev) => [...prev, { uid: uid(), itemId: null, codigo: null, descricao: '', quantidade: '1', unidade: categoria === 'frota' ? 'uso' : 'un', observacao: '', fotos: [], fotosUrls: [], usoFrota: null }]);
   }
 
   function updateLinha(u: string, patch: Partial<ItemLinha>) {
@@ -595,8 +697,14 @@ export function RequisicaoPublica() {
     const itensSemFoto = categoria === 'frota' ? [] : itensValidos.filter((l) => (l.fotos?.length ?? 0) === 0);
     if (itensSemFoto.length > 0) return setErro('Foto do item é obrigatória em todos os itens da requisição.');
     if (categoria === 'frota') {
-      const semMotivo = itensValidos.some((l) => !l.observacao.trim());
-      if (semMotivo) return setErro('Informe o motivo da requisição para cada veículo.');
+      if (!prazo) return setErro('Informe a data de uso/retirada do veículo.');
+      if (!devolucaoFrota) return setErro('Informe a data de devolução do veículo.');
+      if (devolucaoFrota < minPrazo) return setErro('Data de devolução não pode ser no passado.');
+      if (prazo && devolucaoFrota < prazo) return setErro('Data de devolução não pode ser antes do prazo desejado.');
+      const semUso = itensValidos.some((l) => !l.usoFrota);
+      if (semUso) return setErro('Informe para que vai usar cada veículo.');
+      const outrosSemDescricao = itensValidos.some((l) => l.usoFrota === 'outros' && !l.observacao.trim());
+      if (outrosSemDescricao) return setErro('Descreva o uso do veículo quando selecionar Outros.');
     }
 
     if (prazo && new Date(prazo).getTime() < Date.now() - 60_000) {
@@ -633,20 +741,34 @@ export function RequisicaoPublica() {
           const urls = (
             await Promise.all((l.fotos || []).map((f, i) => tryUpload(f, `item${idx}_${i}`)))
           ).filter((u): u is string => !!u);
+          if (categoria !== 'frota' && (l.fotos || []).length > 0 && urls.length !== (l.fotos || []).length) {
+            throw new Error('Não foi possível enviar todas as fotos do item. Confira a conexão e tente novamente.');
+          }
+          const usoFrotaLabel =
+            l.usoFrota === 'visitar_obra' ? 'Visitar obra' : l.usoFrota === 'outros' ? 'Outros' : null;
+          const observacaoItem =
+            categoria === 'frota'
+              ? l.usoFrota === 'visitar_obra'
+                ? 'Visitar obra'
+                : l.observacao || null
+              : l.observacao || null;
           return {
             tipo: tipoJson,
             item_id: l.itemId,
             codigo: l.codigo,
             descricao: l.descricao,
             nome: l.descricao,
-            quantidade: Number(l.quantidade),
+            quantidade: categoria === 'frota' ? 1 : Number(l.quantidade),
             unidade: l.unidade,
-            observacao: l.observacao || null,
+            observacao: observacaoItem,
             marca: l.marca ?? null,
             categoria_ferramenta: l.categoria ?? null,
             grupo: l.grupo ?? null,
             placa: l.placa ?? null,
             modelo: l.modelo ?? null,
+            uso_frota: l.usoFrota ?? null,
+            uso_frota_label: usoFrotaLabel,
+            uso_frota_outro: l.usoFrota === 'outros' ? l.observacao || null : null,
             urgente: prioridade === 'urgente' ? 'sim' : 'não',
             justificativa_urgencia: prioridade === 'urgente' ? justificativaUrgencia : '',
             choice_estoque: 'ok',
@@ -661,12 +783,16 @@ export function RequisicaoPublica() {
       const anexosUrls = (
         await Promise.all(anexos.map((f, i) => tryUpload(f, `anexo${i}`)))
       ).filter((u): u is string => !!u);
+      if (anexos.length > 0 && anexosUrls.length !== anexos.length) {
+        throw new Error('Não foi possível enviar todos os anexos. Confira a conexão e tente novamente.');
+      }
 
       const obsFinal = [
         `cargo:${cargo}`,
         prazo ? `prazo:${prazo}` : '',
+        categoria === 'frota' && devolucaoFrota ? `devolucao:${devolucaoFrota}` : '',
         `prioridade:${prioridade}`,
-        `entrega:${entregaSolicitada ? 'sim' : 'nao'}`,
+        `entrega:${categoria === 'frota' ? 'nao' : entregaSolicitada ? 'sim' : 'nao'}`,
         observacao ? `obs:${observacao}` : '',
         anexosUrls.length ? `anexos_urls:${anexosUrls.join(',')}` : '',
       ].filter(Boolean).join(' | ');
@@ -744,11 +870,12 @@ export function RequisicaoPublica() {
             <button
               onClick={() => {
                 setSucesso(false);
-                setItens([{ uid: uid(), itemId: null, codigo: null, descricao: '', quantidade: '1', unidade: 'un', observacao: '', fotos: [], fotosUrls: [] }]);
+                setItens([{ uid: uid(), itemId: null, codigo: null, descricao: '', quantidade: '1', unidade: 'un', observacao: '', fotos: [], fotosUrls: [], usoFrota: null }]);
                 setObservacao('');
                 setJustificativaUrgencia('');
                 setCargo('');
                 setPrazo('');
+                setDevolucaoFrota('');
                 setPrioridade('normal');
                 setEntregaSolicitada(false);
                 setAnexos([]);
@@ -885,13 +1012,14 @@ export function RequisicaoPublica() {
                 <input type="text" className={styles.input + ' cursor-not-allowed opacity-80'} value={dataSolicitacao} readOnly />
               </div>
               <div className="flex flex-col gap-2.5">
-                <label className={styles.label}>Prazo Desejado</label>
+                <label className={styles.label}>{categoria === 'frota' ? 'Data de uso / retirada *' : 'Prazo Desejado'}</label>
                 <input
                   type="datetime-local"
                   step="60"
                   min={minPrazo}
                   className={styles.input}
                   value={prazo}
+                  required={categoria === 'frota'}
                   onChange={(e) => {
                     const v = e.target.value;
                     if (v && v < minPrazo) {
@@ -904,21 +1032,47 @@ export function RequisicaoPublica() {
               </div>
             </div>
 
-            <div className="mt-4 flex flex-col gap-2.5">
-              <label className={styles.label}>Entrega na obra?</label>
-              <select
-                className={styles.input}
-                value={entregaSolicitada ? 'sim' : 'nao'}
-                onChange={(e) => setEntregaSolicitada(e.target.value === 'sim')}
-                style={selectFieldStyle}
-              >
-                <option value="nao" style={selectOptionStyle}>Não, apenas separar/retirar</option>
-                <option value="sim" style={selectOptionStyle}>Sim, precisa entregar na obra</option>
-              </select>
-              <p className="m-0 text-[#89a2e2] text-[0.85rem]">
-                Se marcar sim, o rastreio mostra a fase "A caminho" antes de receber.
-              </p>
-            </div>
+            {categoria === 'frota' ? (
+              <div className="mt-4 flex flex-col gap-2.5">
+                <label className={styles.label}>Data de devolução *</label>
+                <input
+                  type="datetime-local"
+                  step="60"
+                  min={prazo || minPrazo}
+                  className={styles.input}
+                  value={devolucaoFrota}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    const minDevolucao = prazo || minPrazo;
+                    if (v && v < minDevolucao) {
+                      setDevolucaoFrota(minDevolucao);
+                    } else {
+                      setDevolucaoFrota(v);
+                    }
+                  }}
+                  required
+                />
+                <p className="m-0 text-[#89a2e2] text-[0.85rem]">
+                  Informe quando o veículo será devolvido. Pode ser outro dia.
+                </p>
+              </div>
+            ) : (
+              <div className="mt-4 flex flex-col gap-2.5">
+                <label className={styles.label}>Entrega na obra?</label>
+                <select
+                  className={styles.input}
+                  value={entregaSolicitada ? 'sim' : 'nao'}
+                  onChange={(e) => setEntregaSolicitada(e.target.value === 'sim')}
+                  style={selectFieldStyle}
+                >
+                  <option value="nao" style={selectOptionStyle}>Não, apenas separar/retirar</option>
+                  <option value="sim" style={selectOptionStyle}>Sim, precisa entregar na obra</option>
+                </select>
+                <p className="m-0 text-[#89a2e2] text-[0.85rem]">
+                  Se marcar sim, o rastreio mostra a fase "A caminho" antes de receber.
+                </p>
+              </div>
+            )}
           </section>
 
           {/* Detalhes da Requisição */}
@@ -946,6 +1100,7 @@ export function RequisicaoPublica() {
                     insumos={insumos}
                     ferramentas={ferramentas}
                     veiculos={veiculos}
+                    veiculosOcupados={veiculosOcupados}
                     loading={loadingCatalogos}
                     onChange={(patch) => updateLinha(linha.uid, patch)}
                     onRemove={() => removeLinha(linha.uid)}

@@ -1,4 +1,4 @@
-import { useState, useEffect, type FormEvent } from 'react';
+ï»¿import { useState, useEffect, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -100,7 +100,7 @@ export function Login() {
                     type={mostrarSenha ? 'text' : 'password'}
                     value={senha}
                     onChange={(e) => setSenha(e.target.value)}
-                    placeholder="••••••••"
+                    placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
                     autoComplete="current-password"
                     className="h-12 w-full rounded-xl border border-[#C8D5F2] bg-white px-4 pr-12 text-[#233772] focus:outline-none focus:ring-2 focus:ring-[#233772]/20"
                   />
@@ -138,3 +138,4 @@ export function Login() {
     </div>
   );
 }
+

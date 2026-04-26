@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import { Users, Pencil, X, Eye, EyeOff, UserX, UserCheck, Plus, RefreshCw, KeyRound, Copy, Check } from 'lucide-react';
 import { supabase } from '../infrastructure/supabase/client';
 import { useAuth } from '../context/AuthContext';
@@ -17,7 +17,7 @@ const PAPEIS_LABEL: Record<string, string> = {
   gestor: 'Gestor',
   membro: 'Membro',
   engenheiro: 'Engenheiro',
-  orcamentista: 'Orçamentista',
+  orcamentista: 'Orcamentista',
   admin: 'Admin',
   dono: 'Dono',
   comercial: 'Comercial',
@@ -32,7 +32,7 @@ export function Membros() {
   const [membros, setMembros] = useState<Membro[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Modal edição
+  // Modal edicao
   const [editando, setEditando] = useState<Membro | null>(null);
   const [papelEdit, setPapelEdit] = useState('');
   const [novaSenha, setNovaSenha] = useState('');
@@ -54,13 +54,21 @@ export function Membros() {
 
   async function carregar() {
     setLoading(true);
-    const { data } = await supabase
-      .from('usuarios')
-      .select('id, nome, email, papel, ativo, departamento')
-      .eq('departamento', 'Almoxarifado')
-      .order('nome');
-    setMembros((data || []) as Membro[]);
-    setLoading(false);
+    try {
+      const { data, error } = await supabase
+        .from('usuarios')
+        .select('id, nome, email, papel, ativo, departamento')
+        .eq('departamento', 'Almoxarifado')
+        .order('nome');
+
+      if (error) throw error;
+      setMembros((data || []) as Membro[]);
+    } catch (err) {
+      console.error('[Membros] erro ao carregar usuarios:', err);
+      setMembros([]);
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => { carregar(); }, []);
@@ -97,8 +105,8 @@ export function Membros() {
       if (novaSenha.trim()) {
         const { error } = await supabase.auth.admin.updateUserById(editando.id, { password: novaSenha });
         if (error) {
-          // fallback: tenta via RPC se admin não disponível
-          console.warn('admin.updateUserById indisponível:', error.message);
+          // fallback: tenta via RPC se admin nao disponivel
+          console.warn('admin.updateUserById indisponivel:', error.message);
         }
       }
 
@@ -168,7 +176,7 @@ export function Membros() {
           <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
             <Users size={22} className="text-blue-600" /> Membros
           </h1>
-          <p className="text-sm text-slate-500 mt-1">Equipe do Almoxarifado · {membros.length} membro(s)</p>
+          <p className="text-sm text-slate-500 mt-1">Equipe do Almoxarifado  -  {membros.length} membro(s)</p>
         </div>
         <div className="flex gap-2">
           <button onClick={carregar} className="p-2.5 rounded-xl text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors" title="Atualizar">
@@ -265,7 +273,7 @@ export function Membros() {
         </div>
       )}
 
-      {/* Modal Edição */}
+      {/* Modal Edicao */}
       {editando && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-[100] flex items-center justify-center p-6" onClick={() => setEditando(null)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
@@ -331,7 +339,7 @@ export function Membros() {
             <div className="space-y-4">
               <div>
                 <label className="text-xs font-bold text-slate-500 uppercase tracking-widest block mb-1.5">Nome Completo</label>
-                <input type="text" value={novoNome} onChange={e => setNovoNome(e.target.value)} placeholder="Ex: João Silva"
+                <input type="text" value={novoNome} onChange={e => setNovoNome(e.target.value)} placeholder="Ex: Joao Silva"
                   className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
               <div>
@@ -374,3 +382,4 @@ export function Membros() {
     </div>
   );
 }
+

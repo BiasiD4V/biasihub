@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { Search, Hash, Users, Plus, Building2 } from 'lucide-react';
 import type { Membro } from './chatTypes';
 import { getAvatarColor, formatTempoOnline, formatUltimoVisto } from './chatTypes';
@@ -185,7 +185,7 @@ export function ChatContactsList({
           {membros.length === 0 && (
             <div className="text-center py-6 px-3">
               <Users size={24} className="mx-auto text-slate-300 mb-2" />
-              <p className="text-xs text-slate-400">Nenhum membro disponível</p>
+              <p className="text-xs text-slate-400">Nenhum membro disponivel</p>
             </div>
           )}
         </div>
@@ -193,3 +193,4 @@ export function ChatContactsList({
     </div>
   );
 }
+

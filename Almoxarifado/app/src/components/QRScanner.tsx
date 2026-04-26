@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+﻿import { useEffect, useRef, useState } from 'react';
 import { BrowserMultiFormatReader } from '@zxing/library';
 import { Camera, X, AlertCircle } from 'lucide-react';
 
@@ -66,3 +66,4 @@ export function QRScanner({ onScan, onClose }: Props) {
     </div>
   );
 }
+

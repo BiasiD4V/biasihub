@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import { Laptop, Smartphone, Monitor, Trash2, RefreshCw, Shield } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { listUserSessions, revokeDeviceSession, revokeAllDeviceSessions } from '../infrastructure/services/deviceSessionService';
@@ -21,28 +21,48 @@ export function MeusDispositivos() {
   const [revogando, setRevogando] = useState<string | null>(null);
 
   async function carregar() {
-    if (!usuario) return;
+    if (!usuario) {
+      setLoading(false);
+      setSessions([]);
+      return;
+    }
     setLoading(true);
-    const data = await listUserSessions(usuario.id);
-    setSessions(data);
-    setLoading(false);
+    try {
+      const data = await listUserSessions(usuario.id);
+      setSessions(data);
+    } catch (err) {
+      console.error('[MeusDispositivos] erro ao carregar sessões:', err);
+      setSessions([]);
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => { carregar(); }, [usuario]);
 
   async function revogar(id: string) {
     setRevogando(id);
-    await revokeDeviceSession(id);
-    setSessions(prev => prev.filter(s => s.id !== id));
-    setRevogando(null);
+    try {
+      const ok = await revokeDeviceSession(id);
+      if (ok) {
+        setSessions(prev => prev.filter(s => s.id !== id));
+      }
+    } finally {
+      setRevogando(null);
+    }
   }
 
   async function revogarTodos() {
     if (!usuario) return;
     setRevogando('all');
-    await revokeAllDeviceSessions(usuario.id);
-    setSessions([]);
-    setRevogando(null);
+    try {
+      const ok = await revokeAllDeviceSessions(usuario.id);
+      if (ok) {
+        setSessions([]);
+      }
+    } finally {
+      setRevogando(null);
+    }
   }
 
   return (
@@ -87,7 +107,7 @@ export function MeusDispositivos() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-medium text-slate-800 text-sm">{s.device_name || 'Dispositivo'}</p>
-                  <p className="text-xs text-slate-400">IP: {String(s.ip_address)} · Último acesso: {formatarData(s.last_login_at)}</p>
+                  <p className="text-xs text-slate-400">IP: {String(s.ip_address)}  -  Último acesso: {formatarData(s.last_login_at)}</p>
                   <p className="text-xs text-slate-400">Expira em: {formatarData(s.expires_at)}</p>
                 </div>
                 <button
@@ -106,3 +126,4 @@ export function MeusDispositivos() {
     </div>
   );
 }
+

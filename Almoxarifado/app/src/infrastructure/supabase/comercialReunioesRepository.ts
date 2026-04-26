@@ -1,4 +1,4 @@
-import { supabase } from './client';
+﻿import { supabase } from './client';
 
 export interface SolucaoReuniao {
   text: string;
@@ -62,3 +62,4 @@ export const comercialReunioesRepository = {
     if (error) throw error;
   }
 };
+

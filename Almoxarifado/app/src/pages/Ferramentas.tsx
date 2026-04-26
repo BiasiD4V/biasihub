@@ -1,11 +1,28 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import { Plus, Search, Pencil, AlertTriangle, X, Wrench } from 'lucide-react';
 import { QRCodeItem } from '../components/QRCodeItem';
 import { supabase } from '../infrastructure/supabase/client';
 import type { ItemAlmoxarifado } from '../domain/entities/ItemAlmoxarifado';
 import { useAuth } from '../context/AuthContext';
 
-const UNIDADES = ['un', 'pç', 'par', 'conj', 'm', 'kit'];
+const UNIDADES = ['un', 'pc', 'par', 'conj', 'm', 'kit'];
+const INVALID_OPTIONAL_VALUES = new Set(['-', '--', '—', ' - ', 'n/a', 'na', 'null', 'undefined', '(null)']);
+
+function sanitizeOptionalValue(value: string | null | undefined): string {
+  const raw = (value ?? '').trim();
+  if (!raw) return '';
+
+  const normalized = raw.toLowerCase();
+  if (INVALID_OPTIONAL_VALUES.has(normalized)) return '';
+
+  if (/(?:[\u00C2\u00C3][\u0080-\u00BF]|\uFFFD)/.test(raw)) return '';
+  return raw;
+}
+
+function displayOptionalValue(value: string | null | undefined, fallback: string): string {
+  const clean = sanitizeOptionalValue(value);
+  return clean || fallback;
+}
 
 export function Ferramentas() {
   const { usuario } = useAuth();
@@ -25,13 +42,23 @@ export function Ferramentas() {
   const isGestor = usuario?.papel === 'gestor' || usuario?.papel === 'admin' || usuario?.papel === 'dono';
 
   async function carregar() {
-    const { data } = await supabase.from('itens_almoxarifado')
-      .select('*')
-      .eq('ativo', true)
-      .eq('tipo', 'ferramenta')
-      .order('descricao');
-    setItens(data || []);
-    setLoading(false);
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('itens_almoxarifado')
+        .select('*')
+        .eq('ativo', true)
+        .eq('tipo', 'ferramenta')
+        .order('descricao');
+
+      if (error) throw error;
+      setItens(data || []);
+    } catch (err) {
+      console.error('[Ferramentas] erro ao carregar:', err);
+      setItens([]);
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => { carregar(); }, []);
@@ -50,9 +77,9 @@ export function Ferramentas() {
       descricao: item.descricao,
       unidade: item.unidade,
       estoque_minimo: String(item.estoque_minimo),
-      localizacao: item.localizacao || '',
-      categoria: item.categoria || '',
-      marca: item.marca || '',
+      localizacao: sanitizeOptionalValue(item.localizacao),
+      categoria: sanitizeOptionalValue(item.categoria),
+      marca: sanitizeOptionalValue(item.marca),
     });
     setErro('');
     setModalAberto(true);
@@ -68,9 +95,9 @@ export function Ferramentas() {
       descricao: form.descricao.trim(),
       unidade: form.unidade,
       estoque_minimo: parseFloat(form.estoque_minimo) || 0,
-      localizacao: form.localizacao.trim() || null,
-      categoria: form.categoria.trim() || null,
-      marca: form.marca.trim() || null,
+      localizacao: sanitizeOptionalValue(form.localizacao) || null,
+      categoria: sanitizeOptionalValue(form.categoria) || null,
+      marca: sanitizeOptionalValue(form.marca) || null,
       tipo: 'ferramenta',
     };
 
@@ -133,7 +160,7 @@ export function Ferramentas() {
           {(['todos', 'ok', 'manutencao'] as const).map(f => (
             <button key={f} onClick={() => { setFiltroStatus(f); setPagina(1); }}
               className={`px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${filtroStatus === f ? 'bg-slate-800 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:border-slate-300'}`}>
-              {f === 'todos' ? 'Todas' : f === 'ok' ? 'Operacionais' : '🔧 Manutenção'}
+              {f === 'todos' ? 'Todas' : f === 'ok' ? 'Operacionais' : 'Manutenção'}
             </button>
           ))}
         </div>
@@ -174,9 +201,9 @@ export function Ferramentas() {
                       <td className="px-5 py-3">
                         <p className="font-medium text-slate-800">{item.descricao}</p>
                       </td>
-                      <td className="px-5 py-3 text-xs text-slate-500 font-medium">{item.categoria || '—'}</td>
-                      <td className="px-5 py-3 text-xs text-slate-500 font-medium">{item.marca || '—'}</td>
-                      <td className="px-5 py-3 text-xs text-slate-500">{item.localizacao || '—'}</td>
+                      <td className="px-5 py-3 text-xs text-slate-500 font-medium">{displayOptionalValue(item.categoria, 'Sem categoria')}</td>
+                      <td className="px-5 py-3 text-xs text-slate-500 font-medium">{displayOptionalValue(item.marca, 'Sem marca')}</td>
+                      <td className="px-5 py-3 text-xs text-slate-500">{displayOptionalValue(item.localizacao, 'Sem local')}</td>
                       <td className="px-5 py-3 text-right">
                         <span className={`font-semibold ${baixo ? 'text-amber-600' : 'text-slate-700'}`}>
                           {item.estoque_atual} {item.unidade}
@@ -248,7 +275,7 @@ export function Ferramentas() {
             <div className="p-5 space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1.5">Patrimônio / Código *</label>
+                  <label className="block text-xs font-medium text-slate-700 mb-1.5">Patrimonio / Código *</label>
                   <input value={form.codigo} onChange={e => setForm(f => ({ ...f, codigo: e.target.value }))} placeholder="EX: FER-001"
                     className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                 </div>
@@ -262,7 +289,7 @@ export function Ferramentas() {
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-700 mb-1.5">Nome da Ferramenta *</label>
-                <input value={form.descricao} onChange={e => setForm(f => ({ ...f, descricao: e.target.value }))} placeholder="Furadeira, Martelo, Marreta..."
+                <input value={form.descricao} onChange={e => setForm(f => ({ ...f, descricao: e.target.value }))} placeholder="Furadeira, martelo, marreta..."
                   className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </div>
               <div className="grid grid-cols-2 gap-3">

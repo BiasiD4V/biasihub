@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { CheckCircle2, Clock, Package, RefreshCw, Truck } from 'lucide-react';
+import { CheckCircle2, Clock, Package, RefreshCw, Truck, XCircle } from 'lucide-react';
 import { supabase } from '../infrastructure/supabase/client';
 
 interface RequisicaoItem {
@@ -8,6 +8,12 @@ interface RequisicaoItem {
   nome?: string;
   quantidade?: number;
   unidade?: string;
+  tipo?: string;
+  placa?: string | null;
+  modelo?: string | null;
+  observacao?: string | null;
+  uso_frota?: string | null;
+  uso_frota_label?: string | null;
   fase_rastreio?: number | string | null;
 }
 
@@ -51,6 +57,7 @@ function inferirStatusPublico(requisicao: Pick<Requisicao, 'status' | 'itens'>):
   const statusRaw = String(requisicao.status ?? '').trim().toLowerCase();
 
   if (statusRaw === 'cancelada' || statusRaw === 'cancelado') return 'cancelado';
+  if (statusRaw === 'pendente' || !statusRaw) return 'aguardando';
 
   const faseMax = parseMaxFase(requisicao.itens);
   if (faseMax === 3) return 'recebido';
@@ -105,7 +112,30 @@ function extrairMeta(observacao: string | null) {
       if (idx > 0) {
         const chave = parte.slice(0, idx).trim();
         const valor = parte.slice(idx + 1).trim();
-        if (['prazo', 'prioridade', 'obs', 'cargo', 'entrega'].includes(chave)) {
+        if (
+          [
+            'prazo',
+            'devolucao',
+            'prioridade',
+            'obs',
+            'cargo',
+            'entrega',
+            'decisao',
+            'motivo_negativa',
+            'frota_status',
+            'frota_motivo_negativa',
+            'frota_liberado_em',
+            'frota_negado_em',
+            'cancelado_em',
+            'cancelado_por',
+            'motivo_cancelamento',
+            'frete_tipo',
+            'frete_terceiro_nome',
+            'frete_terceiro_contato',
+            'recebido_por_nome',
+            'recebido_em',
+          ].includes(chave)
+        ) {
           meta[chave] = valor;
           return;
         }
@@ -116,8 +146,20 @@ function extrairMeta(observacao: string | null) {
   return {
     cargo: meta.cargo,
     prazo: formatPrazo(meta.prazo),
+    devolucao: formatPrazo(meta.devolucao),
     prioridade: meta.prioridade,
     entregaSolicitada: ['sim', 's', 'true', '1', 'yes'].includes(String(meta.entrega || '').trim().toLowerCase()),
+    decisao: meta.decisao,
+    frotaStatus: meta.frota_status,
+    motivoNegativa: meta.motivo_negativa || meta.frota_motivo_negativa,
+    canceladoEm: formatPrazo(meta.cancelado_em),
+    canceladoPor: meta.cancelado_por,
+    motivoCancelamento: meta.motivo_cancelamento,
+    freteTipo: meta.frete_tipo,
+    freteTerceiroNome: meta.frete_terceiro_nome,
+    freteTerceiroContato: meta.frete_terceiro_contato,
+    recebidoPorNome: meta.recebido_por_nome,
+    recebidoEm: formatPrazo(meta.recebido_em),
     observacao: meta.obs || textos.join(' | '),
   };
 }
@@ -125,6 +167,24 @@ function extrairMeta(observacao: string | null) {
 function labelEtapa(status: StatusPublico, entregaSolicitada: boolean) {
   if (status === 'finalizado' && entregaSolicitada) return 'A caminho';
   return STATUS_LABEL[status].label;
+}
+
+function pedidoEhFrota(pedido: Pick<Requisicao, 'itens'>) {
+  return (Array.isArray(pedido.itens) ? pedido.itens : []).some((item) => {
+    const tipo = String(item?.tipo || '').toLowerCase();
+    return tipo === 'carro' || Boolean(item?.placa || item?.modelo || item?.uso_frota || item?.uso_frota_label);
+  });
+}
+
+function labelPedido(status: StatusPublico, entregaSolicitada: boolean, isFrota: boolean, meta: ReturnType<typeof extrairMeta>) {
+  if (status === 'cancelado') return 'Solicitação negada';
+  if (isFrota) {
+    if (meta.frotaStatus === 'liberada' || meta.decisao === 'frota_liberada') return 'Veículo liberado';
+    if (meta.frotaStatus === 'negada' || meta.decisao === 'frota_negada') return 'Solicitação negada';
+    return 'Aguardando liberação';
+  }
+  if (status === 'aguardando') return 'Aguardando análise';
+  return labelEtapa(status, entregaSolicitada);
 }
 
 function useIdentidadePublica(params: URLSearchParams) {
@@ -153,6 +213,99 @@ export function FilaPublica() {
   const [atualizando, setAtualizando] = useState(false);
   const [erro, setErro] = useState('');
   const [ultimaAtualizacao, setUltimaAtualizacao] = useState<Date | null>(null);
+
+  // Cancelamento pelo solicitante
+  const [cancelTarget, setCancelTarget] = useState<Requisicao | null>(null);
+  const [cancelMotivo, setCancelMotivo] = useState('');
+  const [cancelando, setCancelando] = useState(false);
+  const [toast, setToast] = useState('');
+
+  function showToast(msg: string) {
+    setToast(msg);
+    setTimeout(() => setToast(''), 3500);
+  }
+
+  function pedeMotivoCancelamento(p: Requisicao) {
+    // Se já foi liberado/separando, exige motivo. Se ainda está aguardando, motivo é opcional.
+    const meta = extrairMeta(p.observacao);
+    const status = inferirStatusPublico(p);
+    const liberadaFrota = meta.frotaStatus === 'liberada' || meta.decisao === 'frota_liberada';
+    return liberadaFrota || status === 'separando' || status === 'separado' || status === 'finalizado';
+  }
+
+  function podeCancelarPedido(p: Requisicao) {
+    const status = inferirStatusPublico(p);
+    return status !== 'recebido' && status !== 'cancelado';
+  }
+
+  async function confirmarCancelamentoSolicitante() {
+    if (!cancelTarget) return;
+    const motivoObrigatorio = pedeMotivoCancelamento(cancelTarget);
+    const motivo = cancelMotivo.trim();
+    if (motivoObrigatorio && !motivo) {
+      showToast('Informe o motivo do cancelamento.');
+      return;
+    }
+
+    setCancelando(true);
+    try {
+      const now = new Date().toISOString();
+      const obsAtual = cancelTarget.observacao || '';
+      const partes = obsAtual
+        .split('|')
+        .map((p) => p.trim())
+        .filter(Boolean)
+        .filter((p) => {
+          const idx = p.indexOf(':');
+          if (idx <= 0) return true;
+          const chave = p.slice(0, idx).trim();
+          return ![
+            'cancelado_em',
+            'motivo_cancelamento',
+            'cancelado_por',
+            'frota_status',
+          ].includes(chave);
+        });
+      partes.push(`cancelado_em:${now}`);
+      partes.push(`cancelado_por:solicitante`);
+      if (motivo) partes.push(`motivo_cancelamento:${motivo.replace(/\|/g, '/')}`);
+      // Se for frota liberada, marca como cancelada também no campo frota_status
+      const meta = extrairMeta(cancelTarget.observacao);
+      const eraLiberada = meta.frotaStatus === 'liberada' || meta.decisao === 'frota_liberada';
+      if (eraLiberada) partes.push('frota_status:cancelada');
+
+      const novaObs = partes.join(' | ');
+
+      const { error } = await supabase
+        .from('requisicoes_almoxarifado')
+        .update({ status: 'cancelada', observacao: novaObs })
+        .eq('id', cancelTarget.id);
+
+      if (error) throw error;
+
+      // Se era frota liberada, libera o agendamento no calendário
+      if (eraLiberada) {
+        try {
+          await supabase
+            .from('agendamentos_almoxarifado')
+            .update({ status: 'cancelado' })
+            .ilike('descricao', `%${cancelTarget.id}%`);
+        } catch (errAg) {
+          console.warn('[FilaPublica] falha ao cancelar agendamento:', errAg);
+        }
+      }
+
+      setCancelTarget(null);
+      setCancelMotivo('');
+      showToast('Pedido cancelado.');
+      void carregar(true);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      showToast(`Erro ao cancelar: ${msg}`);
+    } finally {
+      setCancelando(false);
+    }
+  }
 
   const carregar = useCallback(async (silencioso = false) => {
     if (!tel) {
@@ -290,6 +443,7 @@ export function FilaPublica() {
             const statusPublico = inferirStatusPublico(p);
             const st = STATUS_LABEL[statusPublico];
             const meta = extrairMeta(p.observacao);
+            const isFrota = pedidoEhFrota(p);
             const filaIndex = filaIndexById.get(p.id);
             const estaNaFila = pedidoEstaNaFila(p);
             const pedidosNaFrente = estaNaFila && filaIndex != null ? filaIndex : 0;
@@ -304,7 +458,7 @@ export function FilaPublica() {
                     <p className="text-[#8fa6da] text-xs mt-1">{formatData(p.criado_em)}</p>
                   </div>
                   <span className={`shrink-0 rounded-full border px-3 py-1 text-[0.72rem] font-black uppercase tracking-wide ${st.bg} ${st.border} ${st.color}`}>
-                    {labelEtapa(statusPublico, meta.entregaSolicitada)}
+                    {labelPedido(statusPublico, meta.entregaSolicitada, isFrota, meta)}
                   </span>
                 </div>
 
@@ -319,21 +473,23 @@ export function FilaPublica() {
                   </div>
                 </div>
 
-                <div className="mt-4">
-                  <div className="flex items-center justify-between gap-1">
-                    {ETAPAS.map((etapa, index) => {
-                      const ativa = index <= etapaIndex && statusPublico !== 'cancelado';
-                      return (
-                        <div key={etapa} className="flex-1">
-                          <div className={`h-2 rounded-full ${ativa ? 'bg-[#5c9bff]' : 'bg-white/10'}`} />
-                          <p className={`mt-1 text-[0.6rem] text-center font-bold ${ativa ? 'text-[#cfe0ff]' : 'text-[#607399]'}`}>
-                            {labelEtapa(etapa, meta.entregaSolicitada)}
-                          </p>
-                        </div>
-                      );
-                    })}
+                {!isFrota && (
+                  <div className="mt-4">
+                    <div className="flex items-center justify-between gap-1">
+                      {ETAPAS.map((etapa, index) => {
+                        const ativa = index <= etapaIndex && statusPublico !== 'cancelado';
+                        return (
+                          <div key={etapa} className="flex-1">
+                            <div className={`h-2 rounded-full ${ativa ? 'bg-[#5c9bff]' : 'bg-white/10'}`} />
+                            <p className={`mt-1 text-[0.6rem] text-center font-bold ${ativa ? 'text-[#cfe0ff]' : 'text-[#607399]'}`}>
+                              {labelEtapa(etapa, meta.entregaSolicitada)}
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
+                )}
 
                 <div className="mt-4 space-y-2">
                   {(Array.isArray(p.itens) ? p.itens : []).map((it, i) => (
@@ -353,6 +509,12 @@ export function FilaPublica() {
                       Prazo: {meta.prazo}
                     </span>
                   )}
+                  {meta.devolucao && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-white/[0.05] border border-white/10 px-3 py-1">
+                      <Clock size={12} />
+                      Devolução: {meta.devolucao}
+                    </span>
+                  )}
                   {meta.prioridade && (
                     <span className="rounded-full bg-white/[0.05] border border-white/10 px-3 py-1">
                       Prioridade: {meta.prioridade}
@@ -363,10 +525,61 @@ export function FilaPublica() {
                       Cargo: {meta.cargo}
                     </span>
                   )}
-                  <span className="rounded-full bg-white/[0.05] border border-white/10 px-3 py-1">
-                    Entrega: {meta.entregaSolicitada ? 'Sim' : 'Não'}
-                  </span>
+                  {!isFrota && (
+                    <span className="rounded-full bg-white/[0.05] border border-white/10 px-3 py-1">
+                      Entrega: {meta.entregaSolicitada ? 'Sim' : 'Não'}
+                    </span>
+                  )}
                 </div>
+
+                {isFrota && statusPublico === 'aguardando' && !meta.motivoNegativa && meta.frotaStatus !== 'liberada' && (
+                  <div className="mt-3 rounded-2xl border border-amber-300/25 bg-amber-400/10 px-3 py-2 text-xs text-amber-100">
+                    Aguardando resposta do almoxarifado para liberação do veículo.
+                  </div>
+                )}
+
+                {isFrota && (meta.frotaStatus === 'liberada' || meta.decisao === 'frota_liberada') && (
+                  <div className="mt-3 rounded-2xl border border-emerald-300/25 bg-emerald-400/10 px-3 py-2 text-xs text-emerald-100">
+                    Veículo liberado{meta.prazo ? ` a partir de ${meta.prazo}` : ''}{meta.devolucao ? ` até ${meta.devolucao}` : ''}.
+                  </div>
+                )}
+
+                {statusPublico === 'cancelado' && meta.motivoNegativa && !meta.canceladoPor && (
+                  <div className="mt-3 rounded-2xl border border-red-300/25 bg-red-400/10 px-3 py-2 text-xs text-red-100">
+                    <strong>Solicitação negada pelo almoxarifado.</strong>
+                    <br />
+                    Motivo: {meta.motivoNegativa}
+                  </div>
+                )}
+
+                {statusPublico === 'cancelado' && meta.canceladoPor === 'solicitante' && (
+                  <div className="mt-3 rounded-2xl border border-red-300/25 bg-red-400/10 px-3 py-2 text-xs text-red-100">
+                    <strong>Pedido cancelado por você</strong>
+                    {meta.canceladoEm ? ` em ${meta.canceladoEm}` : ''}.
+                    {meta.motivoCancelamento && (
+                      <>
+                        <br />
+                        Motivo: {meta.motivoCancelamento}
+                      </>
+                    )}
+                  </div>
+                )}
+
+                {meta.freteTipo && (
+                  <div className="mt-3 rounded-2xl border border-sky-300/25 bg-sky-400/10 px-3 py-2 text-xs text-sky-100">
+                    <strong>Frete:</strong>{' '}
+                    {meta.freteTipo === 'terceiro'
+                      ? `Terceiro${meta.freteTerceiroNome ? ` - ${meta.freteTerceiroNome}` : ''}${meta.freteTerceiroContato ? ` (${meta.freteTerceiroContato})` : ''}`
+                      : 'Biasi Engenharia'}
+                  </div>
+                )}
+
+                {meta.recebidoPorNome && (
+                  <div className="mt-3 rounded-2xl border border-emerald-300/25 bg-emerald-400/10 px-3 py-2 text-xs text-emerald-100">
+                    <strong>Recebido por:</strong> {meta.recebidoPorNome}
+                    {meta.recebidoEm ? ` em ${meta.recebidoEm}` : ''}
+                  </div>
+                )}
 
                 {meta.observacao && (
                   <p className="text-xs text-[#9fb0da] mt-3 border-t border-white/10 pt-3">{meta.observacao}</p>
@@ -380,6 +593,22 @@ export function FilaPublica() {
                       : 'Quando o almoxarifado avançar no app, essa tela atualiza aqui.'}
                   </span>
                 </div>
+
+                {podeCancelarPedido(p) && (
+                  <div className="mt-3 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCancelTarget(p);
+                        setCancelMotivo('');
+                      }}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-[rgba(255,122,157,0.45)] bg-[rgba(255,122,157,0.12)] px-3 py-1.5 text-[0.75rem] font-bold text-[#ffd9e3] hover:bg-[rgba(255,122,157,0.22)] transition"
+                    >
+                      <XCircle size={13} />
+                      Cancelar pedido
+                    </button>
+                  </div>
+                )}
               </div>
             );
           })}
@@ -394,6 +623,53 @@ export function FilaPublica() {
 
         <p className="text-center text-[#4f638f] text-xs mt-6">BiasiHub · Almoxarifado · Biasi Engenharia e Instalações</p>
       </div>
+
+      {cancelTarget && (
+        <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/65 p-4">
+          <div className="w-full max-w-lg rounded-2xl border border-[rgba(255,122,157,0.35)] bg-[linear-gradient(180deg,#172540,#0f1c34)] p-5 shadow-2xl">
+            <h3 className="m-0 text-xl font-black text-white">Cancelar pedido</h3>
+            <p className="mt-2 text-sm text-[#cbd6ff]">
+              {pedeMotivoCancelamento(cancelTarget)
+                ? 'Este pedido já foi liberado/iniciado. Informe o motivo do cancelamento — o almoxarifado verá esta justificativa.'
+                : 'Tem certeza que deseja cancelar este pedido? Você pode informar um motivo se quiser.'}
+            </p>
+            <textarea
+              className="mt-4 min-h-[110px] w-full rounded-2xl border border-[rgba(255,122,157,0.35)] bg-[rgba(10,30,77,0.55)] px-4 py-3 text-sm text-white outline-none placeholder:text-[#9db2e7]"
+              placeholder={pedeMotivoCancelamento(cancelTarget) ? 'Motivo do cancelamento *' : 'Motivo (opcional)'}
+              value={cancelMotivo}
+              onChange={(e) => setCancelMotivo(e.target.value)}
+              autoFocus
+            />
+            <div className="mt-4 flex flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                disabled={cancelando}
+                onClick={() => {
+                  setCancelTarget(null);
+                  setCancelMotivo('');
+                }}
+                className="rounded-xl border border-[rgba(113,154,255,0.35)] bg-[rgba(10,30,77,0.45)] px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
+              >
+                Voltar
+              </button>
+              <button
+                type="button"
+                disabled={cancelando}
+                onClick={confirmarCancelamentoSolicitante}
+                className="rounded-xl border border-[rgba(255,122,157,0.45)] bg-[rgba(255,122,157,0.18)] px-4 py-2 text-sm font-bold text-[#ffd9e3] disabled:opacity-50"
+              >
+                {cancelando ? 'Cancelando...' : 'Confirmar cancelamento'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {toast && (
+        <div className="fixed bottom-5 right-5 rounded-xl border border-[rgba(113,154,255,0.35)] bg-[rgba(10,31,78,0.95)] px-4 py-2.5 text-sm font-bold text-white shadow-2xl z-[120]">
+          {toast}
+        </div>
+      )}
     </div>
   );
 }

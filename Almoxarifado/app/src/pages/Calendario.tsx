@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+﻿import { useEffect, useState, useMemo } from 'react';
 import { Plus, X, ChevronLeft, ChevronRight, Calendar, Truck, Wrench, CheckCircle, Search } from 'lucide-react';
 import { supabase } from '../infrastructure/supabase/client';
 import { useAuth } from '../context/AuthContext';
@@ -21,12 +21,12 @@ interface ItemOpcao {
   descricao: string;
 }
 
-const MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-const DIAS_SEMANA = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+const MESES = ['Janeiro', 'Fevereiro', 'Marco', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+const DIAS_SEMANA = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab'];
 
 const STATUS_CONFIG = {
   ativo:     { label: 'Ativo',     cor: 'text-blue-700',   corBg: 'bg-blue-100',   dot: 'bg-blue-500' },
-  concluido: { label: 'Concluído', cor: 'text-green-700',  corBg: 'bg-green-100',  dot: 'bg-green-500' },
+  concluido: { label: 'Concluido', cor: 'text-green-700',  corBg: 'bg-green-100',  dot: 'bg-green-500' },
   cancelado: { label: 'Cancelado', cor: 'text-slate-500',  corBg: 'bg-slate-100',  dot: 'bg-slate-400' },
 };
 
@@ -41,7 +41,7 @@ export function Calendario() {
   const [filtroTipo, setFiltroTipo] = useState<'' | 'ferramenta' | 'veiculo'>('');
   const [filtroStatus, setFiltroStatus] = useState<'' | 'ativo' | 'concluido' | 'cancelado'>('ativo');
 
-  // Calendário
+  // Calendario
   const hojeDate = new Date();
   const hoje = hojeDate.toISOString().split('T')[0];
   const [mesSelecionado, setMesSelecionado] = useState(hojeDate.getMonth());
@@ -66,25 +66,49 @@ export function Calendario() {
 
   async function carregar() {
     setLoading(true);
-    const { data } = await supabase
-      .from('agendamentos_almoxarifado')
-      .select('*')
-      .order('data_inicio', { ascending: true });
-    setAgendamentos((data || []) as Agendamento[]);
-    setLoading(false);
+    try {
+      const { data, error } = await supabase
+        .from('agendamentos_almoxarifado')
+        .select('*')
+        .order('data_inicio', { ascending: true });
+
+      if (error) throw error;
+      setAgendamentos((data || []) as Agendamento[]);
+    } catch (err) {
+      console.error('[Calendario] erro ao carregar agendamentos:', err);
+      setAgendamentos([]);
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function carregarItens() {
-    const [{ data: veiculos }, { data: ferramentas }] = await Promise.all([
-      supabase.from('veiculos').select('id, modelo').eq('ativo', true).order('modelo'),
-      supabase.from('itens_almoxarifado').select('id, descricao').eq('ativo', true).order('descricao'),
-    ]);
-    setItensVeiculos((veiculos || []).map((v: any) => ({ id: v.id, descricao: v.modelo })));
-    setItensFerramentas((ferramentas || []).map((f: any) => ({ id: f.id, descricao: f.descricao })));
+    try {
+      const [{ data: veiculos, error: vErr }, { data: ferramentas, error: fErr }] = await Promise.all([
+        supabase.from('veiculos').select('id, modelo').eq('ativo', true).order('modelo'),
+        supabase.from('itens_almoxarifado').select('id, descricao').eq('ativo', true).order('descricao'),
+      ]);
+
+      if (vErr) throw vErr;
+      if (fErr) throw fErr;
+
+      setItensVeiculos((veiculos || []).map((v: any) => ({ id: v.id, descricao: v.modelo })));
+      setItensFerramentas((ferramentas || []).map((f: any) => ({ id: f.id, descricao: f.descricao })));
+    } catch (err) {
+      console.error('[Calendario] erro ao carregar itens:', err);
+      setItensVeiculos([]);
+      setItensFerramentas([]);
+    }
   }
 
   useEffect(() => { carregarItens(); }, []);
-  useEffect(() => { if (usuario) carregar(); }, [usuario]);
+  useEffect(() => {
+    if (usuario) {
+      void carregar();
+    } else {
+      setLoading(false);
+    }
+  }, [usuario]);
 
   async function salvar() {
     if (!form.item_id || !form.data_inicio || !form.data_fim) { setErro('Preencha todos os campos obrigatórios'); return; }
@@ -92,6 +116,29 @@ export function Calendario() {
     setSalvando(true); setErro('');
     const itens = form.tipo === 'veiculo' ? itensVeiculos : itensFerramentas;
     const item = itens.find(i => i.id === form.item_id);
+
+    // ── Valida conflito: mesmo item já agendado em intervalo que sobrepõe ──────────
+    // Sobreposição existe se: existente.data_inicio <= novo.data_fim E existente.data_fim >= novo.data_inicio
+    const { data: conflitos, error: errConflito } = await supabase
+      .from('agendamentos_almoxarifado')
+      .select('id, data_inicio, data_fim, solicitante_nome, descricao')
+      .eq('item_id', form.item_id)
+      .eq('tipo', form.tipo)
+      .eq('status', 'ativo')
+      .lte('data_inicio', form.data_fim)
+      .gte('data_fim', form.data_inicio);
+
+    if (errConflito) { setErro(errConflito.message); setSalvando(false); return; }
+    if (conflitos && conflitos.length > 0) {
+      const c = conflitos[0];
+      const tipoLbl = form.tipo === 'veiculo' ? 'Veículo' : 'Ferramenta';
+      setErro(
+        `${tipoLbl} já agendado neste período por ${c.solicitante_nome} (${c.data_inicio} até ${c.data_fim}). Escolha outro intervalo.`
+      );
+      setSalvando(false);
+      return;
+    }
+
     const { error } = await supabase.from('agendamentos_almoxarifado').insert({
       tipo: form.tipo,
       item_id: form.item_id,
@@ -129,7 +176,7 @@ export function Calendario() {
     return true;
   }), [agendamentos, filtroTipo, filtroStatus]);
 
-  // Agendamentos do mês selecionado
+  // Agendamentos do mes selecionado
   const doMes = useMemo(() => filtrados.filter(a => {
     const ini = new Date(a.data_inicio + 'T12:00:00');
     const fim = new Date(a.data_fim + 'T12:00:00');
@@ -138,7 +185,7 @@ export function Calendario() {
     return ini <= mesFim && fim >= mesIni;
   }), [filtrados, mesSelecionado, anoSelecionado]);
 
-  // Grid do calendário
+  // Grid do calendario
   const diasDoMes = useMemo(() => {
     const primeiroDia = new Date(anoSelecionado, mesSelecionado, 1).getDay();
     const totalDias = new Date(anoSelecionado, mesSelecionado + 1, 0).getDate();
@@ -180,9 +227,9 @@ export function Calendario() {
         <div>
           <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
             <Calendar size={22} className="text-blue-600" />
-            Calendário
+            Calendario
           </h1>
-          <p className="text-sm text-slate-500 mt-1">Agendamentos de veículos e ferramentas</p>
+          <p className="text-sm text-slate-500 mt-1">Agendamentos de veiculos e ferramentas</p>
         </div>
         {isGestor && (
           <button onClick={() => { setModal(true); setErro(''); carregarItens(); }}
@@ -204,14 +251,14 @@ export function Calendario() {
           className="border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
           <option value="">Todos os status</option>
           <option value="ativo">Ativos</option>
-          <option value="concluido">Concluídos</option>
+          <option value="concluido">Concluidos</option>
           <option value="cancelado">Cancelados</option>
         </select>
         <span className="text-xs text-slate-400">{filtrados.length} agendamento(s)</span>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-        {/* Grid do calendário */}
+        {/* Grid do calendario */}
         <div className="lg:col-span-3 bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
           <div className="flex items-center justify-between mb-4">
             <button onClick={() => navMes(-1)} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 transition-colors">
@@ -255,12 +302,12 @@ export function Calendario() {
           {/* Legenda */}
           <div className="flex items-center gap-4 mt-4 pt-3 border-t border-slate-100">
             <div className="flex items-center gap-1.5 text-xs text-slate-500">
-              <Truck size={11} className="text-blue-500" />Veículo
+              <Truck size={11} className="text-blue-500" />Veiculo
             </div>
             <div className="flex items-center gap-1.5 text-xs text-slate-500">
               <Wrench size={11} className="text-amber-500" />Ferramenta
             </div>
-            <span className="text-xs text-slate-400 ml-auto">{doMes.length} neste mês</span>
+            <span className="text-xs text-slate-400 ml-auto">{doMes.length} neste mes</span>
           </div>
         </div>
 
@@ -288,7 +335,7 @@ export function Calendario() {
                           <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${cfg.dot}`} />
                           <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${cfg.corBg} ${cfg.cor}`}>{cfg.label}</span>
                           <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${a.tipo === 'veiculo' ? 'bg-blue-50 text-blue-600' : 'bg-amber-50 text-amber-600'}`}>
-                            {a.tipo === 'veiculo' ? '🚛' : '🔧'}
+                            {a.tipo === 'veiculo' ? '🚛' : '[FERR]'}
                           </span>
                         </div>
                         <p className="text-sm font-medium text-slate-700 truncate">{a.item_descricao}</p>
@@ -366,7 +413,7 @@ export function Calendario() {
                   )}
                 </div>
 
-                {/* Dropdown de sugestões */}
+                {/* Dropdown de sugestoes */}
                 {!itemSelecionado && buscaItem.length > 0 && (
                   <div className="absolute z-[60] left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-xl max-h-48 overflow-y-auto">
                     {itensFiltrados.length === 0 ? (
@@ -392,7 +439,7 @@ export function Calendario() {
               {/* Datas */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1.5">Data início *</label>
+                  <label className="block text-xs font-medium text-slate-700 mb-1.5">Data inicio *</label>
                   <input type="date" value={form.data_inicio} min={hoje} onChange={e => setForm(f => ({ ...f, data_inicio: e.target.value }))}
                     className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>
@@ -403,7 +450,7 @@ export function Calendario() {
                 </div>
               </div>
 
-              {/* Descrição */}
+              {/* Descricao */}
               <div>
                 <label className="block text-xs font-medium text-slate-700 mb-1.5">Descrição</label>
                 <textarea value={form.descricao} onChange={e => setForm(f => ({ ...f, descricao: e.target.value }))} rows={2}
@@ -425,3 +472,4 @@ export function Calendario() {
     </div>
   );
 }
+

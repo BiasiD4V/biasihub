@@ -1,11 +1,30 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import { Plus, Search, Pencil, AlertTriangle, X, Package } from 'lucide-react';
 import { QRCodeItem } from '../components/QRCodeItem';
 import { supabase } from '../infrastructure/supabase/client';
 import type { ItemAlmoxarifado } from '../domain/entities/ItemAlmoxarifado';
 import { useAuth } from '../context/AuthContext';
 
-const UNIDADES = ['un', 'kg', 'g', 'L', 'ml', 'm', 'm²', 'm³', 'cx', 'pç', 'par', 'rolo', 'saco', 'balde'];
+const UNIDADES = ['un', 'kg', 'g', 'L', 'ml', 'm', 'm2', 'm3', 'cx', 'pc', 'par', 'rolo', 'saco', 'balde'];
+const INVALID_OPTIONAL_VALUES = new Set(['-', '--', '—', ' - ', 'n/a', 'na', 'null', 'undefined', '(null)']);
+
+function sanitizeOptionalValue(value: string | null | undefined): string {
+  const raw = (value ?? '').trim();
+  if (!raw) return '';
+
+  const normalized = raw.toLowerCase();
+  if (INVALID_OPTIONAL_VALUES.has(normalized)) return '';
+
+  // Evita exibir valores corrompidos de encoding em campos textuais.
+  if (/(?:[\u00C2\u00C3][\u0080-\u00BF]|\uFFFD)/.test(raw)) return '';
+
+  return raw;
+}
+
+function displayOptionalValue(value: string | null | undefined, fallback: string): string {
+  const clean = sanitizeOptionalValue(value);
+  return clean || fallback;
+}
 
 export function Estoque() {
   const { usuario } = useAuth();
@@ -18,27 +37,59 @@ export function Estoque() {
 
   const [modalAberto, setModalAberto] = useState(false);
   const [editando, setEditando] = useState<ItemAlmoxarifado | null>(null);
-  const [form, setForm] = useState({ codigo: '', descricao: '', unidade: 'un', estoque_minimo: '', localizacao: '', categoria: '', marca: '' });
+  const [form, setForm] = useState({
+    codigo: '',
+    descricao: '',
+    unidade: 'un',
+    estoque_minimo: '',
+    localizacao: '',
+    categoria: '',
+    marca: '',
+    preco_unitario: '',
+    grupo: '',
+    familia: '',
+  });
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState('');
 
   const isGestor = usuario?.papel === 'gestor' || usuario?.papel === 'admin' || usuario?.papel === 'dono';
 
   async function carregar() {
-    const { data } = await supabase.from('itens_almoxarifado')
-      .select('*')
-      .eq('ativo', true)
-      .eq('tipo', 'material')
-      .order('descricao');
-    setItens(data || []);
-    setLoading(false);
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('itens_almoxarifado')
+        .select('*')
+        .eq('ativo', true)
+        .eq('tipo', 'material')
+        .order('descricao');
+
+      if (error) throw error;
+      setItens(data || []);
+    } catch (err) {
+      console.error('[Estoque] erro ao carregar:', err);
+      setItens([]);
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => { carregar(); }, []);
 
   function abrirNovo() {
     setEditando(null);
-    setForm({ codigo: '', descricao: '', unidade: 'un', estoque_minimo: '', localizacao: '', categoria: '', marca: '' });
+    setForm({
+      codigo: '',
+      descricao: '',
+      unidade: 'un',
+      estoque_minimo: '',
+      localizacao: '',
+      categoria: '',
+      marca: '',
+      preco_unitario: '',
+      grupo: '',
+      familia: '',
+    });
     setErro('');
     setModalAberto(true);
   }
@@ -50,9 +101,12 @@ export function Estoque() {
       descricao: item.descricao,
       unidade: item.unidade,
       estoque_minimo: String(item.estoque_minimo),
-      localizacao: item.localizacao || '',
-      categoria: item.categoria || '',
-      marca: item.marca || '',
+      localizacao: sanitizeOptionalValue(item.localizacao),
+      categoria: sanitizeOptionalValue(item.categoria),
+      marca: sanitizeOptionalValue(item.marca),
+      preco_unitario: item.preco_unitario != null ? String(item.preco_unitario) : '',
+      grupo: sanitizeOptionalValue(item.grupo),
+      familia: sanitizeOptionalValue(item.familia),
     });
     setErro('');
     setModalAberto(true);
@@ -68,9 +122,12 @@ export function Estoque() {
       descricao: form.descricao.trim(),
       unidade: form.unidade,
       estoque_minimo: parseFloat(form.estoque_minimo) || 0,
-      localizacao: form.localizacao.trim() || null,
-      categoria: form.categoria.trim() || null,
-      marca: form.marca.trim() || null,
+      localizacao: sanitizeOptionalValue(form.localizacao) || null,
+      categoria: sanitizeOptionalValue(form.categoria) || null,
+      marca: sanitizeOptionalValue(form.marca) || null,
+      preco_unitario: form.preco_unitario === '' ? null : parseFloat(form.preco_unitario),
+      grupo: form.grupo.trim() || null,
+      familia: form.familia.trim() || null,
       tipo: 'material',
     };
 
@@ -99,7 +156,9 @@ export function Estoque() {
       item.descricao.toLowerCase().includes(busca.toLowerCase()) ||
       item.codigo.toLowerCase().includes(busca.toLowerCase()) ||
       item.categoria?.toLowerCase().includes(busca.toLowerCase()) ||
-      item.marca?.toLowerCase().includes(busca.toLowerCase());
+      item.marca?.toLowerCase().includes(busca.toLowerCase()) ||
+      item.grupo?.toLowerCase().includes(busca.toLowerCase()) ||
+      item.familia?.toLowerCase().includes(busca.toLowerCase());
     const isBaixo = item.estoque_atual < item.estoque_minimo;
     const matchStatus = filtroStatus === 'todos' || (filtroStatus === 'baixo' && isBaixo) || (filtroStatus === 'ok' && !isBaixo);
     return matchBusca && matchStatus;
@@ -133,7 +192,7 @@ export function Estoque() {
           {(['todos', 'ok', 'baixo'] as const).map(f => (
             <button key={f} onClick={() => { setFiltroStatus(f); setPagina(1); }}
               className={`px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${filtroStatus === f ? 'bg-slate-800 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:border-slate-300'}`}>
-              {f === 'todos' ? 'Todos' : f === 'ok' ? 'OK' : '⚠ Baixo'}
+              {f === 'todos' ? 'Todos' : f === 'ok' ? 'OK' : '! Baixo'}
             </button>
           ))}
         </div>
@@ -158,6 +217,9 @@ export function Estoque() {
                   <th className="text-left px-5 py-3 text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Descrição</th>
                   <th className="text-left px-5 py-3 text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Categoria</th>
                   <th className="text-left px-5 py-3 text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Marca</th>
+                  <th className="text-right px-5 py-3 text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Preço</th>
+                  <th className="text-left px-5 py-3 text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Grupo</th>
+                  <th className="text-left px-5 py-3 text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Família</th>
                   <th className="text-left px-5 py-3 text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Local</th>
                   <th className="text-right px-5 py-3 text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Atual</th>
                   <th className="text-right px-5 py-3 text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Mínimo</th>
@@ -175,9 +237,16 @@ export function Estoque() {
                       <td className="px-5 py-3">
                         <p className="font-medium text-slate-700">{item.descricao}</p>
                       </td>
-                      <td className="px-5 py-3 text-xs text-slate-500">{item.categoria || '—'}</td>
-                      <td className="px-5 py-3 text-xs text-slate-500">{item.marca || '—'}</td>
-                      <td className="px-5 py-3 text-xs text-slate-500">{item.localizacao || '—'}</td>
+                      <td className="px-5 py-3 text-xs text-slate-500">{displayOptionalValue(item.categoria, 'Sem categoria')}</td>
+                      <td className="px-5 py-3 text-xs text-slate-500">{displayOptionalValue(item.marca, 'Sem marca')}</td>
+                      <td className="px-5 py-3 text-right text-xs text-slate-600 font-medium">
+                        {item.preco_unitario != null
+                          ? item.preco_unitario.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+                          : '-'}
+                      </td>
+                      <td className="px-5 py-3 text-xs text-slate-500">{displayOptionalValue(item.grupo, '-')}</td>
+                      <td className="px-5 py-3 text-xs text-slate-500">{displayOptionalValue(item.familia, '-')}</td>
+                      <td className="px-5 py-3 text-xs text-slate-500">{displayOptionalValue(item.localizacao, 'Sem local')}</td>
                       <td className="px-5 py-3 text-right">
                         <span className={`font-semibold ${baixo ? 'text-amber-600' : 'text-slate-700'}`}>
                           {Number(item.estoque_atual).toLocaleString('pt-BR', { maximumFractionDigits: 2 })} {item.unidade}
@@ -217,7 +286,7 @@ export function Estoque() {
           {totalPaginas > 1 && (
             <div className="flex items-center justify-between px-5 py-3 border-t border-slate-100 bg-slate-50/50">
               <p className="text-xs text-slate-500">
-                Página <span className="font-semibold text-slate-700">{pagina}</span> de <span className="font-semibold text-slate-700">{totalPaginas}</span>
+                Pagina <span className="font-semibold text-slate-700">{pagina}</span> de <span className="font-semibold text-slate-700">{totalPaginas}</span>
               </p>
               <div className="flex gap-2">
                 <button
@@ -232,7 +301,7 @@ export function Estoque() {
                   onClick={() => setPagina(p => Math.min(totalPaginas, p + 1))}
                   className="px-3 py-1.5 text-xs font-medium border border-slate-200 rounded-lg bg-white hover:bg-slate-50 disabled:opacity-50 transition-colors"
                 >
-                  Próxima
+                  Proxima
                 </button>
               </div>
             </div>
@@ -272,13 +341,45 @@ export function Estoque() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-slate-700 mb-1.5">Categoria</label>
-                  <input value={form.categoria} onChange={e => setForm(f => ({ ...f, categoria: e.target.value }))} placeholder="Ex: Consumível"
+                  <input value={form.categoria} onChange={e => setForm(f => ({ ...f, categoria: e.target.value }))} placeholder="Ex: Consumivel"
                     className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-700 mb-1.5">Marca</label>
                   <input value={form.marca} onChange={e => setForm(f => ({ ...f, marca: e.target.value }))} placeholder="Fabricante"
                     className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1.5">Preço Unitário (R$)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.0001"
+                  value={form.preco_unitario}
+                  onChange={e => setForm(f => ({ ...f, preco_unitario: e.target.value }))}
+                  placeholder="Ex: 36.7600"
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1.5">Grupo</label>
+                  <input
+                    value={form.grupo}
+                    onChange={e => setForm(f => ({ ...f, grupo: e.target.value }))}
+                    placeholder="Ex: 02 - TABELA - 2022"
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1.5">Família</label>
+                  <input
+                    value={form.familia}
+                    onChange={e => setForm(f => ({ ...f, familia: e.target.value }))}
+                    placeholder="Ex: 02.002 - ELETRODUTOS E CONEXOES"
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -307,3 +408,4 @@ export function Estoque() {
     </div>
   );
 }
+

@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useRef, type ReactNode } from 'react';
+﻿import { createContext, useContext, useState, useEffect, useRef, type ReactNode } from 'react';
 import { supabase } from '../infrastructure/supabase/client';
 
 // Captura o hash SSO ANTES do HashRouter apagar ele durante o render
@@ -25,7 +25,7 @@ const AuthContext = createContext<AuthContextType | null>(null);
 // Consulta o banco para verificar se o papel tem acesso ao módulo
 async function podeAcessarModulo(papel: string, moduloKey: string): Promise<boolean> {
   const p = papel.toLowerCase().trim();
-  // Admin/Dono sempre têm acesso
+  // Admin/Dono sempre tem acesso
   if (p === 'admin' || p === 'dono') return true;
 
   try {
@@ -36,7 +36,7 @@ async function podeAcessarModulo(papel: string, moduloKey: string): Promise<bool
       .maybeSingle();
 
     if (!data) {
-      // Sem configuração no banco → fallback para almoxarifado/gestor
+      // Sem configuração no banco -> fallback para almoxarifado/gestor
       return p === 'almoxarifado' || p === 'gestor';
     }
     if (!data.disponivel) return false;
@@ -45,6 +45,15 @@ async function podeAcessarModulo(papel: string, moduloKey: string): Promise<bool
   } catch {
     return p === 'almoxarifado' || p === 'gestor';
   }
+}
+
+async function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return await Promise.race([
+    promise,
+    new Promise<T>((resolve) => {
+      setTimeout(() => resolve(fallback), ms);
+    }),
+  ]);
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -83,7 +92,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           inicializado.current = true;
           setLoading(false);
         }
-      }, 5000);
+      }, 12000);
 
       try {
         const { data } = supabase.auth.onAuthStateChange(
@@ -91,22 +100,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             // Skip INITIAL_SESSION if SSO already initialized
             if (inicializado.current && _event === 'INITIAL_SESSION') return;
 
-            clearTimeout(timeout);
-
             if (_event === 'INITIAL_SESSION') {
+              let erroInicial: string | null = null;
               if (session?.user) {
-                await loadUserProfile(session.user.id);
+                const ok = await withTimeout(loadUserProfile(session.user.id), 8000, false);
+                if (!ok) {
+                  setUsuario(null);
+                  erroInicial = 'Não foi possível carregar o perfil no tempo esperado.';
+                }
               } else {
-                const remembered = await validateRememberedSession();
+                const remembered = await withTimeout(
+                  validateRememberedSession(),
+                  8000,
+                  { valid: false as const }
+                );
                 if (remembered.valid && remembered.userId) {
-                  await loadUserProfile(remembered.userId);
+                  const ok = await withTimeout(loadUserProfile(remembered.userId), 8000, false);
+                  if (!ok) {
+                    setUsuario(null);
+                    erroInicial = 'Não foi possível recuperar a sessão salva neste dispositivo.';
+                  }
                 } else {
                   setUsuario(null);
                 }
               }
               setLoading(false);
               inicializado.current = true;
-              setErroConexao(null);
+              clearTimeout(timeout);
+              setErroConexao(erroInicial);
             } else if (_event === 'SIGNED_IN') {
               if (session?.user) await loadUserProfile(session.user.id);
               setErroConexao(null);
@@ -114,6 +135,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               setUsuario(null);
               clearRememberedSession();
               setLoading(false);
+              clearTimeout(timeout);
             }
           }
         );
@@ -249,3 +271,4 @@ export function useAuth() {
   if (!ctx) throw new Error('useAuth must be used within AuthProvider');
   return ctx;
 }
+

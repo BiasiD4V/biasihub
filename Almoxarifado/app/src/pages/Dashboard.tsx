@@ -107,7 +107,7 @@ export function Dashboard() {
     { label: 'Veículos em Uso', value: kpis.veiculosEmUso, icon: Truck, bg: 'bg-emerald-100', color: 'text-emerald-600', trend: null, sub: 'em campo agora' },
     { label: 'Em Manutenção', value: kpis.veiculosManutencao, icon: Fuel, bg: 'bg-orange-100', color: 'text-orange-600', trend: null, sub: 'fora de operação' },
     { label: 'Movim. Hoje', value: kpis.movimentacoesHoje, icon: Activity, bg: 'bg-cyan-100', color: 'text-cyan-600', trend: null, sub: 'entradas e saídas' },
-    { label: 'Custo Frota', value: fmtBRL(kpis.custoFrotaTotal), icon: Truck, bg: 'bg-slate-100', color: 'text-slate-600', trend: null, sub: 'total manutenções', isText: true },
+    { label: 'Custo Frota', value: fmtBRL(kpis.custoFrotaTotal), icon: Truck, bg: 'bg-slate-100', color: 'text-slate-600', trend: null, sub: 'total de manutenções', isText: true },
   ];
 
   return (
@@ -199,8 +199,8 @@ export function Dashboard() {
                     <div className="flex items-center gap-3 min-w-0">
                       <span className={`w-2 h-2 rounded-full flex-shrink-0 ${m.tipo === 'entrada' ? 'bg-emerald-500' : 'bg-rose-500'}`} />
                       <div className="min-w-0">
-                        <p className="text-sm font-medium text-slate-700 truncate">{(m.item as any)?.descricao || '—'}</p>
-                        <p className="text-[11px] text-slate-400">{(m.responsavel as any)?.nome || 'Desconhecido'} {m.obra ? `· ${m.obra}` : ''}</p>
+                        <p className="text-sm font-medium text-slate-700 truncate">{(m.item as any)?.descricao || '-'}</p>
+                        <p className="text-[11px] text-slate-400">{(m.responsavel as any)?.nome || 'Desconhecido'} {m.obra ? `- ${m.obra}` : ''}</p>
                       </div>
                     </div>
                     <div className="text-right flex-shrink-0">
@@ -221,7 +221,7 @@ export function Dashboard() {
             <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex gap-3">
               <AlertTriangle size={18} className="text-amber-600 flex-shrink-0 mt-0.5" />
               <div>
-                <p className="text-sm font-medium text-amber-800">{kpis.itensBaixoEstoque} item(ns) com estoque abaixo do mínimo{kpis.itensZerados > 0 ? ` · ${kpis.itensZerados} zerado(s)` : ''}</p>
+                <p className="text-sm font-medium text-amber-800">{kpis.itensBaixoEstoque} item(ns) com estoque abaixo do mínimo{kpis.itensZerados > 0 ? ` - ${kpis.itensZerados} zerado(s)` : ''}</p>
                 <p className="text-xs text-amber-600 mt-0.5">Acesse a tela de Estoque para ver quais itens precisam de reposição.</p>
               </div>
             </div>

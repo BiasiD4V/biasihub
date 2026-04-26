@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import { ShoppingCart, Plus, X, ChevronDown, ChevronUp, Trash2 } from 'lucide-react';
 import { supabase } from '../infrastructure/supabase/client';
 import { useAuth } from '../context/AuthContext';
@@ -57,53 +57,78 @@ export function OrdensCompra() {
 
   async function carregar() {
     setLoading(true);
-    const { data } = await supabase
-      .from('ordens_compra')
-      .select('*, fornecedores(nome), itens_ordem_compra(id, quantidade, preco_unitario, quantidade_recebida, itens_almoxarifado(descricao, unidade))')
-      .neq('status', 'cancelada')
-      .order('numero', { ascending: false });
-    setOrdens(data || []);
-    setLoading(false);
+    try {
+      const { data, error } = await supabase
+        .from('ordens_compra')
+        .select('*, fornecedores(nome), itens_ordem_compra(id, quantidade, preco_unitario, quantidade_recebida, itens_almoxarifado(descricao, unidade))')
+        .neq('status', 'cancelada')
+        .order('numero', { ascending: false });
+      if (error) throw error;
+      setOrdens(data || []);
+    } catch (err) {
+      console.error('[OrdensCompra] erro ao carregar ordens:', err);
+      setOrdens([]);
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function carregarOpcoes() {
-    const [fRes, iRes] = await Promise.all([
-      supabase.from('fornecedores').select('id, nome').eq('ativo', true).order('nome'),
-      supabase.from('itens_almoxarifado').select('id, codigo, descricao, unidade').eq('ativo', true).order('descricao'),
-    ]);
-    setFornecedores(fRes.data || []);
-    setItensAlmox(iRes.data || []);
+    try {
+      const [fRes, iRes] = await Promise.all([
+        supabase.from('fornecedores').select('id, nome').eq('ativo', true).order('nome'),
+        supabase.from('itens_almoxarifado').select('id, codigo, descricao, unidade').eq('ativo', true).order('descricao'),
+      ]);
+
+      if (fRes.error) throw fRes.error;
+      if (iRes.error) throw iRes.error;
+
+      setFornecedores(fRes.data || []);
+      setItensAlmox(iRes.data || []);
+    } catch (err) {
+      console.error('[OrdensCompra] erro ao carregar opcoes:', err);
+      setFornecedores([]);
+      setItensAlmox([]);
+    }
   }
 
   async function salvarOC() {
     setSalvando(true);
-    const linhasValidas = linhas.filter(l => l.item_id && l.quantidade);
-    const total = linhasValidas.reduce((s, l) => s + (Number(l.preco_unitario) || 0) * Number(l.quantidade), 0);
+    try {
+      const linhasValidas = linhas.filter(l => l.item_id && l.quantidade);
+      const total = linhasValidas.reduce((s, l) => s + (Number(l.preco_unitario) || 0) * Number(l.quantidade), 0);
 
-    const { data: oc } = await supabase.from('ordens_compra').insert({
-      fornecedor_id: form.fornecedor_id || null,
-      obra: form.obra || null,
-      observacao: form.observacao || null,
-      total_estimado: total || null,
-      criado_por: usuario?.id,
-    }).select().single();
+      const { data: oc, error: ocError } = await supabase.from('ordens_compra').insert({
+        fornecedor_id: form.fornecedor_id || null,
+        obra: form.obra || null,
+        observacao: form.observacao || null,
+        total_estimado: total || null,
+        criado_por: usuario?.id,
+      }).select().single();
 
-    if (oc && linhasValidas.length) {
-      await supabase.from('itens_ordem_compra').insert(
-        linhasValidas.map(l => ({
-          ordem_id: oc.id,
-          item_id: l.item_id,
-          quantidade: Number(l.quantidade),
-          preco_unitario: l.preco_unitario ? Number(l.preco_unitario) : null,
-        }))
-      );
+      if (ocError) throw ocError;
+
+      if (oc && linhasValidas.length) {
+        const { error: itensError } = await supabase.from('itens_ordem_compra').insert(
+          linhasValidas.map(l => ({
+            ordem_id: oc.id,
+            item_id: l.item_id,
+            quantidade: Number(l.quantidade),
+            preco_unitario: l.preco_unitario ? Number(l.preco_unitario) : null,
+          }))
+        );
+        if (itensError) throw itensError;
+      }
+
+      setModal(false);
+      setForm({ fornecedor_id: '', obra: '', observacao: '' });
+      setLinhas([{ item_id: '', quantidade: '', preco_unitario: '' }]);
+      await carregar();
+    } catch (err) {
+      console.error('[OrdensCompra] erro ao salvar OC:', err);
+    } finally {
+      setSalvando(false);
     }
-
-    setModal(false);
-    setForm({ fornecedor_id: '', obra: '', observacao: '' });
-    setLinhas([{ item_id: '', quantidade: '', preco_unitario: '' }]);
-    carregar();
-    setSalvando(false);
   }
 
   async function avancarStatus(oc: OrdemCompra) {
@@ -117,7 +142,7 @@ export function OrdensCompra() {
   }
 
   async function cancelar(id: string) {
-    if (!confirm('Cancelar esta ordem de compra?')) return;
+    if (!confirm('Cancelar está ordem de compra?')) return;
     await supabase.from('ordens_compra').update({ status: 'cancelada' }).eq('id', id);
     carregar();
   }
@@ -125,7 +150,7 @@ export function OrdensCompra() {
   const totalEstimado = (oc: OrdemCompra) => {
     if (oc.total_estimado) return Number(oc.total_estimado).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
     const total = (oc.itens_ordem_compra || []).reduce((s, i) => s + (Number(i.preco_unitario) || 0) * Number(i.quantidade), 0);
-    return total ? total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '—';
+    return total ? total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : ' - ';
   };
 
   return (
@@ -172,7 +197,7 @@ export function OrdensCompra() {
                         </div>
                         {oc.obra && <p className="text-xs text-slate-400 mb-2">📍 {oc.obra}</p>}
                         <p className="text-sm font-semibold text-slate-700">{totalEstimado(oc)}</p>
-                        <p className="text-xs text-slate-400 mt-1">{oc.itens_ordem_compra?.length || 0} item(ns) · {new Date(oc.criado_em).toLocaleDateString('pt-BR')}</p>
+                        <p className="text-xs text-slate-400 mt-1">{oc.itens_ordem_compra?.length || 0} item(ns)  -  {new Date(oc.criado_em).toLocaleDateString('pt-BR')}</p>
 
                         {/* Expandir itens */}
                         <button onClick={() => setExpandido(expandido === oc.id ? null : oc.id)}
@@ -192,7 +217,7 @@ export function OrdensCompra() {
                           </div>
                         )}
 
-                        {/* Ações */}
+                        {/* Acoes */}
                         {isGestor && (
                           <div className="flex gap-2 mt-3">
                             {cfg.prox && (
@@ -316,3 +341,4 @@ export function OrdensCompra() {
     </div>
   );
 }
+
