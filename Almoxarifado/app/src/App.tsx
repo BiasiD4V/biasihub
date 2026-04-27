@@ -34,6 +34,22 @@ export default function App() {
         <BrowserRouter>
           <Suspense fallback={<SuspenseFallback />}>
             <Routes>
+            {/* Raiz:
+                  - No Desktop (Electron): vai pra /dashboard (equipe interna logada).
+                  - No web (Vercel): vai pra /obra (porta pública pro pessoal de campo).
+                A URL biasihub-almoxarifado-weld.vercel.app abre direto a landing
+                da requisição. Equipe interna que precisa logar via web acessa
+                /login direto. */}
+            <Route
+              path="/"
+              element={
+                <Navigate
+                  to={navigator.userAgent.includes('Electron') ? '/dashboard' : '/obra'}
+                  replace
+                />
+              }
+            />
+
             {/* Rotas públicas — sem login */}
             <Route path="/obra" element={<LandingPublica />} />
             <Route path="/req" element={<RequisicaoPublica />} />
@@ -41,7 +57,6 @@ export default function App() {
             <Route path="/rastreio" element={<RastreioEntregaMateriais />} />
             <Route path="/login" element={<Login />} />
             <Route element={<LayoutAutenticado />}>
-              <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/estoque" element={<Estoque />} />
               <Route path="/ferramentas" element={<Ferramentas />} />
