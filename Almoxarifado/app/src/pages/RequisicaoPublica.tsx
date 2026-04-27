@@ -572,6 +572,70 @@ export function RequisicaoPublica() {
     }
   }, []);
 
+  /* ---------- Repetir pedido (vindo de /fila) ----------
+       FilaPublica grava { obra, observacao, itens } no localStorage e
+       redireciona pra /req?repetir=1. Aqui populamos o form. Fotos NÃO
+       são reaproveitadas (precisam ser tiradas de novo) — alerta o user. */
+  useEffect(() => {
+    if (params.get('repetir') !== '1') return;
+    try {
+      const raw = localStorage.getItem('biasi_repetir_v1');
+      if (!raw) return;
+      const dados = JSON.parse(raw) as {
+        origem_id?: string;
+        obra?: string;
+        observacao?: string | null;
+        itens?: Array<{ tipo?: string; descricao?: string; nome?: string; quantidade?: number; unidade?: string; observacao?: string | null; placa?: string | null; modelo?: string | null }>;
+      };
+      // Detecta categoria pelo primeiro item
+      const primeiroTipo = dados.itens?.[0]?.tipo;
+      let cat: CategoriaType = 'insumos';
+      if (primeiroTipo === 'ferramenta') cat = 'ferramentas';
+      else if (primeiroTipo === 'carro') cat = 'frota';
+      setCategoria(cat);
+
+      if (dados.obra) setObra(dados.obra);
+      // Tira metas técnicas da observação antiga e mantém só o "obs:" humano
+      if (dados.observacao) {
+        const obsLimpo = String(dados.observacao)
+          .split('|')
+          .map(p => p.trim())
+          .filter(p => p.startsWith('obs:'))
+          .map(p => p.slice(4).trim())
+          .join(' ');
+        if (obsLimpo) setObservacao(obsLimpo);
+      }
+
+      // Hidrata itens — sem fotos, user precisa tirar de novo
+      const itensIniciais = (dados.itens || []).map(it => ({
+        uid: uid(),
+        itemId: null as string | null, // não tenta resolver pelo nome — user reseleciona
+        codigo: null,
+        descricao: it.descricao || it.nome || '',
+        quantidade: String(it.quantidade ?? 1),
+        unidade: it.unidade || (cat === 'frota' ? 'uso' : 'un'),
+        observacao: it.observacao || '',
+        fotos: [] as File[],
+        fotosUrls: [] as string[],
+        usoFrota: null as string | null,
+      }));
+      if (itensIniciais.length > 0) setItens(itensIniciais);
+
+      // Limpa o localStorage e a query string pra não repetir em refresh
+      localStorage.removeItem('biasi_repetir_v1');
+      const novosParams = new URLSearchParams(params);
+      novosParams.delete('repetir');
+      const novaUrl = `${window.location.pathname}${novosParams.toString() ? '?' + novosParams.toString() : ''}`;
+      window.history.replaceState({}, '', novaUrl);
+
+      // Avisa o solicitante que precisa reanexar fotos
+      setErro('Pedido repetido — você precisa selecionar os itens no catálogo e tirar fotos novamente.');
+      setTimeout(() => setErro(''), 6000);
+    } catch (err) {
+      console.warn('[RequisicaoPublica] erro ao hidratar pedido repetido:', err);
+    }
+  }, []);
+
   /* ---------- Carrega catálogos ---------- */
   useEffect(() => {
     async function carregar() {

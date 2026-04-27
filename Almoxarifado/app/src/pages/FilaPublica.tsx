@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { CheckCircle2, Clock, Package, RefreshCw, Truck, XCircle } from 'lucide-react';
+import { CheckCircle2, Clock, Package, RefreshCw, RotateCcw, Truck, XCircle } from 'lucide-react';
 import { supabase } from '../infrastructure/supabase/client';
 
 interface RequisicaoItem {
@@ -594,8 +594,35 @@ export function FilaPublica() {
                   </span>
                 </div>
 
-                {podeCancelarPedido(p) && (
-                  <div className="mt-3 flex justify-end">
+                <div className="mt-3 flex justify-end gap-2 flex-wrap">
+                  {/* Repetir pedido: copia obra/itens/observação pro localStorage e
+                       manda pra /req?repetir=1. RequisicaoPublica ler e popula. */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      try {
+                        localStorage.setItem('biasi_repetir_v1', JSON.stringify({
+                          origem_id: p.id,
+                          obra: p.obra,
+                          observacao: p.observacao,
+                          itens: p.itens,
+                          ts: Date.now(),
+                        }));
+                      } catch {/* ignore */}
+                      const params = new URLSearchParams({
+                        repetir: '1',
+                        nome,
+                        tel,
+                      });
+                      window.location.href = `/req?${params.toString()}`;
+                    }}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-[rgba(113,154,255,0.45)] bg-[rgba(113,154,255,0.12)] px-3 py-1.5 text-[0.75rem] font-bold text-[#cad8ff] hover:bg-[rgba(113,154,255,0.22)] transition"
+                  >
+                    <RotateCcw size={13} />
+                    Repetir pedido
+                  </button>
+
+                  {podeCancelarPedido(p) && (
                     <button
                       type="button"
                       onClick={() => {
@@ -607,8 +634,8 @@ export function FilaPublica() {
                       <XCircle size={13} />
                       Cancelar pedido
                     </button>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             );
           })}
