@@ -3,7 +3,8 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
-  base: './',  // necessário para Electron (caminhos relativos nos assets)
+  // BUILD_BASE='/obras/' no Capacitor, './' no Electron
+  base: process.env.BUILD_BASE || './',
   build: {
     outDir: 'dist',
   },

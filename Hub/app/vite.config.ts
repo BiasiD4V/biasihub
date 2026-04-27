@@ -5,7 +5,8 @@ import { writeFileSync } from 'fs'
 const buildVersion = Date.now().toString();
 
 export default defineConfig({
-  base: './',
+  // BUILD_BASE='/' no Vercel/web, './' no Electron, '/' no Capacitor (Hub é a entrada do Mobile)
+  base: process.env.BUILD_BASE || './',
   plugins: [
     react(),
     {

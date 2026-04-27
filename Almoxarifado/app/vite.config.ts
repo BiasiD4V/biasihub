@@ -6,7 +6,8 @@ import { writeFileSync } from 'fs'
 const buildVersion = Date.now().toString();
 
 export default defineConfig({
-  base: '/',
+  // BUILD_BASE='/' no Vercel, '/almox/' no Capacitor (subpath dentro do Mobile bundle)
+  base: process.env.BUILD_BASE || '/',
   plugins: [
     react(),
     {

@@ -1,0 +1,110 @@
+name: Build BiasíHub APK
+
+# Dispara quando:
+#   - Um novo release é publicado pelo electron-builder (Desktop)
+#   - Ou manualmente via "Run workflow" na aba Actions
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag do release pra anexar o APK (ex: v1.0.45). Vazio = último release.'
+        required: false
+        type: string
+
+jobs:
+  build:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write   # pra anexar o APK no release
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup Java 17 (AdoptOpenJDK)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: |
+            platform-tools
+            platforms;android-34
+            build-tools;34.0.0
+
+      - name: Install Hub deps
+        run: npm install --prefix Hub/app
+
+      - name: Install Almoxarifado deps
+        run: npm install --prefix Almoxarifado/app
+
+      - name: Install Comercial deps
+        run: npm install --prefix Comercial/orcamentos
+
+      - name: Install Obras deps
+        run: npm install --prefix Obras/app
+
+      - name: Install Mobile deps
+        run: npm install --prefix Mobile
+
+      - name: Build dos 4 módulos + bundle pro www/
+        working-directory: Mobile
+        run: npm run prepare-www
+
+      - name: Capacitor add android (gera projeto nativo)
+        working-directory: Mobile
+        run: npx cap add android
+
+      - name: Capacitor sync (copia www/ pro Android)
+        working-directory: Mobile
+        run: npx cap sync android
+
+      - name: Build APK debug (assinado com chave de debug)
+        working-directory: Mobile/android
+        run: |
+          chmod +x ./gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Renomeia o APK pra incluir versão
+        id: rename
+        run: |
+          VERSION="${{ github.event.release.tag_name || github.event.inputs.tag || 'latest' }}"
+          mkdir -p out
+          cp Mobile/android/app/build/outputs/apk/debug/app-debug.apk "out/biasihub-mobile-${VERSION}.apk"
+          echo "apk_path=out/biasihub-mobile-${VERSION}.apk" >> "$GITHUB_OUTPUT"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Anexa APK no release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.rename.outputs.apk_path }}
+          tag_name: ${{ github.event.release.tag_name }}
+
+      - name: Anexa APK manual num release específico
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.tag != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.rename.outputs.apk_path }}
+          tag_name: ${{ github.event.inputs.tag }}
+
+      - name: Upload APK como artifact (sempre, pra debug)
+        uses: actions/upload-artifact@v4
+        with:
+          name: biasihub-apk-${{ steps.rename.outputs.version }}
+          path: ${{ steps.rename.outputs.apk_path }}
+          retention-days: 30

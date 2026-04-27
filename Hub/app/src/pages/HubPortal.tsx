@@ -1,4 +1,4 @@
-import { Briefcase, Package, HardHat, BarChart3, FileText, Truck, ChevronLeft, ChevronRight } from 'lucide-react';
+﻿import { Briefcase, Package, HardHat, BarChart3, FileText, Truck, ChevronLeft, ChevronRight } from 'lucide-react';
 import { ModuleCard } from '../components/ModuleCard';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../infrastructure/supabase/client';
@@ -19,24 +19,35 @@ interface ModuleDef {
 }
 
 const IS_ELECTRON = navigator.userAgent.includes('Electron');
+const IS_CAPACITOR = typeof window !== 'undefined' && !!(window as any).Capacitor;
 const IS_DEV = import.meta.env.DEV;
 
+// URLs por ambiente:
+//   - Electron: protocol custom app:// que serve cada módulo em subdomínio
+//   - Capacitor (Android): bundle local com módulos em subpaths (/almox/, etc.)
+//   - Web/Vercel: cada módulo num subdomínio próprio
 const URLS = {
   comercial: IS_ELECTRON
     ? 'app://comercial.local'
-    : 'https://biasihub-comercial.vercel.app',
+    : IS_CAPACITOR
+      ? '/comercial/'
+      : 'https://biasihub-comercial.vercel.app',
   almoxarifado: IS_ELECTRON
     ? 'app://almoxarifado.local'
-    : 'https://biasihub-almoxarifado-weld.vercel.app',
+    : IS_CAPACITOR
+      ? '/almox/'
+      : 'https://biasi-almox.vercel.app',
   obras: IS_ELECTRON
     ? 'app://obras.local'
-    : 'https://erp-gestaodeobras.vercel.app',
+    : IS_CAPACITOR
+      ? '/obras/'
+      : 'https://erp-gestaodeobras.vercel.app',
 };
 
 const MODULES: ModuleDef[] = [
   {
     titulo: 'Comercial',
-    descricao: 'Gestao de orcamentos, propostas, kanban comercial e dashboard de BI.',
+    descricao: 'Gestão de orçamentos, propostas, kanban comercial e dashboard de BI.',
     icone: Briefcase,
     href: URLS.comercial,
     cor: 'text-sky-600',
@@ -47,7 +58,7 @@ const MODULES: ModuleDef[] = [
   },
   {
     titulo: 'Almoxarifado',
-    descricao: 'Controle de estoque, movimentacoes, requisicoes de materiais e frota.',
+    descricao: 'Controle de estoque, movimentações, requisições de materiais e frota.',
     icone: Package,
     href: URLS.almoxarifado,
     cor: 'text-indigo-600',
@@ -58,7 +69,7 @@ const MODULES: ModuleDef[] = [
   },
   {
     titulo: 'Obras',
-    descricao: 'Acompanhamento de obras, RDOs, cronograma e medicoes.',
+    descricao: 'Acompanhamento de obras, RDOs, cronograma e medições.',
     icone: HardHat,
     href: URLS.obras,
     cor: 'text-emerald-600',
@@ -68,7 +79,7 @@ const MODULES: ModuleDef[] = [
   },
   {
     titulo: 'Financeiro',
-    descricao: 'Fluxo de caixa, controle de custos e relatorios financeiros.',
+    descricao: 'Fluxo de caixa, controle de custos e relatórios financeiros.',
     icone: BarChart3,
     cor: 'text-purple-600',
     corBg: 'bg-purple-50',
@@ -76,14 +87,14 @@ const MODULES: ModuleDef[] = [
   },
   {
     titulo: 'Contratos',
-    descricao: 'Gestao de contratos, aditivos e documentacao legal.',
+    descricao: 'Gestão de contratos, aditivos e documentação legal.',
     icone: FileText,
     cor: 'text-rose-600',
     corBg: 'bg-rose-50',
     disponivel: false,
   },
   {
-    titulo: 'Logistica',
+    titulo: 'Logística',
     descricao: 'Rastreamento de entregas, fornecedores e cadeia de suprimentos.',
     icone: Truck,
     cor: 'text-amber-600',
@@ -98,7 +109,7 @@ const KEY_MAP: Record<string, string> = {
   obras: 'Obras',
   financeiro: 'Financeiro',
   contratos: 'Contratos',
-  logistica: 'Logistica',
+  logistica: 'Logística',
 };
 
 interface ModuloAcessoDB {
@@ -204,7 +215,7 @@ export function HubPortal() {
         <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} className="relative">
           <div className="flex items-center gap-4 text-[#FFC82D] mb-6">
             <div className="w-10 h-0.5 bg-[#FFC82D] shadow-[0_0_12px_rgba(255,200,45,0.6)]" />
-            <span className="text-[10px] uppercase tracking-[0.5em] text-[#FFD76E]">Nivel de acesso: {usuario?.papel?.toUpperCase()}</span>
+            <span className="text-[10px] uppercase tracking-[0.5em] text-[#FFD76E]">Nível de acesso: {usuario?.papel?.toUpperCase()}</span>
           </div>
 
           <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-8">
@@ -216,13 +227,13 @@ export function HubPortal() {
                 </span>
               </h1>
               <p className="text-[#DEE7FF] text-lg font-semibold tracking-wide max-w-2xl leading-relaxed">
-                Central de comando integrada para abrir modulos e acompanhar o ecossistema BiasiHub em tempo real.
+                Central de comando integrada para abrir módulos e acompanhar o ecossistema BiasiHub em tempo real.
               </p>
             </div>
 
             <div className="flex gap-4">
               <div className="bg-[#233772]/90 border-2 border-[#3D5EA8] p-5 rounded-[24px] flex flex-col gap-2 min-w-[160px]">
-                <span className="text-[9px] text-[#FFD76E] uppercase tracking-widest">Modulos ativos</span>
+                <span className="text-[9px] text-[#FFD76E] uppercase tracking-widest">Módulos ativos</span>
                 <span className="text-xl text-white font-black">{ativos.length}</span>
               </div>
               <div className="bg-[#233772]/90 border-2 border-[#3D5EA8] p-5 rounded-[24px] flex flex-col gap-2 min-w-[160px]">
@@ -235,20 +246,20 @@ export function HubPortal() {
 
         <section className="relative">
           <div className="flex items-center gap-6 mb-10">
-            <h2 className="text-xs font-black uppercase tracking-[0.35em] text-[#E5ECFF]">Modulos de producao operacional</h2>
+            <h2 className="text-xs font-black uppercase tracking-[0.35em] text-[#E5ECFF]">Módulos de produção operacional</h2>
             <div className="flex-1 h-[2px] bg-gradient-to-r from-[#FFC82D]/50 to-transparent" />
             <div className="hidden md:flex items-center gap-2">
               <button
                 onClick={() => scrollCarousel(ativosCarouselRef, 'left')}
                 className="w-10 h-10 rounded-2xl border border-[#3D5EA8] bg-[#132249] text-[#DCE8FF] hover:border-[#FFC82D] hover:text-[#FFC82D] transition-all"
-                aria-label="Voltar modulos ativos"
+                aria-label="Voltar módulos ativos"
               >
                 <ChevronLeft size={18} className="mx-auto" />
               </button>
               <button
                 onClick={() => scrollCarousel(ativosCarouselRef, 'right')}
                 className="w-10 h-10 rounded-2xl border border-[#3D5EA8] bg-[#132249] text-[#DCE8FF] hover:border-[#FFC82D] hover:text-[#FFC82D] transition-all"
-                aria-label="Avancar modulos ativos"
+                aria-label="Avançar módulos ativos"
               >
                 <ChevronRight size={18} className="mx-auto" />
               </button>
@@ -279,7 +290,7 @@ export function HubPortal() {
           {ativos.length === 0 && (
             <div className="mt-6 rounded-2xl border border-[#3D5EA8] bg-[#233772]/60 p-6">
               <p className="text-[#E5ECFF] text-sm font-semibold">
-                Nenhum modulo ativo para este perfil no momento.
+                Nenhum módulo ativo para este perfil no momento.
               </p>
             </div>
           )}
@@ -287,20 +298,20 @@ export function HubPortal() {
 
         <section className="pb-20">
           <div className="flex items-center gap-6 mb-10">
-            <h2 className="text-xs font-black uppercase tracking-[0.35em] text-[#E5ECFF]">Modulos em desenvolvimento</h2>
+            <h2 className="text-xs font-black uppercase tracking-[0.35em] text-[#E5ECFF]">Módulos em desenvolvimento</h2>
             <div className="flex-1 h-[2px] bg-gradient-to-r from-[#3D5EA8] to-transparent" />
             <div className="hidden md:flex items-center gap-2">
               <button
                 onClick={() => scrollCarousel(emBreveCarouselRef, 'left')}
                 className="w-10 h-10 rounded-2xl border border-[#3D5EA8] bg-[#132249] text-[#DCE8FF] hover:border-[#FFC82D] hover:text-[#FFC82D] transition-all"
-                aria-label="Voltar modulos em desenvolvimento"
+                aria-label="Voltar módulos em desenvolvimento"
               >
                 <ChevronLeft size={18} className="mx-auto" />
               </button>
               <button
                 onClick={() => scrollCarousel(emBreveCarouselRef, 'right')}
                 className="w-10 h-10 rounded-2xl border border-[#3D5EA8] bg-[#132249] text-[#DCE8FF] hover:border-[#FFC82D] hover:text-[#FFC82D] transition-all"
-                aria-label="Avancar modulos em desenvolvimento"
+                aria-label="Avançar módulos em desenvolvimento"
               >
                 <ChevronRight size={18} className="mx-auto" />
               </button>
@@ -329,7 +340,7 @@ export function HubPortal() {
       <footer className="py-10 px-8 border-t border-[#3D5EA8]/40 bg-[#0F1A3B]/70 mt-auto relative z-20 overflow-hidden">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex flex-col gap-2 items-center md:items-start">
-            <p className="text-[10px] font-black text-white tracking-[0.35em] uppercase">© 2026 Biasi Engenharia • Nucleo de Inteligencia</p>
+            <p className="text-[10px] font-black text-white tracking-[0.35em] uppercase">© 2026 Biasi Engenharia • Núcleo de Inteligência</p>
             <p className="text-[9px] font-semibold text-[#FFD76E] uppercase tracking-[0.2em]">Rede corporativa protegida</p>
           </div>
           <div className="flex items-center gap-8">
@@ -344,5 +355,6 @@ export function HubPortal() {
     </div>
   );
 }
+
 
 
