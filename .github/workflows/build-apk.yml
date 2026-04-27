@@ -63,6 +63,11 @@ jobs:
 
       - name: Build dos 4 módulos + bundle pro www/
         working-directory: Mobile
+        # Injeta as variáveis VITE_* pro Vite empacotar no bundle.
+        # Sem isso, o cliente Supabase sobe com placeholder e o login falha.
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
         run: npm run prepare-www
 
       - name: Capacitor add android (gera projeto nativo)
