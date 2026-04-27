@@ -239,6 +239,60 @@ export function FilaPublica() {
   const [prolongMotivo, setProlongMotivo] = useState('');
   const [prolongando, setProlongando] = useState(false);
 
+  /** Repete o pedido criando direto uma nova requisição (sem passar pelo form).
+      Clona obra + itens + observação humana. Mantém as URLs das fotos do
+      Supabase Storage (item.foto_material continua válido). */
+  async function repetirPedidoDireto(p: Requisicao) {
+    if (!nome || !tel) {
+      showToast('Volta pra tela inicial e informe nome e WhatsApp.');
+      return;
+    }
+    try {
+      // Limpa metas técnicas do observacao antigo, mantém só o "obs:" humano
+      const obsLimpo = String(p.observacao || '')
+        .split('|')
+        .map(s => s.trim())
+        .filter(s => s.startsWith('obs:'))
+        .map(s => s.slice(4).trim())
+        .join(' ');
+
+      // Reconstrói o observacao com metas básicas + flag de repetição
+      const novaObs = [
+        `cargo:Solicitante`,
+        `prioridade:normal`,
+        `entrega:nao`,
+        `repetido_de:${p.id}`,
+        obsLimpo ? `obs:${obsLimpo}` : '',
+      ].filter(Boolean).join(' | ');
+
+      // Itens vão idênticos — mantém URLs de fotos antigas (Storage do Supabase)
+      const novosItens = (p.itens || []).map(it => ({
+        ...it,
+        fase_rastreio: 0, // reseta rastreio
+      }));
+
+      const { data: inserted, error } = await supabase
+        .from('requisicoes_almoxarifado')
+        .insert({
+          solicitante_id: null,
+          solicitante_nome: nome,
+          telefone: tel,
+          obra: p.obra,
+          observacao: novaObs,
+          itens: novosItens,
+        })
+        .select('id')
+        .single();
+
+      if (error) throw error;
+      showToast('✅ Pedido repetido. Almoxarifado já recebeu.');
+      void carregar(true);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      showToast(`Erro ao repetir: ${msg}`);
+    }
+  }
+
   function podeProlongar(p: Requisicao) {
     const meta = extrairMeta(p.observacao);
     const status = inferirStatusPublico(p);
@@ -711,27 +765,14 @@ export function FilaPublica() {
                     </button>
                   )}
 
-                  {/* Repetir pedido: copia obra/itens/observação pro localStorage e
-                       manda pra /req?repetir=1. RequisicaoPublica ler e popula. */}
+                  {/* Repetir pedido: cria DIRETO uma nova requisição clonando
+                      obra + itens + observação humana do pedido antigo. Sem
+                      passar pelo form — clica e pronto. As fotos URLs são
+                      reaproveitadas (Supabase Storage) então o almoxarifado
+                      continua vendo as imagens. */}
                   <button
                     type="button"
-                    onClick={() => {
-                      try {
-                        localStorage.setItem('biasi_repetir_v1', JSON.stringify({
-                          origem_id: p.id,
-                          obra: p.obra,
-                          observacao: p.observacao,
-                          itens: p.itens,
-                          ts: Date.now(),
-                        }));
-                      } catch {/* ignore */}
-                      const params = new URLSearchParams({
-                        repetir: '1',
-                        nome,
-                        tel,
-                      });
-                      window.location.href = `/req?${params.toString()}`;
-                    }}
+                    onClick={() => repetirPedidoDireto(p)}
                     className="inline-flex items-center gap-1.5 rounded-xl border border-[rgba(113,154,255,0.45)] bg-[rgba(113,154,255,0.12)] px-3 py-1.5 text-[0.75rem] font-bold text-[#cad8ff] hover:bg-[rgba(113,154,255,0.22)] transition"
                   >
                     <RotateCcw size={13} />

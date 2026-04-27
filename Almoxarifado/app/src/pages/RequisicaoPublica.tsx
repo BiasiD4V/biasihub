@@ -240,21 +240,24 @@ function ItemRow({
 
   const autoItems = useMemo<AutocompleteItem[]>(() => {
     if (categoria === 'insumos') {
-      const arr: AutocompleteItem[] = insumos.map((i) => ({
+      // optOutro PRIMEIRO pra aparecer mesmo quando o user só clica no input
+      // sem digitar nada (autocomplete corta em 15 itens, e com 700 insumos
+      // o "Outro" no fim nunca aparecia).
+      const arr: AutocompleteItem[] = [optOutro];
+      insumos.forEach((i) => arr.push({
         id: i.id,
         titulo: `${i.codigo} - ${normalizeDisplayText(i.descricao)}`,
         sub: `${i.unidade || 'un'}${i.grupo ? ` • ${i.grupo}` : ''}`,
       }));
-      arr.push(optOutro);
       return arr;
     }
     if (categoria === 'ferramentas') {
-      const arr: AutocompleteItem[] = ferramentas.map((f) => ({
+      const arr: AutocompleteItem[] = [optOutro];
+      ferramentas.forEach((f) => arr.push({
         id: f.id,
         titulo: `${f.codigo} - ${normalizeDisplayText(f.descricao)}`,
         sub: `${f.marca || ''}${f.marca ? ' • ' : ''}${f.unidade || 'un'}${f.estoque_atual != null ? ` • estoque ${f.estoque_atual}` : ''}`,
       }));
-      arr.push(optOutro);
       return arr;
     }
     return veiculos.map((v) => {
