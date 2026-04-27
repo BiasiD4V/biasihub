@@ -36,7 +36,7 @@ const URLS = {
     ? 'app://almoxarifado.local'
     : IS_CAPACITOR
       ? '/almox/'
-      : 'https://biasi-almox.vercel.app',
+      : 'https://biasihub-almoxarifado-weld.vercel.app',
   obras: IS_ELECTRON
     ? 'app://obras.local'
     : IS_CAPACITOR
