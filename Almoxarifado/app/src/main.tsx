@@ -29,12 +29,34 @@ const isPublicRoute =
   typeof window !== 'undefined' &&
   PWA_PUBLIC_ROUTES.some((r) => window.location.pathname.startsWith(r));
 
-if (
-  typeof window !== 'undefined' &&
-  /^https?:$/.test(window.location.protocol) &&
-  !isPublicRoute
-) {
-  import('virtual:pwa-register')
-    .then(({ registerSW }) => registerSW({ immediate: true }))
-    .catch(() => {/* dev sem PWA — silencia */});
+if (typeof window !== 'undefined' && /^https?:$/.test(window.location.protocol)) {
+  if (isPublicRoute) {
+    // Em rotas públicas, GARANTE que NÃO fica SW antigo intermediando.
+    // Quem visitou /req quando o SW estava ativo (antes do split) ainda tem
+    // o SW velho cacheando a versão antiga. Desregistra + limpa caches uma
+    // vez, depois deixa o navegador buscar fresco do Vercel.
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then((regs) => {
+        if (regs.length === 0) return;
+        Promise.all(regs.map((r) => r.unregister())).then(() => {
+          if ('caches' in window) {
+            caches.keys().then((keys) => {
+              Promise.all(keys.map((k) => caches.delete(k))).then(() => {
+                // Reload UMA vez (sessionStorage flag) pra pegar o bundle novo
+                if (!sessionStorage.getItem('biasi_sw_purged_v1')) {
+                  sessionStorage.setItem('biasi_sw_purged_v1', '1');
+                  window.location.reload();
+                }
+              });
+            });
+          }
+        });
+      }).catch(() => {/* silencia */});
+    }
+  } else {
+    // Equipe interna logada → registra SW pra ganhar PWA-like e cache offline
+    import('virtual:pwa-register')
+      .then(({ registerSW }) => registerSW({ immediate: true }))
+      .catch(() => {/* dev sem PWA — silencia */});
+  }
 }
