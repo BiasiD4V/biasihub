@@ -1,0 +1,16 @@
+﻿node_modules/
+dist/
+.vite/
+.vercel/
+
+# Environment
+.env
+.env.local
+.env*.local
+
+# Logs / OS
+*.log
+.DS_Store
+
+# Local runtime helper (do not commit binaries)
+scripts/node.exe
