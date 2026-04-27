@@ -879,6 +879,12 @@ export function Requisicoes() {
       if (outrosSemDescricao) return setErro('Descreva o uso do veículo quando selecionar Outros.');
     }
 
+    // Ferramenta: data de devolução é OPCIONAL — mas se preencher, valida o intervalo
+    if (categoria === 'ferramentas' && devolucaoFrota) {
+      if (devolucaoFrota < minPrazo) return setErro('Data de devolução não pode ser no passado.');
+      if (prazo && devolucaoFrota < prazo) return setErro('Data de devolução não pode ser antes do prazo desejado.');
+    }
+
     setSalvando(true);
     try {
       const tipoJson = categoria === 'insumos' ? 'material' : categoria === 'ferramentas' ? 'ferramenta' : 'carro';
@@ -960,7 +966,7 @@ export function Requisicoes() {
       const obsFinal = [
         `cargo:${cargo}`,
         prazo ? `prazo:${prazo}` : '',
-        categoria === 'frota' && devolucaoFrota ? `devolucao:${devolucaoFrota}` : '',
+        (categoria === 'frota' || categoria === 'ferramentas') && devolucaoFrota ? `devolucao:${devolucaoFrota}` : '',
         `prioridade:${prioridade}`,
         `entrega:${categoria === 'frota' ? 'nao' : entregaSolicitada ? 'sim' : 'nao'}`,
         observacao ? `obs:${observacao}` : '',
@@ -1365,9 +1371,11 @@ export function Requisicoes() {
                   </div>
                 </div>
 
-                {categoria === 'frota' ? (
+                {(categoria === 'frota' || categoria === 'ferramentas') && (
                   <div className="mt-4 flex flex-col gap-2.5">
-                    <label className={styles.label}>Data de devolução *</label>
+                    <label className={styles.label}>
+                      {categoria === 'frota' ? 'Data de devolução *' : 'Data prevista de devolução'}
+                    </label>
                     <input
                       type="datetime-local"
                       step="60"
@@ -1383,13 +1391,17 @@ export function Requisicoes() {
                           setDevolucaoFrota(v);
                         }
                       }}
-                      required
+                      required={categoria === 'frota'}
                     />
                     <p className="m-0 text-[#89a2e2] text-[0.85rem]">
-                      Use este campo para reservar o carro por mais de um dia quando necessário.
+                      {categoria === 'frota'
+                        ? 'Use este campo para reservar o carro por mais de um dia quando necessário.'
+                        : 'Quando você pretende devolver a ferramenta. Pode deixar em branco se ainda não souber.'}
                     </p>
                   </div>
-                ) : (
+                )}
+
+                {categoria !== 'frota' && (
                   <div className="mt-4 flex flex-col gap-2.5">
                     <label className={styles.label}>Entrega na obra?</label>
                     <select

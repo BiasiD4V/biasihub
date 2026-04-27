@@ -707,6 +707,12 @@ export function RequisicaoPublica() {
       if (outrosSemDescricao) return setErro('Descreva o uso do veículo quando selecionar Outros.');
     }
 
+    // Ferramenta: data de devolução é OPCIONAL — mas se preencher, valida o intervalo
+    if (categoria === 'ferramentas' && devolucaoFrota) {
+      if (devolucaoFrota < minPrazo) return setErro('Data de devolução não pode ser no passado.');
+      if (prazo && devolucaoFrota < prazo) return setErro('Data de devolução não pode ser antes do prazo desejado.');
+    }
+
     if (prazo && new Date(prazo).getTime() < Date.now() - 60_000) {
       return setErro('Prazo desejado não pode ser no passado.');
     }
@@ -790,7 +796,7 @@ export function RequisicaoPublica() {
       const obsFinal = [
         `cargo:${cargo}`,
         prazo ? `prazo:${prazo}` : '',
-        categoria === 'frota' && devolucaoFrota ? `devolucao:${devolucaoFrota}` : '',
+        (categoria === 'frota' || categoria === 'ferramentas') && devolucaoFrota ? `devolucao:${devolucaoFrota}` : '',
         `prioridade:${prioridade}`,
         `entrega:${categoria === 'frota' ? 'nao' : entregaSolicitada ? 'sim' : 'nao'}`,
         observacao ? `obs:${observacao}` : '',
@@ -1032,9 +1038,11 @@ export function RequisicaoPublica() {
               </div>
             </div>
 
-            {categoria === 'frota' ? (
+            {(categoria === 'frota' || categoria === 'ferramentas') && (
               <div className="mt-4 flex flex-col gap-2.5">
-                <label className={styles.label}>Data de devolução *</label>
+                <label className={styles.label}>
+                  {categoria === 'frota' ? 'Data de devolução *' : 'Data prevista de devolução'}
+                </label>
                 <input
                   type="datetime-local"
                   step="60"
@@ -1050,13 +1058,17 @@ export function RequisicaoPublica() {
                       setDevolucaoFrota(v);
                     }
                   }}
-                  required
+                  required={categoria === 'frota'}
                 />
                 <p className="m-0 text-[#89a2e2] text-[0.85rem]">
-                  Informe quando o veículo será devolvido. Pode ser outro dia.
+                  {categoria === 'frota'
+                    ? 'Informe quando o veículo será devolvido. Pode ser outro dia.'
+                    : 'Quando você pretende devolver a ferramenta. Pode deixar em branco se ainda não souber.'}
                 </p>
               </div>
-            ) : (
+            )}
+
+            {categoria !== 'frota' && (
               <div className="mt-4 flex flex-col gap-2.5">
                 <label className={styles.label}>Entrega na obra?</label>
                 <select
