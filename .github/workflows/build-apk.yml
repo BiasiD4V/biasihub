@@ -41,10 +41,9 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         with:
-          packages: |
-            platform-tools
-            platforms;android-34
-            build-tools;34.0.0
+          # Capacitor v7 precisa de compileSdk 35.
+          # `packages` espera 1 string com tokens separados por espaço.
+          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
 
       - name: Install Hub deps
         run: npm install --prefix Hub/app
