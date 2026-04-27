@@ -134,6 +134,12 @@ function extrairMeta(observacao: string | null) {
             'frete_terceiro_contato',
             'recebido_por_nome',
             'recebido_em',
+            'entregue_por',
+            'entregue_em',
+            'prolongacao_pedida',
+            'prolongacao_motivo',
+            'prolongacao_aprovada',
+            'prolongacao_em',
           ].includes(chave)
         ) {
           meta[chave] = valor;
@@ -160,6 +166,13 @@ function extrairMeta(observacao: string | null) {
     freteTerceiroContato: meta.frete_terceiro_contato,
     recebidoPorNome: meta.recebido_por_nome,
     recebidoEm: formatPrazo(meta.recebido_em),
+    entreguePor: meta.entregue_por,
+    entregueEm: formatPrazo(meta.entregue_em),
+    prolongacaoPedida: meta.prolongacao_pedida, // ISO string
+    prolongacaoPedidaFmt: formatPrazo(meta.prolongacao_pedida),
+    prolongacaoMotivo: meta.prolongacao_motivo,
+    prolongacaoAprovada: meta.prolongacao_aprovada, // 'sim' | 'nao' | undefined
+    prolongacaoEm: formatPrazo(meta.prolongacao_em),
     observacao: meta.obs || textos.join(' | '),
   };
 }
@@ -219,6 +232,62 @@ export function FilaPublica() {
   const [cancelMotivo, setCancelMotivo] = useState('');
   const [cancelando, setCancelando] = useState(false);
   const [toast, setToast] = useState('');
+
+  // Prolongação pelo solicitante
+  const [prolongTarget, setProlongTarget] = useState<Requisicao | null>(null);
+  const [prolongData, setProlongData] = useState('');
+  const [prolongMotivo, setProlongMotivo] = useState('');
+  const [prolongando, setProlongando] = useState(false);
+
+  function podeProlongar(p: Requisicao) {
+    const meta = extrairMeta(p.observacao);
+    const status = inferirStatusPublico(p);
+    // Só permite prolongar se foi liberado (frota) ou separado/finalizado (ferramenta)
+    if (status === 'cancelado' || status === 'recebido') return false;
+    const liberadaFrota = meta.frotaStatus === 'liberada' || meta.decisao === 'frota_liberada';
+    if (liberadaFrota) return true;
+    if (status === 'separado' || status === 'finalizado') return true;
+    return false;
+  }
+
+  async function confirmarProlongacao() {
+    if (!prolongTarget) return;
+    if (!prolongData) { showToast('Informe a nova data/hora prevista.'); return; }
+    setProlongando(true);
+    try {
+      const novaIso = new Date(prolongData).toISOString();
+      const obsAtual = prolongTarget.observacao || '';
+      const partes = obsAtual
+        .split('|')
+        .map(p => p.trim())
+        .filter(Boolean)
+        .filter(p => {
+          const idx = p.indexOf(':');
+          if (idx <= 0) return true;
+          const chave = p.slice(0, idx).trim();
+          return !['prolongacao_pedida', 'prolongacao_motivo', 'prolongacao_aprovada', 'prolongacao_em'].includes(chave);
+        });
+      partes.push(`prolongacao_pedida:${novaIso}`);
+      if (prolongMotivo.trim()) partes.push(`prolongacao_motivo:${prolongMotivo.trim().replace(/\|/g, '/')}`);
+      partes.push(`prolongacao_em:${new Date().toISOString()}`);
+      const novaObs = partes.join(' | ');
+      const { error } = await supabase
+        .from('requisicoes_almoxarifado')
+        .update({ observacao: novaObs })
+        .eq('id', prolongTarget.id);
+      if (error) throw error;
+      setProlongTarget(null);
+      setProlongData('');
+      setProlongMotivo('');
+      showToast('Pedido de prolongação enviado ao almoxarifado.');
+      void carregar(true);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      showToast(`Erro ao solicitar prolongação: ${msg}`);
+    } finally {
+      setProlongando(false);
+    }
+  }
 
   function showToast(msg: string) {
     setToast(msg);
@@ -581,6 +650,34 @@ export function FilaPublica() {
                   </div>
                 )}
 
+                {meta.entreguePor && (
+                  <div className="mt-3 rounded-2xl border border-blue-300/25 bg-blue-400/10 px-3 py-2 text-xs text-blue-100">
+                    <strong>Entregue por:</strong> {meta.entreguePor}
+                    {meta.entregueEm ? ` em ${meta.entregueEm}` : ''}
+                  </div>
+                )}
+
+                {meta.prolongacaoPedida && !meta.prolongacaoAprovada && (
+                  <div className="mt-3 rounded-2xl border border-amber-300/25 bg-amber-400/10 px-3 py-2 text-xs text-amber-100">
+                    <strong>Prolongação solicitada</strong> até {meta.prolongacaoPedidaFmt}
+                    {meta.prolongacaoMotivo ? ` — ${meta.prolongacaoMotivo}` : ''}.
+                    <br />
+                    Aguardando aprovação do almoxarifado.
+                  </div>
+                )}
+
+                {meta.prolongacaoAprovada === 'sim' && (
+                  <div className="mt-3 rounded-2xl border border-emerald-300/25 bg-emerald-400/10 px-3 py-2 text-xs text-emerald-100">
+                    <strong>Prolongação aprovada</strong> até {meta.prolongacaoPedidaFmt}.
+                  </div>
+                )}
+
+                {meta.prolongacaoAprovada === 'nao' && (
+                  <div className="mt-3 rounded-2xl border border-red-300/25 bg-red-400/10 px-3 py-2 text-xs text-red-100">
+                    <strong>Prolongação negada.</strong> Devolva no prazo original.
+                  </div>
+                )}
+
                 {meta.observacao && (
                   <p className="text-xs text-[#9fb0da] mt-3 border-t border-white/10 pt-3">{meta.observacao}</p>
                 )}
@@ -595,6 +692,25 @@ export function FilaPublica() {
                 </div>
 
                 <div className="mt-3 flex justify-end gap-2 flex-wrap">
+                  {/* Prolongar agendamento: pra pedidos liberados de frota ou separados de ferramenta.
+                       Pede nova data e motivo. Almoxarifado vê e aprova/nega. */}
+                  {podeProlongar(p) && !meta.prolongacaoPedida && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setProlongTarget(p);
+                        const sugerido = new Date(Date.now() + 24 * 60 * 60 * 1000);
+                        const pad = (n: number) => String(n).padStart(2, '0');
+                        setProlongData(`${sugerido.getFullYear()}-${pad(sugerido.getMonth() + 1)}-${pad(sugerido.getDate())}T${pad(sugerido.getHours())}:${pad(sugerido.getMinutes())}`);
+                        setProlongMotivo('');
+                      }}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-[rgba(54,196,133,0.45)] bg-[rgba(54,196,133,0.12)] px-3 py-1.5 text-[0.75rem] font-bold text-[#abf5d1] hover:bg-[rgba(54,196,133,0.22)] transition"
+                    >
+                      <Clock size={13} />
+                      Prolongar
+                    </button>
+                  )}
+
                   {/* Repetir pedido: copia obra/itens/observação pro localStorage e
                        manda pra /req?repetir=1. RequisicaoPublica ler e popula. */}
                   <button
@@ -650,6 +766,54 @@ export function FilaPublica() {
 
         <p className="text-center text-[#4f638f] text-xs mt-6">BiasiHub · Almoxarifado · Biasi Engenharia e Instalações</p>
       </div>
+
+      {prolongTarget && (
+        <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/65 p-4">
+          <div className="w-full max-w-lg rounded-2xl border border-[rgba(54,196,133,0.35)] bg-[linear-gradient(180deg,#172540,#0f1c34)] p-5 shadow-2xl">
+            <h3 className="m-0 text-xl font-black text-white">Prolongar agendamento</h3>
+            <p className="mt-2 text-sm text-[#cbd6ff]">
+              Informe a nova data e hora prevista de devolução. O almoxarifado precisa aprovar.
+            </p>
+            <label className="block mt-4">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-[#9db2e7]">Nova data prevista *</span>
+              <input
+                type="datetime-local"
+                step="900"
+                value={prolongData}
+                onChange={(e) => setProlongData(e.target.value)}
+                className="mt-1 w-full rounded-2xl border border-[rgba(54,196,133,0.35)] bg-[rgba(10,30,77,0.55)] px-4 py-3 text-sm text-white outline-none"
+              />
+            </label>
+            <label className="block mt-3">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-[#9db2e7]">Motivo (opcional)</span>
+              <textarea
+                className="mt-1 min-h-[90px] w-full rounded-2xl border border-[rgba(54,196,133,0.35)] bg-[rgba(10,30,77,0.55)] px-4 py-3 text-sm text-white outline-none placeholder:text-[#9db2e7]"
+                placeholder="Por que precisa de mais tempo?"
+                value={prolongMotivo}
+                onChange={(e) => setProlongMotivo(e.target.value)}
+              />
+            </label>
+            <div className="mt-4 flex flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                disabled={prolongando}
+                onClick={() => { setProlongTarget(null); setProlongData(''); setProlongMotivo(''); }}
+                className="rounded-xl border border-[rgba(113,154,255,0.35)] bg-[rgba(10,30,77,0.45)] px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
+              >
+                Voltar
+              </button>
+              <button
+                type="button"
+                disabled={prolongando}
+                onClick={confirmarProlongacao}
+                className="rounded-xl border border-[rgba(54,196,133,0.45)] bg-[rgba(54,196,133,0.18)] px-4 py-2 text-sm font-bold text-[#abf5d1] disabled:opacity-50"
+              >
+                {prolongando ? 'Enviando...' : 'Solicitar prolongação'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {cancelTarget && (
         <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/65 p-4">

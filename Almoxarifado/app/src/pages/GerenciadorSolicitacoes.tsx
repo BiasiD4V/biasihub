@@ -42,8 +42,11 @@ interface CardSolicitacao {
   solicitante: string;
   cargo: string;
   prazo: string;
+  prazoIso: string | null;        // ISO bruto pra calcular atraso
   devolucao: string;
+  devolucaoIso: string | null;
   prioridade: string;
+  prioridadeCalc: number;         // score automático: 0=normal, +urgente, +atraso, +conflito
   dataSolicitacao: string;
   criadoEm: string;
   iniciadoEm: string | null;
@@ -51,9 +54,18 @@ interface CardSolicitacao {
   resumo: string;
   observacaoGeral: string;
   isFrota: boolean;
+  isFerramenta: boolean;
   entregaSolicitada: boolean;
   frotaStatus: string;
   motivoNegativa: string;
+  freteTipo: string;
+  freteTerceiroNome: string;
+  freteTerceiroContato: string;
+  entreguePor: string;
+  entregueEm: string;
+  prolongacaoPedida: string;       // ISO da nova data
+  prolongacaoMotivo: string;
+  prolongacaoAprovada: string;     // 'sim' | 'nao' | ''
   anexosGerais: AnexoGeral[];
   itens: ItemGerenciavel[];
 }
@@ -241,15 +253,46 @@ function formatarData(data: string): string {
   }
 }
 
+function calcularPrioridadeAutomatica(opts: {
+  prioridadeManual: string;
+  prazoIso: string | null;
+  status: StatusRequisicao;
+  prolongacaoPedida: string;
+}): number {
+  let score = 0;
+  if (String(opts.prioridadeManual).toLowerCase() === 'urgente') score += 4;
+  if (String(opts.prioridadeManual).toLowerCase() === 'baixo') score -= 1;
+
+  // Atraso: se prazo passou e ainda não foi atendido → +score por dia
+  if (opts.prazoIso && (opts.status === 'pendente' || opts.status === 'aprovada')) {
+    const prazoMs = new Date(opts.prazoIso).getTime();
+    if (!Number.isNaN(prazoMs) && prazoMs < Date.now()) {
+      const horasAtraso = (Date.now() - prazoMs) / (1000 * 60 * 60);
+      score += Math.min(5, horasAtraso / 12); // até +5 por 60h+
+    }
+  }
+
+  // Pedido de prolongação aguardando resposta também aumenta prioridade
+  if (opts.prolongacaoPedida) score += 1;
+
+  return Math.round(score * 10) / 10;
+}
+
 function mapRowToCard(row: RequisicaoComJoin): CardSolicitacao {
   const meta = parseObsMeta(row.observacao);
   const status = (row.status || 'pendente') as StatusRequisicao;
   const itens = parseItems(row.itens, status);
   const isFrota = itens.some((item) => item.tipo === 'carro' || Boolean(item.raw.placa || item.raw.modelo));
+  const isFerramenta = itens.some((item) => item.tipo === 'ferramenta');
   const resumo = itens
     .slice(0, 2)
     .map((item) => item.descricao)
     .join(' | ');
+
+  const prazoIso = meta.prazo || null;
+  const devolucaoIso = meta.devolucao || null;
+  const prolongPedida = meta.prolongacao_pedida || '';
+  const prioridadeManual = normalizeDisplayText(meta.prioridade || 'normal');
 
   return {
     id: row.id,
@@ -259,17 +302,29 @@ function mapRowToCard(row: RequisicaoComJoin): CardSolicitacao {
     solicitanteId: row.solicitante_id ?? null,
     cargo: normalizeDisplayText(meta.cargo || '-'),
     prazo: normalizeDisplayText(meta.prazo || '-'),
+    prazoIso,
     devolucao: normalizeDisplayText(meta.devolucao || '-'),
-    prioridade: normalizeDisplayText(meta.prioridade || 'normal').toUpperCase(),
+    devolucaoIso,
+    prioridade: prioridadeManual.toUpperCase(),
+    prioridadeCalc: calcularPrioridadeAutomatica({ prioridadeManual, prazoIso, status, prolongacaoPedida: prolongPedida }),
     dataSolicitacao: formatarData(row.data_solicitacao),
     criadoEm: row.criado_em,
     iniciadoEm: row.iniciado_em ?? null,
     resumo: resumo || 'Sem itens cadastrados',
     observacaoGeral: normalizeDisplayText(row.observacao || ''),
     isFrota,
+    isFerramenta,
     entregaSolicitada: metaSim(meta.entrega || meta.entrega_solicitada),
     frotaStatus: normalizeDisplayText(meta.frota_status || ''),
     motivoNegativa: normalizeDisplayText(meta.motivo_negativa || meta.frota_motivo_negativa || ''),
+    freteTipo: normalizeDisplayText(meta.frete_tipo || ''),
+    freteTerceiroNome: normalizeDisplayText(meta.frete_terceiro_nome || ''),
+    freteTerceiroContato: normalizeDisplayText(meta.frete_terceiro_contato || ''),
+    entreguePor: normalizeDisplayText(meta.entregue_por || ''),
+    entregueEm: normalizeDisplayText(meta.entregue_em || ''),
+    prolongacaoPedida: prolongPedida,
+    prolongacaoMotivo: normalizeDisplayText(meta.prolongacao_motivo || ''),
+    prolongacaoAprovada: normalizeDisplayText(meta.prolongacao_aprovada || ''),
     anexosGerais: parseAnexosGerais(row.observacao),
     itens,
   };
@@ -348,13 +403,13 @@ export function GerenciadorSolicitacoes() {
     [activeCards]
   );
 
-  // Ordenação: FIFO (mais antigo primeiro). URGENTE sobe para o topo.
+  // Ordenação: prioridade calculada DESC (cobre urgente + atraso + prolongação),
+  // depois FIFO (mais antigo primeiro). Mantém URGENTE no topo via prioridadeCalc.
   const orderedCards = useMemo(() => {
     const copy = [...activeCards];
     copy.sort((a, b) => {
-      const aUrg = a.prioridade === 'URGENTE' ? 0 : 1;
-      const bUrg = b.prioridade === 'URGENTE' ? 0 : 1;
-      if (aUrg !== bUrg) return aUrg - bUrg;
+      const diff = b.prioridadeCalc - a.prioridadeCalc;
+      if (Math.abs(diff) > 0.01) return diff;
       return new Date(a.criadoEm).getTime() - new Date(b.criadoEm).getTime();
     });
     return copy;
@@ -416,7 +471,20 @@ export function GerenciadorSolicitacoes() {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'requisicoes_almoxarifado' },
-        () => {
+        (payload) => {
+          // Toast com tipo da mudança pra alertar o almoxarife em tempo real
+          const tipo = payload.eventType;
+          if (tipo === 'INSERT') showToast('🆕 Novo pedido chegou na fila.');
+          else if (tipo === 'UPDATE') {
+            const novo = payload.new as Record<string, unknown> | undefined;
+            const antigo = payload.old as Record<string, unknown> | undefined;
+            // Detecta solicitação de prolongação nova
+            if (novo && antigo && typeof novo.observacao === 'string' && typeof antigo.observacao === 'string') {
+              const tinha = antigo.observacao.includes('prolongacao_pedida:');
+              const tem = novo.observacao.includes('prolongacao_pedida:');
+              if (tem && !tinha) showToast('⏰ Solicitante pediu prolongação de prazo.');
+            }
+          }
           void carregarSolicitacoes();
         }
       )
@@ -630,6 +698,69 @@ export function GerenciadorSolicitacoes() {
     setFreteTerceiroContato('');
   }
 
+  // ─── Prolongação: aprova ou nega solicitação do solicitante ────────────────
+  async function aprovarProlongacao(card: CardSolicitacao) {
+    if (!card.prolongacaoPedida) return;
+    setSavingId(card.id);
+    try {
+      const observacao = upsertObsMeta(card.observacaoGeral, {
+        prolongacao_aprovada: 'sim',
+        prolongacao_decidida_em: new Date().toISOString(),
+        prolongacao_decidida_por: usuarioDecisaoLabel(),
+        // Atualiza a meta `devolucao` pro novo prazo (vira o oficial)
+        devolucao: card.prolongacaoPedida,
+      });
+      const { error } = await supabase
+        .from('requisicoes_almoxarifado')
+        .update({ observacao })
+        .eq('id', card.id);
+      if (error) throw error;
+
+      // Se for frota, estende o agendamento ativo correspondente
+      if (card.isFrota) {
+        try {
+          await supabase
+            .from('agendamentos_almoxarifado')
+            .update({ data_fim: card.prolongacaoPedida })
+            .ilike('descricao', `%${card.id}%`)
+            .eq('status', 'ativo');
+        } catch (errAg) {
+          console.warn('[Gerenciador] falha ao estender agendamento:', errAg);
+        }
+      }
+
+      showToast('Prolongação aprovada e prazo atualizado.');
+      await carregarSolicitacoes();
+    } catch (err: any) {
+      showToast(`Erro ao aprovar: ${err?.message || err}`);
+    } finally {
+      setSavingId(null);
+    }
+  }
+
+  async function negarProlongacao(card: CardSolicitacao) {
+    if (!card.prolongacaoPedida) return;
+    setSavingId(card.id);
+    try {
+      const observacao = upsertObsMeta(card.observacaoGeral, {
+        prolongacao_aprovada: 'nao',
+        prolongacao_decidida_em: new Date().toISOString(),
+        prolongacao_decidida_por: usuarioDecisaoLabel(),
+      });
+      const { error } = await supabase
+        .from('requisicoes_almoxarifado')
+        .update({ observacao })
+        .eq('id', card.id);
+      if (error) throw error;
+      showToast('Prolongação negada.');
+      await carregarSolicitacoes();
+    } catch (err: any) {
+      showToast(`Erro ao negar: ${err?.message || err}`);
+    } finally {
+      setSavingId(null);
+    }
+  }
+
   function confirmarLiberarFrota() {
     const card = freteTarget;
     if (!card) return;
@@ -802,6 +933,19 @@ export function GerenciadorSolicitacoes() {
                               🚨 URGENTE
                             </span>
                           )}
+                          {/* Badge de prioridade calculada — combina urgência + atraso + prolongação */}
+                          {card.prioridadeCalc >= 3 && (
+                            <span
+                              className={`rounded-full border px-2.5 py-1 text-[0.7rem] font-extrabold uppercase tracking-wider ${
+                                card.prioridadeCalc >= 6
+                                  ? 'border-[rgba(255,107,107,0.55)] bg-[rgba(255,107,107,0.14)] text-[#ffb4b4]'
+                                  : 'border-[rgba(255,202,87,0.55)] bg-[rgba(255,202,87,0.14)] text-[#ffd97a]'
+                              }`}
+                              title={`Score: urgência + atraso + prolongação`}
+                            >
+                              ⚡ Prioridade {card.prioridadeCalc.toFixed(1)}
+                            </span>
+                          )}
                         </div>
                         <h2 className="m-0 mt-2 text-[1.5rem] font-black tracking-tight">{card.obra}</h2>
                         <p className="m-0 mt-1 text-[#d4e0ff] text-sm md:text-base">{card.resumo}</p>
@@ -823,6 +967,61 @@ export function GerenciadorSolicitacoes() {
                         {card.frotaStatus === 'liberada'
                           ? 'Veículo liberado e enviado ao calendário.'
                           : 'Aguardando resposta do almoxarifado para liberação do veículo.'}
+                      </div>
+                    )}
+
+                    {/* Frete (registrado na liberação da frota) */}
+                    {card.freteTipo && (
+                      <div className="mb-3 rounded-2xl border border-[rgba(54,196,133,0.28)] bg-[rgba(54,196,133,0.08)] px-4 py-2.5 text-sm text-[#d4f5e2]">
+                        <strong>Frete:</strong>{' '}
+                        {card.freteTipo === 'terceiro'
+                          ? `Terceiro${card.freteTerceiroNome ? ` — ${card.freteTerceiroNome}` : ''}${card.freteTerceiroContato ? ` (${card.freteTerceiroContato})` : ''}`
+                          : 'Biasi Engenharia (frota interna)'}
+                      </div>
+                    )}
+
+                    {/* Solicitação de prolongação aguardando decisão */}
+                    {card.prolongacaoPedida && !card.prolongacaoAprovada && (
+                      <div className="mb-3 rounded-2xl border border-[rgba(255,202,87,0.45)] bg-[rgba(255,202,87,0.10)] px-4 py-3 text-sm text-[#ffe9b8]">
+                        <div className="flex items-start justify-between gap-3 flex-wrap">
+                          <div className="min-w-0 flex-1">
+                            <strong>⏰ Prolongação solicitada</strong>
+                            <p className="mt-1 text-xs text-[#ffd9a3]">
+                              Nova devolução prevista: <strong>{formatarData(card.prolongacaoPedida)}</strong>
+                            </p>
+                            {card.prolongacaoMotivo && (
+                              <p className="mt-1 text-xs italic text-[#ffe9b8]">&ldquo;{card.prolongacaoMotivo}&rdquo;</p>
+                            )}
+                          </div>
+                          <div className="flex gap-2 flex-shrink-0">
+                            <button
+                              type="button"
+                              disabled={isSaving}
+                              onClick={() => aprovarProlongacao(card)}
+                              className="inline-flex items-center gap-1.5 rounded-xl border border-[rgba(54,196,133,0.45)] bg-[rgba(54,196,133,0.18)] px-3 py-1.5 text-xs font-bold text-[#abf5d1] disabled:opacity-50"
+                            >
+                              <CheckCircle2 size={13} />
+                              Aprovar
+                            </button>
+                            <button
+                              type="button"
+                              disabled={isSaving}
+                              onClick={() => negarProlongacao(card)}
+                              className="inline-flex items-center gap-1.5 rounded-xl border border-[rgba(255,122,157,0.45)] bg-[rgba(255,122,157,0.12)] px-3 py-1.5 text-xs font-bold text-[#ffd9e3] disabled:opacity-50"
+                            >
+                              <XCircle size={13} />
+                              Negar
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Quem entregou */}
+                    {card.entreguePor && (
+                      <div className="mb-3 rounded-2xl border border-[rgba(92,155,255,0.28)] bg-[rgba(92,155,255,0.10)] px-4 py-2.5 text-sm text-[#d4e0ff]">
+                        <strong>Entregue por:</strong> {card.entreguePor}
+                        {card.entregueEm ? ` em ${card.entregueEm}` : ''}
                       </div>
                     )}
 
