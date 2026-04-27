@@ -229,20 +229,33 @@ function ItemRow({
   const [deleteArmed, setDeleteArmed] = useState(false);
   const [camOpen, setCamOpen] = useState(false);
 
+  // Item especial pra "não sei o nome" — só pra ferramentas e insumos.
+  // Quando o solicitante seleciona, descrição fica em branco e a FOTO é
+  // o que identifica o item (almoxarifado vê e separa pela imagem).
+  const optOutro: AutocompleteItem = {
+    id: '__OUTRO__',
+    titulo: '➕ Outro / não sei o nome',
+    sub: 'Tire uma foto e o almoxarifado identifica',
+  };
+
   const autoItems = useMemo<AutocompleteItem[]>(() => {
     if (categoria === 'insumos') {
-      return insumos.map((i) => ({
+      const arr: AutocompleteItem[] = insumos.map((i) => ({
         id: i.id,
         titulo: `${i.codigo} - ${normalizeDisplayText(i.descricao)}`,
         sub: `${i.unidade || 'un'}${i.grupo ? ` • ${i.grupo}` : ''}`,
       }));
+      arr.push(optOutro);
+      return arr;
     }
     if (categoria === 'ferramentas') {
-      return ferramentas.map((f) => ({
+      const arr: AutocompleteItem[] = ferramentas.map((f) => ({
         id: f.id,
         titulo: `${f.codigo} - ${normalizeDisplayText(f.descricao)}`,
         sub: `${f.marca || ''}${f.marca ? ' • ' : ''}${f.unidade || 'un'}${f.estoque_atual != null ? ` • estoque ${f.estoque_atual}` : ''}`,
       }));
+      arr.push(optOutro);
+      return arr;
     }
     return veiculos.map((v) => {
       const ocupado = veiculosOcupados.has(v.id);
@@ -260,6 +273,11 @@ function ItemRow({
   function handleSelect(item: AutocompleteItem | null) {
     if (!item) {
       onChange({ itemId: null, codigo: null, descricao: '', unidade: linha.unidade });
+      return;
+    }
+    // Item especial "Outro": deixa descrição em branco; foto é o que identifica
+    if (item.id === '__OUTRO__') {
+      onChange({ itemId: '__OUTRO__', codigo: null, descricao: '', unidade: linha.unidade || 'un' });
       return;
     }
     if (categoria === 'insumos') {
@@ -708,7 +726,14 @@ export function RequisicaoPublica() {
     if (!telefone.trim()) return setErro('Informe seu WhatsApp.');
     if (!cargo) return setErro('Selecione o cargo.');
 
-    const itensValidos = itens.filter((l) => l.itemId && l.descricao.trim() && Number(l.quantidade) > 0);
+    // Item válido: tem itemId E quantidade > 0.
+    // Descrição é exigida só pra itens do catálogo — o "__OUTRO__" entra sem
+    // nome (a foto é o que identifica). Foto continua obrigatória abaixo.
+    const itensValidos = itens.filter((l) => {
+      if (!l.itemId || Number(l.quantidade) <= 0) return false;
+      if (l.itemId === '__OUTRO__') return true;
+      return l.descricao.trim().length > 0;
+    });
     if (itensValidos.length === 0) {
       return setErro(
         categoria === 'insumos'
@@ -784,12 +809,22 @@ export function RequisicaoPublica() {
                 ? 'Visitar obra'
                 : l.observacao || null
               : l.observacao || null;
+          // Para item livre ("Outro / não sei o nome"), salva descrição
+          // amigável que indica ao almoxarifado que precisa identificar
+          // pela foto. Mantém item_id null no payload pra não confundir
+          // com item do catálogo.
+          const ehItemLivre = l.itemId === '__OUTRO__';
+          const descrFinal = ehItemLivre
+            ? (l.descricao.trim() || '(sem nome — identificar pela foto)')
+            : l.descricao;
+          const itemIdFinal = ehItemLivre ? null : l.itemId;
+
           return {
             tipo: tipoJson,
-            item_id: l.itemId,
+            item_id: itemIdFinal,
             codigo: l.codigo,
-            descricao: l.descricao,
-            nome: l.descricao,
+            descricao: descrFinal,
+            nome: descrFinal,
             quantidade: categoria === 'frota' ? 1 : Number(l.quantidade),
             unidade: l.unidade,
             observacao: observacaoItem,
