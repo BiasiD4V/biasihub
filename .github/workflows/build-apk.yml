@@ -32,11 +32,12 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Setup Java 17 (AdoptOpenJDK)
+      - name: Setup Java 21 (AdoptOpenJDK)
+        # Capacitor 7 requer Java 21 (era 17 no Capacitor 6).
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '17'
+          java-version: '21'
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
