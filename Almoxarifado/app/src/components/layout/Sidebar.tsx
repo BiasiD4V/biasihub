@@ -39,6 +39,7 @@ const NAV_SECTIONS = [
       { to: '/solicitacoes/gerenciar', icon: ClipboardList, label: 'Gerenciar Solicitações' },
       { to: '/solicitacoes/rastreio', icon: Truck, label: 'Rastreio de Entrega' },
       { to: '/solicitacoes/historico', icon: FileSpreadsheet, label: 'Histórico por Pessoa' },
+      { to: '/solicitacoes/devolucoes', icon: ArrowLeftRight, label: 'Controle de Devolução' },
     ],
   },
   {

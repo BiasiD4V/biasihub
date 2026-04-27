@@ -17,6 +17,7 @@ const Requisicoes = lazy(() => import('./pages/Requisicoes').then(m => ({ defaul
 const GerenciadorSolicitacoes = lazy(() => import('./pages/GerenciadorSolicitacoes').then(m => ({ default: m.GerenciadorSolicitacoes })));
 const RastreioEntregaMateriais = lazy(() => import('./pages/RastreioEntregaMateriais').then(m => ({ default: m.RastreioEntregaMateriais })));
 const HistoricoRequisicoes = lazy(() => import('./pages/HistoricoRequisicoes').then(m => ({ default: m.HistoricoRequisicoes })));
+const ControleDevolucao = lazy(() => import('./pages/ControleDevolucao').then(m => ({ default: m.ControleDevolucao })));
 const Frota = lazy(() => import('./pages/Frota').then(m => ({ default: m.Frota })));
 const MeusDispositivos = lazy(() => import('./pages/MeusDispositivos').then(m => ({ default: m.MeusDispositivos })));
 const Relatorios = lazy(() => import('./pages/Relatorios').then(m => ({ default: m.Relatorios })));
@@ -51,6 +52,7 @@ export default function App() {
               <Route path="/solicitacoes/gerenciar" element={<GerenciadorSolicitacoes />} />
               <Route path="/solicitacoes/rastreio" element={<RastreioEntregaMateriais />} />
               <Route path="/solicitacoes/historico" element={<HistoricoRequisicoes />} />
+              <Route path="/solicitacoes/devolucoes" element={<ControleDevolucao />} />
               <Route path="/frota" element={<Frota />} />
               <Route path="/calendario" element={<Calendario />} />
               <Route path="/relatorios" element={<Relatorios />} />
