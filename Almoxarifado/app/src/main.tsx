@@ -19,9 +19,21 @@ createRoot(document.getElementById('root')!).render(
   </StrictMode>,
 )
 
-// PWA: registra service worker apenas em http/https (Electron usa app:// e ignora).
-// Mantém o app instalável no celular sem interferir no Desktop.
-if (typeof window !== 'undefined' && /^https?:$/.test(window.location.protocol)) {
+// PWA: registra service worker apenas pra equipe interna logada.
+// Pula:
+//   - Electron (app:// — Desktop usa electron-updater)
+//   - Rotas públicas (/req, /fila, /rastreio, /obra) — pessoal de obra abre,
+//     preenche, fecha. Não faz sentido oferecer "instalar Almox" pra eles.
+const PWA_PUBLIC_ROUTES = ['/req', '/fila', '/rastreio', '/obra'];
+const isPublicRoute =
+  typeof window !== 'undefined' &&
+  PWA_PUBLIC_ROUTES.some((r) => window.location.pathname.startsWith(r));
+
+if (
+  typeof window !== 'undefined' &&
+  /^https?:$/.test(window.location.protocol) &&
+  !isPublicRoute
+) {
   import('virtual:pwa-register')
     .then(({ registerSW }) => registerSW({ immediate: true }))
     .catch(() => {/* dev sem PWA — silencia */});
