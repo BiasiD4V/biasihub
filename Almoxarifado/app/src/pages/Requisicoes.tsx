@@ -727,7 +727,10 @@ export function Requisicoes() {
     };
   }, [view]);
 
-  /* ---------- Carros ocupados no período (frota) ---------- */
+  /* ---------- Carros ocupados no período (frota) ----------
+     Inclui agendamentos ativos + manutenções (com ou sem previsão) +
+     acidentes sem data_resolucao. Mesma lógica do RequisicaoPublica.
+  ---------------------------------------------------------- */
   useEffect(() => {
     if (categoria !== 'frota' || !prazo || !devolucaoFrota) {
       setVeiculosOcupados(new Set());
@@ -742,21 +745,38 @@ export function Requisicoes() {
           setVeiculosOcupados(new Set());
           return;
         }
-        const { data, error } = await supabase
-          .from('agendamentos_almoxarifado')
-          .select('item_id, status, data_inicio, data_fim')
-          .eq('tipo', 'veiculo')
-          .eq('status', 'ativo')
-          .lte('data_inicio', fim)
-          .gte('data_fim', inicio);
-        if (error) {
-          console.warn('[Requisicoes] erro ao buscar agendamentos:', error);
-          return;
-        }
+
+        const [agsRes, manutRes, acidRes] = await Promise.all([
+          supabase
+            .from('agendamentos_almoxarifado')
+            .select('item_id')
+            .eq('tipo', 'veiculo')
+            .eq('status', 'ativo')
+            .lte('data_inicio', fim)
+            .gte('data_fim', inicio),
+          supabase
+            .from('manutencoes_veiculo')
+            .select('veiculo_id, data, data_saida')
+            .lte('data', fim),
+          supabase
+            .from('acidentes_veiculo')
+            .select('veiculo_id, data, data_resolucao')
+            .lte('data', fim)
+            .is('data_resolucao', null),
+        ]);
+
         if (cancelado) return;
         const ids = new Set<string>();
-        for (const row of data || []) {
+        for (const row of agsRes.data || []) {
           if (row?.item_id) ids.add(String(row.item_id));
+        }
+        for (const row of manutRes.data || []) {
+          if (!row.data_saida || row.data_saida >= inicio) {
+            if (row?.veiculo_id) ids.add(String(row.veiculo_id));
+          }
+        }
+        for (const row of acidRes.data || []) {
+          if (row?.veiculo_id) ids.add(String(row.veiculo_id));
         }
         setVeiculosOcupados(ids);
       } catch (err) {

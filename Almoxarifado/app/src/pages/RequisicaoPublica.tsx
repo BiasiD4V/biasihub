@@ -578,7 +578,12 @@ export function RequisicaoPublica() {
     void carregar();
   }, []);
 
-  /* ---------- Carros ocupados no período (frota) ---------- */
+  /* ---------- Carros ocupados no período (frota) ----------
+     Inclui:
+       - agendamentos ATIVOS sobrepostos no período
+       - manutenções com data_saida >= inicio (ou sem data_saida = sem previsão)
+       - acidentes sem data_resolucao (veículo indisponível por tempo indeterminado)
+  ---------------------------------------------------------- */
   useEffect(() => {
     if (categoria !== 'frota' || !prazo || !devolucaoFrota) {
       setVeiculosOcupados(new Set());
@@ -593,21 +598,42 @@ export function RequisicaoPublica() {
           setVeiculosOcupados(new Set());
           return;
         }
-        const { data, error } = await supabase
-          .from('agendamentos_almoxarifado')
-          .select('item_id, status, data_inicio, data_fim')
-          .eq('tipo', 'veiculo')
-          .eq('status', 'ativo')
-          .lte('data_inicio', fim)
-          .gte('data_fim', inicio);
-        if (error) {
-          console.warn('[RequisicaoPublica] erro ao buscar agendamentos:', error);
-          return;
-        }
+
+        const [agsRes, manutRes, acidRes] = await Promise.all([
+          supabase
+            .from('agendamentos_almoxarifado')
+            .select('item_id')
+            .eq('tipo', 'veiculo')
+            .eq('status', 'ativo')
+            .lte('data_inicio', fim)
+            .gte('data_fim', inicio),
+          // Manutenção: bloqueia se entrou antes do fim do meu pedido E
+          // (data_saida >= meu inicio) OU (sem data_saida = bloqueio infinito).
+          supabase
+            .from('manutencoes_veiculo')
+            .select('veiculo_id, data, data_saida')
+            .lte('data', fim),
+          // Acidente: bloqueia se data <= fim e não tem data_resolucao
+          supabase
+            .from('acidentes_veiculo')
+            .select('veiculo_id, data, data_resolucao')
+            .lte('data', fim)
+            .is('data_resolucao', null),
+        ]);
+
         if (cancelado) return;
         const ids = new Set<string>();
-        for (const row of data || []) {
+        for (const row of agsRes.data || []) {
           if (row?.item_id) ids.add(String(row.item_id));
+        }
+        for (const row of manutRes.data || []) {
+          // Sem data_saida = bloqueio. Com data_saida >= inicio = bloqueio.
+          if (!row.data_saida || row.data_saida >= inicio) {
+            if (row?.veiculo_id) ids.add(String(row.veiculo_id));
+          }
+        }
+        for (const row of acidRes.data || []) {
+          if (row?.veiculo_id) ids.add(String(row.veiculo_id));
         }
         setVeiculosOcupados(ids);
       } catch (err) {
