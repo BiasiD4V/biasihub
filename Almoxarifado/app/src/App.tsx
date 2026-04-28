@@ -28,12 +28,16 @@ const Obras = lazy(() => import('./pages/Obras').then(m => ({ default: m.Obras }
 const Agentes = lazy(() => import('./pages/Agentes').then(m => ({ default: m.Agentes })));
 
 const IS_ELECTRON = navigator.userAgent.includes('Electron');
+// No Capacitor (APK) os módulos ficam em subpaths (/almox/, /comercial/, /obras/).
+// O BrowserRouter precisa do basename correto senão nenhuma rota bate e o app
+// redireciona para /login → sai do subpath → Capacitor serve o index.html do Hub.
+const IS_CAPACITOR = !!(window as any).Capacitor;
 
 export default function App() {
   return (
     <ChunkErrorBoundary>
       <AuthProvider>
-        <BrowserRouter>
+        <BrowserRouter basename={IS_CAPACITOR ? '/almox' : ''}>
           <Suspense fallback={<SuspenseFallback />}>
             <Routes>
             {/* Raiz:

@@ -174,6 +174,14 @@ export function HubPortal() {
   async function abrirModulo(href: string, modulo?: ModuleDef) {
     if (modulo && !temAcesso(modulo)) return;
 
+    // No Capacitor todos os módulos rodam na mesma origem (https://localhost)
+    // e compartilham o localStorage — a sessão Supabase já está disponível.
+    // Passar tokens no hash seria redundante e pode conflitar com o basename.
+    if (IS_CAPACITOR) {
+      window.location.href = href;
+      return;
+    }
+
     const {
       data: { session },
     } = await supabase.auth.getSession();

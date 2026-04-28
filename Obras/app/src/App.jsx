@@ -32,6 +32,7 @@ import Suprimentos from './pages/Suprimentos'
 import DespesasIndiretas from './pages/DespesasIndiretas'
 import AdmCentral from './pages/AdmCentral'
 import Resultado from './pages/Resultado'
+import Agentes from './pages/Agentes'
 // Módulo Planejamento
 import DashboardPlanejamento from './pages/planejamento/DashboardPlanejamento'
 import CronogramaPlanejamento from './pages/planejamento/CronogramaPlanejamento'
@@ -206,6 +207,7 @@ function AppRoutes() {
           </ProtectedRoute>
         } />
         {/* Módulo Planejamento */}
+        <Route path="agentes" element={<Agentes />} />
         <Route path="planejamento" element={
           <ProtectedRoute permissao="ver_planejamento">
             <DashboardPlanejamento />
@@ -260,9 +262,11 @@ function AppRoutes() {
   )
 }
 
+const IS_CAPACITOR = !!(window?.Capacitor);
+
 export default function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename={IS_CAPACITOR ? '/obras' : ''}>
       <ChatProvider>
         <AuthProvider>
           <AppRoutes />
