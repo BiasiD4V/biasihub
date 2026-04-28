@@ -257,20 +257,32 @@ function ItemRow({
 }) {
   const [deleteArmed, setDeleteArmed] = useState(false);
 
+  // Item especial pra quando a pessoa não sabe o nome/código.
+  // A foto vira a referência principal e o almoxarifado identifica no interno.
+  const optOutro: AutocompleteItem = {
+    id: '__OUTRO__',
+    titulo: '➕ Outro / não sei o nome',
+    sub: 'Tire uma foto e o almoxarifado identifica',
+  };
+
   const autoItems = useMemo<AutocompleteItem[]>(() => {
     if (categoria === 'insumos') {
-      return insumos.map((i) => ({
+      const arr: AutocompleteItem[] = [optOutro];
+      insumos.forEach((i) => arr.push({
         id: i.id,
         titulo: `${i.codigo} - ${normalizeDisplayText(i.descricao)}`,
         sub: `${i.unidade || 'un'}${i.grupo ? ` • ${i.grupo}` : ''}`,
       }));
+      return arr;
     }
     if (categoria === 'ferramentas') {
-      return ferramentas.map((f) => ({
+      const arr: AutocompleteItem[] = [optOutro];
+      ferramentas.forEach((f) => arr.push({
         id: f.id,
         titulo: `${f.codigo} - ${normalizeDisplayText(f.descricao)}`,
         sub: `${f.marca || ''}${f.marca ? ' • ' : ''}${f.unidade || 'un'}${f.estoque_atual != null ? ` • estoque ${f.estoque_atual}` : ''}`,
       }));
+      return arr;
     }
     return veiculos.map((v) => {
       const ocupado = veiculosOcupados.has(v.id);
@@ -286,6 +298,10 @@ function ItemRow({
   function handleSelect(item: AutocompleteItem | null) {
     if (!item) {
       onChange({ itemId: null, codigo: null, descricao: '', unidade: linha.unidade });
+      return;
+    }
+    if (item.id === '__OUTRO__') {
+      onChange({ itemId: '__OUTRO__', codigo: null, descricao: '', unidade: linha.unidade || 'un' });
       return;
     }
     if (categoria === 'insumos') {
@@ -875,7 +891,13 @@ export function Requisicoes() {
     if (!cargo) return setErro('Selecione o cargo.');
     if (itens.length === 0) return setErro('Adicione ao menos um item.');
 
-    const itensValidos = itens.filter((l) => l.itemId && l.descricao.trim() && Number(l.quantidade) > 0);
+    // Item válido: tem itemId e quantidade. Para "__OUTRO__", a descrição pode
+    // ficar vazia porque a identificação será feita pela foto.
+    const itensValidos = itens.filter((l) => {
+      if (!l.itemId || Number(l.quantidade) <= 0) return false;
+      if (l.itemId === '__OUTRO__') return true;
+      return l.descricao.trim().length > 0;
+    });
     if (itensValidos.length === 0) {
       return setErro(
         categoria === 'insumos'
@@ -888,6 +910,12 @@ export function Requisicoes() {
     if (prioridade === 'urgente' && !justificativaUrgencia.trim()) {
       return setErro('Justifique a urgência.');
     }
+
+    const itensSemFoto = categoria === 'frota' ? [] : itensValidos.filter((l) => (l.fotos?.length ?? 0) === 0);
+    if (itensSemFoto.length > 0) {
+      return setErro('Foto do item é obrigatória em todos os itens da requisição.');
+    }
+
     if (categoria === 'frota') {
       if (!prazo) return setErro('Informe a data de uso/retirada do veículo.');
       if (!devolucaoFrota) return setErro('Informe a data de devolução do veículo.');
@@ -945,12 +973,18 @@ export function Requisicoes() {
                 ? 'Visitar obra'
                 : l.observacao || null
               : l.observacao || null;
+          const ehItemLivre = l.itemId === '__OUTRO__';
+          const descrFinal = ehItemLivre
+            ? (l.descricao.trim() || '(sem nome — identificar pela foto)')
+            : l.descricao;
+          const itemIdFinal = ehItemLivre ? null : l.itemId;
+
           return {
             tipo: tipoJson,
-            item_id: l.itemId,
+            item_id: itemIdFinal,
             codigo: l.codigo,
-            descricao: l.descricao,
-            nome: l.descricao,
+            descricao: descrFinal,
+            nome: descrFinal,
             quantidade: categoria === 'frota' ? 1 : Number(l.quantidade),
             unidade: l.unidade,
             observacao: observacaoItem,
@@ -1423,7 +1457,7 @@ export function Requisicoes() {
 
                 {categoria !== 'frota' && (
                   <div className="mt-4 flex flex-col gap-2.5">
-                    <label className={styles.label}>Entrega na obra?</label>
+                    <label className={styles.label}>Retirada ou entrega?</label>
                     <select
                       className={styles.input}
                       value={entregaSolicitada ? 'sim' : 'nao'}
@@ -1431,14 +1465,14 @@ export function Requisicoes() {
                       style={selectFieldStyle}
                     >
                       <option value="nao" style={selectOptionStyle}>
-                        Não, apenas separar/retirar
+                        Vou buscar / só separar no almoxarifado
                       </option>
                       <option value="sim" style={selectOptionStyle}>
-                        Sim, precisa entregar na obra
+                        Precisa entregar na obra
                       </option>
                     </select>
                     <p className="m-0 text-[#89a2e2] text-[0.85rem]">
-                      Quando marcar sim, o rastreio mostra a fase "A caminho" antes de receber.
+                      O almoxarifado decide no interno se entrega com frota Biasi, terceiro ou outro transporte.
                     </p>
                   </div>
                 )}
