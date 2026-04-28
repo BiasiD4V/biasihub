@@ -48,6 +48,14 @@ interface PedidoEntrega {
   responsavelSeparacao: string;
   motorista: string;
   recebedor: string;
+  freteTipo: string;             // 'biasi' | 'terceiro' | 'proprio' | 'outro' | ''
+  freteTerceiroNome: string;
+  freteTerceiroContato: string;
+  freteOutroDescricao: string;
+  entreguePor: string;
+  entregueEm: string;
+  recebidoPorNome: string;
+  recebidoEm: string;
   entregaSolicitada: boolean;
   isFrota: boolean;
   confirmandoBaixa: boolean;
@@ -284,6 +292,14 @@ function mapRowToPedido(row: RequisicaoComJoin & { telefone?: string | null; sol
     responsavelSeparacao: normalizeDisplayText(meta.responsavel || '-'),
     motorista: normalizeDisplayText(meta.motorista || '-'),
     recebedor: normalizeDisplayText(meta.recebedor || '-'),
+    freteTipo: normalizeDisplayText(meta.frete_tipo || ''),
+    freteTerceiroNome: normalizeDisplayText(meta.frete_terceiro_nome || ''),
+    freteTerceiroContato: normalizeDisplayText(meta.frete_terceiro_contato || ''),
+    freteOutroDescricao: normalizeDisplayText(meta.frete_outro_descricao || ''),
+    entreguePor: normalizeDisplayText(meta.entregue_por || ''),
+    entregueEm: normalizeDisplayText(meta.entregue_em || ''),
+    recebidoPorNome: normalizeDisplayText(meta.recebido_por_nome || ''),
+    recebidoEm: normalizeDisplayText(meta.recebido_em || ''),
     entregaSolicitada: metaSim(meta.entrega || meta.entrega_solicitada),
     isFrota,
     confirmandoBaixa: false,
@@ -826,11 +842,48 @@ export function RastreioEntregaMateriais() {
                     </button>
                   </div>
 
+                  {/* Banner de frete: aparece sempre que tem informação,
+                      independente dos detalhes estarem abertos. */}
+                  {pedido.freteTipo && (
+                    <div className="rt-frete-banner" style={{
+                      marginTop: '12px',
+                      padding: '10px 14px',
+                      borderRadius: '12px',
+                      border: '1px solid rgba(54,196,133,0.35)',
+                      background: 'rgba(54,196,133,0.08)',
+                      color: '#d4f5e2',
+                      fontSize: '0.85rem',
+                    }}>
+                      <strong>🚚 Frete:</strong>{' '}
+                      {pedido.freteTipo === 'terceiro'
+                        ? `Terceirizado${pedido.freteTerceiroNome ? ` — ${pedido.freteTerceiroNome}` : ''}${pedido.freteTerceiroContato ? ` (${pedido.freteTerceiroContato})` : ''}`
+                        : pedido.freteTipo === 'proprio'
+                        ? '👤 Solicitante retira pessoalmente'
+                        : pedido.freteTipo === 'outro'
+                        ? `Outro${pedido.freteOutroDescricao ? ` — ${pedido.freteOutroDescricao}` : ''}`
+                        : '🚛 Biasi Engenharia (frota interna)'}
+                    </div>
+                  )}
+
                   {pedido.detalhesAbertos && (
                     <div className="rt-detalhes">
                       <strong>Responsável pela separação:</strong> {pedido.responsavelSeparacao}<br />
                       <strong>Motorista:</strong> {pedido.motorista}<br />
                       <strong>Recebedor na obra:</strong> {pedido.recebedor}<br />
+                      {pedido.entreguePor && (
+                        <>
+                          <strong>Entregue por:</strong> {pedido.entreguePor}
+                          {pedido.entregueEm ? ` em ${pedido.entregueEm}` : ''}
+                          <br />
+                        </>
+                      )}
+                      {pedido.recebidoPorNome && (
+                        <>
+                          <strong>Recebido por:</strong> {pedido.recebidoPorNome}
+                          {pedido.recebidoEm ? ` em ${pedido.recebidoEm}` : ''}
+                          <br />
+                        </>
+                      )}
                       <strong>Observação:</strong> {pedido.observacao}
                     </div>
                   )}

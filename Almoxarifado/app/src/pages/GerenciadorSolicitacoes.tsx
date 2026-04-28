@@ -58,9 +58,10 @@ interface CardSolicitacao {
   entregaSolicitada: boolean;
   frotaStatus: string;
   motivoNegativa: string;
-  freteTipo: string;
+  freteTipo: string;             // 'biasi' | 'terceiro' | 'proprio' | 'outro'
   freteTerceiroNome: string;
   freteTerceiroContato: string;
+  freteOutroDescricao: string;
   entreguePor: string;
   entregueEm: string;
   prolongacaoPedida: string;       // ISO da nova data
@@ -320,6 +321,7 @@ function mapRowToCard(row: RequisicaoComJoin): CardSolicitacao {
     freteTipo: normalizeDisplayText(meta.frete_tipo || ''),
     freteTerceiroNome: normalizeDisplayText(meta.frete_terceiro_nome || ''),
     freteTerceiroContato: normalizeDisplayText(meta.frete_terceiro_contato || ''),
+    freteOutroDescricao: normalizeDisplayText(meta.frete_outro_descricao || ''),
     entreguePor: normalizeDisplayText(meta.entregue_por || ''),
     entregueEm: normalizeDisplayText(meta.entregue_em || ''),
     prolongacaoPedida: prolongPedida,
@@ -389,9 +391,12 @@ export function GerenciadorSolicitacoes() {
   const [denyTarget, setDenyTarget] = useState<CardSolicitacao | null>(null);
   const [denyMotivo, setDenyMotivo] = useState('');
   const [freteTarget, setFreteTarget] = useState<CardSolicitacao | null>(null);
-  const [freteTipo, setFreteTipo] = useState<'biasi' | 'terceiro'>('biasi');
+  // 4 modos: biasi (frota interna) | terceiro (transportadora) |
+  // proprio (solicitante retira) | outro (texto livre, ex: motoboy, app)
+  const [freteTipo, setFreteTipo] = useState<'biasi' | 'terceiro' | 'proprio' | 'outro'>('biasi');
   const [freteTerceiroNome, setFreteTerceiroNome] = useState('');
   const [freteTerceiroContato, setFreteTerceiroContato] = useState('');
+  const [freteOutroDescricao, setFreteOutroDescricao] = useState('');
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const activeCards = useMemo(
@@ -764,6 +769,10 @@ export function GerenciadorSolicitacoes() {
   function confirmarLiberarFrota() {
     const card = freteTarget;
     if (!card) return;
+    if (freteTipo === 'outro' && !freteOutroDescricao.trim()) {
+      showToast('Descreva o tipo de frete em "Outro".');
+      return;
+    }
     if (freteTipo === 'terceiro' && !freteTerceiroNome.trim()) {
       showToast('Informe o nome da empresa/motorista do frete terceiro.');
       return;
@@ -783,6 +792,7 @@ export function GerenciadorSolicitacoes() {
       frete_tipo: freteTipo,
       frete_terceiro_nome: freteTipo === 'terceiro' ? freteTerceiroNome.trim() : '',
       frete_terceiro_contato: freteTipo === 'terceiro' ? freteTerceiroContato.trim() : '',
+      frete_outro_descricao: freteTipo === 'outro' ? freteOutroDescricao.trim() : '',
     });
 
     setFreteTarget(null);
@@ -970,13 +980,17 @@ export function GerenciadorSolicitacoes() {
                       </div>
                     )}
 
-                    {/* Frete (registrado na liberação da frota) */}
+                    {/* Frete (registrado na liberação da frota OU informado pelo solicitante no /req) */}
                     {card.freteTipo && (
                       <div className="mb-3 rounded-2xl border border-[rgba(54,196,133,0.28)] bg-[rgba(54,196,133,0.08)] px-4 py-2.5 text-sm text-[#d4f5e2]">
                         <strong>Frete:</strong>{' '}
                         {card.freteTipo === 'terceiro'
-                          ? `Terceiro${card.freteTerceiroNome ? ` — ${card.freteTerceiroNome}` : ''}${card.freteTerceiroContato ? ` (${card.freteTerceiroContato})` : ''}`
-                          : 'Biasi Engenharia (frota interna)'}
+                          ? `Terceirizado${card.freteTerceiroNome ? ` — ${card.freteTerceiroNome}` : ''}${card.freteTerceiroContato ? ` (${card.freteTerceiroContato})` : ''}`
+                          : card.freteTipo === 'proprio'
+                          ? '👤 Solicitante vai retirar pessoalmente'
+                          : card.freteTipo === 'outro'
+                          ? `Outro${card.freteOutroDescricao ? ` — ${card.freteOutroDescricao}` : ''}`
+                          : '🚛 Biasi Engenharia (frota interna)'}
                       </div>
                     )}
 
@@ -1320,28 +1334,25 @@ export function GerenciadorSolicitacoes() {
             <div className="mt-4 flex flex-col gap-2">
               <label className="text-xs font-bold uppercase tracking-[0.18em] text-[#9db2e7]">Tipo de frete</label>
               <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setFreteTipo('biasi')}
-                  className={`rounded-xl px-3 py-2.5 text-sm font-bold border transition ${
-                    freteTipo === 'biasi'
-                      ? 'border-[rgba(113,210,255,0.6)] bg-[rgba(113,210,255,0.18)] text-white'
-                      : 'border-[rgba(113,154,255,0.25)] bg-[rgba(10,30,77,0.45)] text-[#cbd6ff]'
-                  }`}
-                >
-                  Frota Biasi
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setFreteTipo('terceiro')}
-                  className={`rounded-xl px-3 py-2.5 text-sm font-bold border transition ${
-                    freteTipo === 'terceiro'
-                      ? 'border-[rgba(113,210,255,0.6)] bg-[rgba(113,210,255,0.18)] text-white'
-                      : 'border-[rgba(113,154,255,0.25)] bg-[rgba(10,30,77,0.45)] text-[#cbd6ff]'
-                  }`}
-                >
-                  Frete terceirizado
-                </button>
+                {([
+                  { id: 'biasi',    label: '🚛 Frota Biasi' },
+                  { id: 'terceiro', label: '🏢 Terceirizado' },
+                  { id: 'proprio',  label: '👤 Solicitante retira' },
+                  { id: 'outro',    label: '➕ Outro' },
+                ] as const).map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => setFreteTipo(opt.id)}
+                    className={`rounded-xl px-3 py-2.5 text-sm font-bold border transition ${
+                      freteTipo === opt.id
+                        ? 'border-[rgba(113,210,255,0.6)] bg-[rgba(113,210,255,0.18)] text-white'
+                        : 'border-[rgba(113,154,255,0.25)] bg-[rgba(10,30,77,0.45)] text-[#cbd6ff]'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
               </div>
             </div>
 
@@ -1368,6 +1379,26 @@ export function GerenciadorSolicitacoes() {
                     onChange={(e) => setFreteTerceiroContato(e.target.value)}
                   />
                 </div>
+              </div>
+            )}
+
+            {freteTipo === 'outro' && (
+              <div className="mt-4 flex flex-col gap-1.5">
+                <label className="text-xs font-bold uppercase tracking-[0.18em] text-[#9db2e7]">Descrição *</label>
+                <input
+                  type="text"
+                  className="rounded-xl border border-[rgba(113,154,255,0.35)] bg-[rgba(10,30,77,0.55)] px-3 py-2.5 text-sm text-white outline-none placeholder:text-[#9db2e7]"
+                  placeholder="Ex: Motoboy, app de entrega, frota da obra..."
+                  value={freteOutroDescricao}
+                  onChange={(e) => setFreteOutroDescricao(e.target.value)}
+                  autoFocus
+                />
+              </div>
+            )}
+
+            {freteTipo === 'proprio' && (
+              <div className="mt-4 rounded-xl bg-[rgba(54,196,133,0.10)] border border-[rgba(54,196,133,0.35)] px-4 py-3 text-sm text-[#abf5d1]">
+                Solicitante vai retirar pessoalmente — não precisa enviar.
               </div>
             )}
 
