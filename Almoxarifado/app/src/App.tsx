@@ -27,6 +27,8 @@ const Membros = lazy(() => import('./pages/Membros').then(m => ({ default: m.Mem
 const Obras = lazy(() => import('./pages/Obras').then(m => ({ default: m.Obras })));
 const Agentes = lazy(() => import('./pages/Agentes').then(m => ({ default: m.Agentes })));
 
+const IS_ELECTRON = navigator.userAgent.includes('Electron');
+
 export default function App() {
   return (
     <ChunkErrorBoundary>
@@ -44,17 +46,17 @@ export default function App() {
               path="/"
               element={
                 <Navigate
-                  to={navigator.userAgent.includes('Electron') ? '/dashboard' : '/obra'}
+                  to={IS_ELECTRON ? '/dashboard' : '/obra'}
                   replace
                 />
               }
             />
 
-            {/* Rotas públicas — sem login */}
-            <Route path="/obra" element={<LandingPublica />} />
-            <Route path="/req" element={<RequisicaoPublica />} />
-            <Route path="/fila" element={<FilaPublica />} />
-            <Route path="/rastreio" element={<RastreioEntregaMateriais />} />
+            {/* Rotas públicas — sem login na web; no Electron redirecionam para o fluxo interno */}
+            <Route path="/obra" element={IS_ELECTRON ? <Navigate to="/dashboard" replace /> : <LandingPublica />} />
+            <Route path="/req" element={IS_ELECTRON ? <Navigate to="/requisicoes" replace /> : <RequisicaoPublica />} />
+            <Route path="/fila" element={IS_ELECTRON ? <Navigate to="/solicitacoes/gerenciar" replace /> : <FilaPublica />} />
+            <Route path="/rastreio" element={IS_ELECTRON ? <Navigate to="/solicitacoes/rastreio" replace /> : <RastreioEntregaMateriais />} />
             <Route path="/login" element={<Login />} />
             <Route element={<LayoutAutenticado />}>
               <Route path="/dashboard" element={<Dashboard />} />
