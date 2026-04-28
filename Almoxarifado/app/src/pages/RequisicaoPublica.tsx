@@ -533,13 +533,6 @@ export function RequisicaoPublica() {
   const [observacao, setObservacao] = useState('');
   const [justificativaUrgencia, setJustificativaUrgencia] = useState('');
 
-  // Frete: solicitante já indica como o transporte vai ser. Almoxarifado pode
-  // confirmar ou alterar depois (no modal de liberação) — vira sugestão.
-  const [freteTipoSolicitante, setFreteTipoSolicitante] = useState<'' | 'biasi' | 'terceiro' | 'proprio' | 'outro'>('');
-  const [freteTerceiroNomeSol, setFreteTerceiroNomeSol] = useState('');
-  const [freteTerceiroContatoSol, setFreteTerceiroContatoSol] = useState('');
-  const [freteOutroDescricaoSol, setFreteOutroDescricaoSol] = useState('');
-
   /* itens */
   const [itens, setItens] = useState<ItemLinha[]>([
     { uid: uid(), itemId: null, codigo: null, descricao: '', quantidade: '1', unidade: 'un', observacao: '', fotos: [], fotosUrls: [] },
@@ -934,11 +927,6 @@ export function RequisicaoPublica() {
         (categoria === 'frota' || categoria === 'ferramentas') && devolucaoFrota ? `devolucao:${devolucaoFrota}` : '',
         `prioridade:${prioridade}`,
         `entrega:${categoria === 'frota' ? 'nao' : entregaSolicitada ? 'sim' : 'nao'}`,
-        // Frete sugerido pelo solicitante (almoxarifado vê e pode mudar depois)
-        freteTipoSolicitante ? `frete_tipo:${freteTipoSolicitante}` : '',
-        freteTipoSolicitante === 'terceiro' && freteTerceiroNomeSol ? `frete_terceiro_nome:${freteTerceiroNomeSol.replace(/\|/g, '/').trim()}` : '',
-        freteTipoSolicitante === 'terceiro' && freteTerceiroContatoSol ? `frete_terceiro_contato:${freteTerceiroContatoSol.replace(/\|/g, '/').trim()}` : '',
-        freteTipoSolicitante === 'outro' && freteOutroDescricaoSol ? `frete_outro_descricao:${freteOutroDescricaoSol.replace(/\|/g, '/').trim()}` : '',
         observacao ? `obs:${observacao}` : '',
         anexosUrls.length ? `anexos_urls:${anexosUrls.join(',')}` : '',
       ].filter(Boolean).join(' | ');
@@ -1210,82 +1198,18 @@ export function RequisicaoPublica() {
 
             {categoria !== 'frota' && (
               <div className="mt-4 flex flex-col gap-2.5">
-                <label className={styles.label}>Entrega na obra?</label>
+                <label className={styles.label}>Retirada ou entrega?</label>
                 <select
                   className={styles.input}
                   value={entregaSolicitada ? 'sim' : 'nao'}
                   onChange={(e) => setEntregaSolicitada(e.target.value === 'sim')}
                   style={selectFieldStyle}
                 >
-                  <option value="nao" style={selectOptionStyle}>Não, apenas separar/retirar</option>
-                  <option value="sim" style={selectOptionStyle}>Sim, precisa entregar na obra</option>
+                  <option value="nao" style={selectOptionStyle}>Vou buscar / só separar no almoxarifado</option>
+                  <option value="sim" style={selectOptionStyle}>Precisa entregar na obra</option>
                 </select>
                 <p className="m-0 text-[#89a2e2] text-[0.85rem]">
-                  Se marcar sim, o rastreio mostra a fase "A caminho" antes de receber.
-                </p>
-              </div>
-            )}
-
-            {/* Frete / Transporte — sugestão do solicitante.
-                Aparece quando: frota OU pediu entrega na obra (faz sentido transporte).
-                Almoxarifado pode confirmar ou mudar no modal de liberação. */}
-            {(categoria === 'frota' || entregaSolicitada) && (
-              <div className="mt-4 flex flex-col gap-2.5">
-                <label className={styles.label}>Como vai ser o transporte? <span className="text-[#89a2e2] font-normal">(sugestão)</span></label>
-                <div className="grid grid-cols-2 gap-2">
-                  {([
-                    { id: '',         label: 'Não sei / decidir depois' },
-                    { id: 'biasi',    label: '🚛 Biasi (frota interna)' },
-                    { id: 'terceiro', label: '🏢 Empresa terceirizada' },
-                    { id: 'proprio',  label: '👤 Eu mesmo retiro' },
-                    { id: 'outro',    label: '➕ Outro' },
-                  ] as const).map((opt) => (
-                    <button
-                      key={opt.id || 'vazio'}
-                      type="button"
-                      onClick={() => setFreteTipoSolicitante(opt.id as typeof freteTipoSolicitante)}
-                      className={`rounded-xl px-3 py-2.5 text-sm font-bold border transition text-left ${
-                        freteTipoSolicitante === opt.id
-                          ? 'border-[rgba(113,210,255,0.6)] bg-[rgba(113,210,255,0.18)] text-white'
-                          : 'border-[rgba(113,154,255,0.25)] bg-[rgba(10,30,77,0.45)] text-[#cbd6ff]'
-                      }`}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-
-                {freteTipoSolicitante === 'terceiro' && (
-                  <div className="mt-2 grid gap-2">
-                    <input
-                      type="text"
-                      className={styles.input}
-                      placeholder="Nome da transportadora ou motorista *"
-                      value={freteTerceiroNomeSol}
-                      onChange={(e) => setFreteTerceiroNomeSol(e.target.value)}
-                    />
-                    <input
-                      type="text"
-                      className={styles.input}
-                      placeholder="Contato (telefone/WhatsApp) — opcional"
-                      value={freteTerceiroContatoSol}
-                      onChange={(e) => setFreteTerceiroContatoSol(e.target.value)}
-                    />
-                  </div>
-                )}
-
-                {freteTipoSolicitante === 'outro' && (
-                  <input
-                    type="text"
-                    className={styles.input}
-                    placeholder="Descreva (ex: motoboy, app de entrega, frota da obra...) *"
-                    value={freteOutroDescricaoSol}
-                    onChange={(e) => setFreteOutroDescricaoSol(e.target.value)}
-                  />
-                )}
-
-                <p className="m-0 text-[#89a2e2] text-[0.85rem]">
-                  O almoxarifado vê esta sugestão e confirma na liberação. Pode mudar depois.
+                  O almoxarifado decide no interno se entrega com frota Biasi, terceiro ou outro transporte.
                 </p>
               </div>
             )}
