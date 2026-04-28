@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Camera, CheckCircle2, Loader2, Play, RefreshCw, XCircle } from 'lucide-react';
+import { Camera, CheckCircle2, Loader2, Play, RefreshCw, RotateCcw, Truck, XCircle } from 'lucide-react';
 import type { Requisicao, StatusRequisicao } from '../domain/entities/Requisicao';
 import { supabase } from '../infrastructure/supabase/client';
 import { CameraModal } from '../components/CameraModal';
@@ -62,6 +62,7 @@ interface CardSolicitacao {
   freteTerceiroNome: string;
   freteTerceiroContato: string;
   freteOutroDescricao: string;
+  repetidoDe: string;            // ID curto do pedido original (ou string vazia)
   entreguePor: string;
   entregueEm: string;
   prolongacaoPedida: string;       // ISO da nova data
@@ -259,6 +260,9 @@ function calcularPrioridadeAutomatica(opts: {
   prazoIso: string | null;
   status: StatusRequisicao;
   prolongacaoPedida: string;
+  obra?: string;
+  pedidosNaMesmaObra?: number;
+  temConflitoRecurso?: boolean;
 }): number {
   let score = 0;
   if (String(opts.prioridadeManual).toLowerCase() === 'urgente') score += 4;
@@ -275,6 +279,14 @@ function calcularPrioridadeAutomatica(opts: {
 
   // Pedido de prolongação aguardando resposta também aumenta prioridade
   if (opts.prolongacaoPedida) score += 1;
+
+  // Pedidos acumulando na mesma obra: +0.5 por pedido pendente além do 1º
+  if (opts.pedidosNaMesmaObra && opts.pedidosNaMesmaObra > 1) {
+    score += Math.min(2, (opts.pedidosNaMesmaObra - 1) * 0.5);
+  }
+
+  // Conflito de recurso (mesma ferramenta/veículo já reservado por outro)
+  if (opts.temConflitoRecurso) score += 2;
 
   return Math.round(score * 10) / 10;
 }
@@ -307,7 +319,7 @@ function mapRowToCard(row: RequisicaoComJoin): CardSolicitacao {
     devolucao: normalizeDisplayText(meta.devolucao || '-'),
     devolucaoIso,
     prioridade: prioridadeManual.toUpperCase(),
-    prioridadeCalc: calcularPrioridadeAutomatica({ prioridadeManual, prazoIso, status, prolongacaoPedida: prolongPedida }),
+    prioridadeCalc: calcularPrioridadeAutomatica({ prioridadeManual, prazoIso, status, prolongacaoPedida: prolongPedida, obra: row.obra }),
     dataSolicitacao: formatarData(row.data_solicitacao),
     criadoEm: row.criado_em,
     iniciadoEm: row.iniciado_em ?? null,
@@ -322,6 +334,7 @@ function mapRowToCard(row: RequisicaoComJoin): CardSolicitacao {
     freteTerceiroNome: normalizeDisplayText(meta.frete_terceiro_nome || ''),
     freteTerceiroContato: normalizeDisplayText(meta.frete_terceiro_contato || ''),
     freteOutroDescricao: normalizeDisplayText(meta.frete_outro_descricao || ''),
+    repetidoDe: normalizeDisplayText(meta.repetido_de || ''),
     entreguePor: normalizeDisplayText(meta.entregue_por || ''),
     entregueEm: normalizeDisplayText(meta.entregue_em || ''),
     prolongacaoPedida: prolongPedida,
@@ -397,6 +410,19 @@ export function GerenciadorSolicitacoes() {
   const [freteTerceiroNome, setFreteTerceiroNome] = useState('');
   const [freteTerceiroContato, setFreteTerceiroContato] = useState('');
   const [freteOutroDescricao, setFreteOutroDescricao] = useState('');
+
+  // ─── Modal "Marcar como entregue" (registra quem entregou + quem recebeu) ───
+  const [entregaTarget, setEntregaTarget] = useState<CardSolicitacao | null>(null);
+  const [entregaQuemEntregou, setEntregaQuemEntregou] = useState('');
+  const [entregaQuemRecebeu, setEntregaQuemRecebeu] = useState('');
+  const [entregaObservacao, setEntregaObservacao] = useState('');
+
+  // ─── Modal "Checklist de fechamento" antes de Concluir requisição ───────────
+  const [fechamentoTarget, setFechamentoTarget] = useState<CardSolicitacao | null>(null);
+  const [chkItensConferidos, setChkItensConferidos] = useState(false);
+  const [chkQuantidades, setChkQuantidades] = useState(false);
+  const [chkAnexos, setChkAnexos] = useState(false);
+  const [chkMovimentacao, setChkMovimentacao] = useState(false);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const activeCards = useMemo(
@@ -408,16 +434,44 @@ export function GerenciadorSolicitacoes() {
     [activeCards]
   );
 
-  // Ordenação: prioridade calculada DESC (cobre urgente + atraso + prolongação),
-  // depois FIFO (mais antigo primeiro). Mantém URGENTE no topo via prioridadeCalc.
+  // Ordenação + recalculo de prioridade com contexto global:
+  //   - quantos pedidos pendentes na mesma obra → +score
+  //   - se algum recurso (item_id) é disputado entre cards → +score
+  // Cria um mapa de obra→count e item_id→count uma vez, depois aplica.
   const orderedCards = useMemo(() => {
-    const copy = [...activeCards];
-    copy.sort((a, b) => {
+    const obraCount: Record<string, number> = {};
+    const recursoCount: Record<string, number> = {};
+    activeCards.forEach((c) => {
+      obraCount[c.obra] = (obraCount[c.obra] || 0) + 1;
+      c.itens.forEach((it) => {
+        const id = String(it.raw?.item_id || '');
+        if (id) recursoCount[id] = (recursoCount[id] || 0) + 1;
+      });
+    });
+
+    const enriched = activeCards.map((c) => {
+      const temConflito = c.itens.some((it) => {
+        const id = String(it.raw?.item_id || '');
+        return id && recursoCount[id] > 1;
+      });
+      const novaPrioCalc = calcularPrioridadeAutomatica({
+        prioridadeManual: c.prioridade,
+        prazoIso: c.prazoIso,
+        status: c.status,
+        prolongacaoPedida: c.prolongacaoPedida,
+        obra: c.obra,
+        pedidosNaMesmaObra: obraCount[c.obra] || 1,
+        temConflitoRecurso: temConflito,
+      });
+      return { ...c, prioridadeCalc: novaPrioCalc };
+    });
+
+    enriched.sort((a, b) => {
       const diff = b.prioridadeCalc - a.prioridadeCalc;
       if (Math.abs(diff) > 0.01) return diff;
       return new Date(a.criadoEm).getTime() - new Date(b.criadoEm).getTime();
     });
-    return copy;
+    return enriched;
   }, [activeCards]);
 
   const toolbarSummary = useMemo(() => {
@@ -483,11 +537,32 @@ export function GerenciadorSolicitacoes() {
           else if (tipo === 'UPDATE') {
             const novo = payload.new as Record<string, unknown> | undefined;
             const antigo = payload.old as Record<string, unknown> | undefined;
-            // Detecta solicitação de prolongação nova
-            if (novo && antigo && typeof novo.observacao === 'string' && typeof antigo.observacao === 'string') {
-              const tinha = antigo.observacao.includes('prolongacao_pedida:');
-              const tem = novo.observacao.includes('prolongacao_pedida:');
-              if (tem && !tinha) showToast('⏰ Solicitante pediu prolongação de prazo.');
+            if (novo && antigo) {
+              const obsNovo = String(novo.observacao || '');
+              const obsAntigo = String(antigo.observacao || '');
+              const statusNovo = String(novo.status || '');
+              const statusAntigo = String(antigo.status || '');
+
+              // Eventos derivados de mudança de meta no observacao
+              if (obsNovo.includes('prolongacao_pedida:') && !obsAntigo.includes('prolongacao_pedida:')) {
+                showToast('⏰ Solicitante pediu prolongação de prazo.');
+              }
+              if (obsNovo.includes('cancelado_por:solicitante') && !obsAntigo.includes('cancelado_por:solicitante')) {
+                showToast('❌ Solicitante cancelou um pedido.');
+              }
+              if (obsNovo.includes('repetido_de:') && !obsAntigo.includes('repetido_de:')) {
+                showToast('↻ Pedido repetido pelo solicitante.');
+              }
+              if (obsNovo.includes('frete_tipo:') && !obsAntigo.includes('frete_tipo:')) {
+                showToast('🚚 Solicitante informou tipo de frete.');
+              }
+
+              // Eventos derivados de mudança de status
+              if (statusNovo !== statusAntigo) {
+                if (statusNovo === 'aprovada') showToast('✅ Pedido aprovado/em separação.');
+                else if (statusNovo === 'entregue') showToast('📦 Pedido finalizado.');
+                else if (statusNovo === 'cancelada') showToast('❌ Pedido cancelado.');
+              }
             }
           }
           void carregarSolicitacoes();
@@ -694,6 +769,12 @@ export function GerenciadorSolicitacoes() {
       iniciado_em: now,
       observacao,
     });
+    // Movimentação automática: saída de ferramenta/material em separação
+    void registrarMovimentacaoAuto({
+      card,
+      tipo: card.isFerramenta ? 'saida_ferramenta' : 'saida_material',
+      observacaoExtra: 'Iniciou separação',
+    });
   }
 
   function handleLiberarFrota(card: CardSolicitacao) {
@@ -703,11 +784,125 @@ export function GerenciadorSolicitacoes() {
     setFreteTerceiroContato('');
   }
 
+  // ─── Movimentação automática: cria linha em movimentacoes_almoxarifado ──────
+  // pra rastrear saídas, devoluções, manutenções e bloqueios. Tipo é livre (text):
+  //   'saida_veiculo' | 'saida_ferramenta' | 'devolucao' | 'cancelamento'
+  //   'negativa' | 'manutencao_inicio' | 'manutencao_fim' | 'agenda_bloqueio'
+  // Falha silenciosa — não bloqueia o fluxo principal.
+  async function registrarMovimentacaoAuto(opts: {
+    card: CardSolicitacao;
+    tipo: string;
+    observacaoExtra?: string;
+  }) {
+    if (!usuario) return;
+    try {
+      const movs = opts.card.itens
+        .filter((it) => it.raw?.item_id && typeof it.raw.item_id === 'string' && it.raw.item_id !== '__OUTRO__')
+        .map((it) => ({
+          item_id: it.raw.item_id as string,
+          tipo: opts.tipo,
+          quantidade: Number(it.raw?.quantidade ?? 1) || 1,
+          obra: opts.card.obra,
+          responsavel_id: usuario.id,
+          observacao: `Pedido ${opts.card.id.slice(0, 8)} — ${opts.observacaoExtra ?? opts.tipo}`,
+        }));
+      if (movs.length === 0) return;
+      const { error } = await supabase.from('movimentacoes_almoxarifado').insert(movs);
+      if (error) console.warn('[movimentacao-auto] falhou:', error.message);
+    } catch (err) {
+      console.warn('[movimentacao-auto] exceção:', err);
+    }
+  }
+
+  // ─── Marcar como entregue: abre modal pedindo quem entregou/recebeu ────────
+  function handleMarcarEntregue(card: CardSolicitacao) {
+    setEntregaTarget(card);
+    setEntregaQuemEntregou(usuario?.nome || '');
+    setEntregaQuemRecebeu(card.solicitante !== '-' ? card.solicitante : '');
+    setEntregaObservacao('');
+  }
+
+  async function confirmarMarcarEntregue() {
+    if (!entregaTarget) return;
+    if (!entregaQuemEntregou.trim()) { showToast('Informe quem entregou.'); return; }
+    if (!entregaQuemRecebeu.trim()) { showToast('Informe quem recebeu.'); return; }
+    setSavingId(entregaTarget.id);
+    try {
+      const now = new Date().toISOString();
+      const observacao = upsertObsMeta(entregaTarget.observacaoGeral, {
+        entregue_por: entregaQuemEntregou.trim(),
+        entregue_em: now,
+        recebido_por_nome: entregaQuemRecebeu.trim(),
+        recebido_em: now,
+        ...(entregaObservacao.trim() ? { entrega_observacao: entregaObservacao.trim().replace(/\|/g, '/') } : {}),
+      });
+      // Avança rastreio dos itens pra fase 'recebido' (3) — solicitante vê "Entregue"
+      const nextItems = entregaTarget.itens.map((item) => ({
+        ...item,
+        faseRastreio: 3 as FaseRastreio,
+      }));
+      await persistCard(entregaTarget, nextItems, undefined, { observacao });
+      setEntregaTarget(null);
+      showToast('Entrega registrada.');
+    } catch (err: any) {
+      showToast(`Erro: ${err?.message || err}`);
+    } finally {
+      setSavingId(null);
+    }
+  }
+
+  // ─── Checklist de fechamento: abre modal antes de "Concluir requisição" ────
+  function handleAbrirChecklistFechamento(card: CardSolicitacao) {
+    setFechamentoTarget(card);
+    setChkItensConferidos(false);
+    setChkQuantidades(false);
+    setChkAnexos(false);
+    setChkMovimentacao(false);
+  }
+
+  async function confirmarFechamento() {
+    if (!fechamentoTarget) return;
+    if (!chkItensConferidos || !chkQuantidades) {
+      showToast('Marque itens conferidos e quantidades antes de concluir.');
+      return;
+    }
+    // Delega pra handleDarBaixa (que já existia) — mas registra movimentação saída
+    const card = fechamentoTarget;
+    setFechamentoTarget(null);
+    void registrarMovimentacaoAuto({ card, tipo: 'saida_finalizada', observacaoExtra: 'Concluído pelo almoxarifado' });
+    handleDarBaixa(card);
+  }
+
   // ─── Prolongação: aprova ou nega solicitação do solicitante ────────────────
   async function aprovarProlongacao(card: CardSolicitacao) {
     if (!card.prolongacaoPedida) return;
     setSavingId(card.id);
     try {
+      // Se for frota: verifica se a NOVA data não conflita com outro agendamento
+      // do mesmo veículo. Pega item_id do veículo (todo card de frota tem 1).
+      if (card.isFrota) {
+        const veiculoId = card.itens.find((it) => it.tipo === 'carro')?.raw?.item_id as string | undefined;
+        const inicio = card.prazoIso || card.criadoEm;
+        const fim = card.prolongacaoPedida;
+        if (veiculoId && inicio && fim) {
+          const { data: conflitos } = await supabase
+            .from('agendamentos_almoxarifado')
+            .select('id, data_inicio, data_fim, solicitante_nome')
+            .eq('item_id', veiculoId)
+            .eq('tipo', 'veiculo')
+            .eq('status', 'ativo')
+            .lte('data_inicio', fim)
+            .gte('data_fim', inicio)
+            .not('descricao', 'ilike', `%${card.id}%`); // exclui o próprio agendamento
+          if (conflitos && conflitos.length > 0) {
+            const c = conflitos[0];
+            showToast(`Conflito: veículo já reservado por ${c.solicitante_nome ?? 'outro'} até ${new Date(c.data_fim).toLocaleString('pt-BR')}. Nega ou negocia.`);
+            setSavingId(null);
+            return;
+          }
+        }
+      }
+
       const observacao = upsertObsMeta(card.observacaoGeral, {
         prolongacao_aprovada: 'sim',
         prolongacao_decidida_em: new Date().toISOString(),
@@ -801,7 +996,12 @@ export function GerenciadorSolicitacoes() {
         iniciado_em: now,
         observacao,
       });
-      if (ok) await criarAgendamentoFrota(card);
+      if (ok) {
+        await criarAgendamentoFrota(card);
+        // Movimentação automática + bloqueio de agenda registrado
+        void registrarMovimentacaoAuto({ card, tipo: 'saida_veiculo', observacaoExtra: `Liberado — frete ${freteTipo}` });
+        void registrarMovimentacaoAuto({ card, tipo: 'agenda_bloqueio', observacaoExtra: 'Veículo bloqueado no calendário' });
+      }
     })();
   }
 
@@ -836,6 +1036,7 @@ export function GerenciadorSolicitacoes() {
     void salvarAlteracoesLocais(card, nextItems, 'pendente', 'Separação cancelada.', {
       iniciado_em: null,
     });
+    void registrarMovimentacaoAuto({ card, tipo: 'cancelamento_separacao', observacaoExtra: 'Separação cancelada' });
   }
 
   function abrirNegativa(card: CardSolicitacao) {
@@ -851,6 +1052,8 @@ export function GerenciadorSolicitacoes() {
       showToast('Informe o motivo da negativa.');
       return;
     }
+    // Movimentação automática: registra negativa
+    void registrarMovimentacaoAuto({ card, tipo: 'negativa', observacaoExtra: `Negada: ${motivo}` });
 
     const now = new Date().toISOString();
     const observacao = upsertObsMeta(card.observacaoGeral, {
@@ -941,6 +1144,14 @@ export function GerenciadorSolicitacoes() {
                           {isUrgente && (
                             <span className="rounded-full border border-[rgba(255,107,107,0.7)] bg-[rgba(255,107,107,0.18)] px-2.5 py-1 text-[0.7rem] font-extrabold text-[#ffb4b4] uppercase tracking-wider">
                               🚨 URGENTE
+                            </span>
+                          )}
+                          {/* Badge "↻ Repetido": aparece se a meta repetido_de:<id> tá no obs */}
+                          {card.repetidoDe && (
+                            <span className="rounded-full border border-[rgba(113,154,255,0.45)] bg-[rgba(113,154,255,0.12)] px-2.5 py-1 text-[0.7rem] font-extrabold text-[#cad8ff] uppercase tracking-wider"
+                              title={`Repetido a partir do pedido ${card.repetidoDe}`}>
+                              <RotateCcw size={10} className="inline mr-1" />
+                              Repetido de #{card.repetidoDe.slice(0, 6)}
                             </span>
                           )}
                           {/* Badge de prioridade calculada — combina urgência + atraso + prolongação */}
@@ -1241,11 +1452,22 @@ export function GerenciadorSolicitacoes() {
                       >
                         Salvar conferência
                       </button>
+                      {card.status === 'aprovada' && !card.entreguePor && (
+                        <button
+                          type="button"
+                          disabled={isSaving}
+                          onClick={() => handleMarcarEntregue(card)}
+                          className="inline-flex items-center gap-1.5 rounded-xl border border-[rgba(92,155,255,0.5)] bg-[rgba(92,155,255,0.15)] px-4 py-2 text-sm font-bold text-[#b8d3ff] disabled:opacity-50"
+                        >
+                          <Truck size={14} />
+                          Marcar como entregue
+                        </button>
+                      )}
                       {card.status === 'aprovada' && (
                         <button
                           type="button"
                           disabled={isSaving}
-                          onClick={() => handleDarBaixa(card)}
+                          onClick={() => handleAbrirChecklistFechamento(card)}
                           className="inline-flex items-center rounded-xl border border-[rgba(54,196,133,0.35)] bg-[rgba(54,196,133,0.15)] px-4 py-2 text-sm font-bold text-[#8dffca] disabled:opacity-50"
                         >
                           Concluir requisição
@@ -1284,6 +1506,102 @@ export function GerenciadorSolicitacoes() {
           }}
           onClose={() => setCamTarget(null)}
         />
+      )}
+
+      {/* Modal: Marcar como entregue (registra quem entregou + quem recebeu) */}
+      {entregaTarget && (
+        <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/65 p-4">
+          <div className="w-full max-w-lg rounded-2xl border border-[rgba(92,155,255,0.45)] bg-[linear-gradient(180deg,rgba(24,55,120,0.98),rgba(13,31,76,0.98))] p-5 shadow-2xl">
+            <h3 className="m-0 text-xl font-black">Marcar como entregue</h3>
+            <p className="mt-2 text-sm text-[#cbd6ff]">
+              Registra quem entregou e quem recebeu, com horário. O solicitante vê isso no rastreio.
+            </p>
+            <div className="mt-4 grid gap-3">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-bold uppercase tracking-[0.18em] text-[#9db2e7]">Quem entregou *</label>
+                <input
+                  type="text"
+                  className="rounded-xl border border-[rgba(113,154,255,0.35)] bg-[rgba(10,30,77,0.55)] px-3 py-2.5 text-sm text-white outline-none placeholder:text-[#9db2e7]"
+                  value={entregaQuemEntregou}
+                  onChange={(e) => setEntregaQuemEntregou(e.target.value)}
+                  autoFocus
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-bold uppercase tracking-[0.18em] text-[#9db2e7]">Quem recebeu *</label>
+                <input
+                  type="text"
+                  className="rounded-xl border border-[rgba(113,154,255,0.35)] bg-[rgba(10,30,77,0.55)] px-3 py-2.5 text-sm text-white outline-none placeholder:text-[#9db2e7]"
+                  value={entregaQuemRecebeu}
+                  onChange={(e) => setEntregaQuemRecebeu(e.target.value)}
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-bold uppercase tracking-[0.18em] text-[#9db2e7]">Observação</label>
+                <textarea
+                  rows={2}
+                  className="rounded-xl border border-[rgba(113,154,255,0.35)] bg-[rgba(10,30,77,0.55)] px-3 py-2.5 text-sm text-white outline-none placeholder:text-[#9db2e7] resize-none"
+                  placeholder="Detalhes da entrega (opcional)"
+                  value={entregaObservacao}
+                  onChange={(e) => setEntregaObservacao(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <button onClick={() => setEntregaTarget(null)} className="rounded-xl border border-[rgba(113,154,255,0.35)] bg-[rgba(10,30,77,0.45)] px-4 py-2 text-sm font-bold">
+                Cancelar
+              </button>
+              <button onClick={confirmarMarcarEntregue} className="rounded-xl border border-[rgba(92,155,255,0.5)] bg-[rgba(92,155,255,0.18)] px-4 py-2 text-sm font-bold text-[#b8d3ff]">
+                Confirmar entrega
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Checklist de fechamento (antes de Concluir) */}
+      {fechamentoTarget && (
+        <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/65 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-[rgba(54,196,133,0.45)] bg-[linear-gradient(180deg,rgba(24,55,120,0.98),rgba(13,31,76,0.98))] p-5 shadow-2xl">
+            <h3 className="m-0 text-xl font-black">Checklist de fechamento</h3>
+            <p className="mt-2 text-sm text-[#cbd6ff]">
+              Confirme os pontos abaixo antes de concluir o pedido.
+            </p>
+            <div className="mt-4 space-y-3">
+              {[
+                { check: chkItensConferidos, set: setChkItensConferidos, label: 'Itens conferidos fisicamente', req: true },
+                { check: chkQuantidades,    set: setChkQuantidades,    label: 'Quantidades batem com o pedido', req: true },
+                { check: chkAnexos,         set: setChkAnexos,         label: 'Anexos do solicitante revisados', req: false },
+                { check: chkMovimentacao,   set: setChkMovimentacao,   label: 'Movimentação registrada (auto)',  req: false },
+              ].map((it, idx) => (
+                <label key={idx} className="flex items-start gap-3 cursor-pointer hover:bg-white/5 rounded-lg p-2 transition">
+                  <input
+                    type="checkbox"
+                    checked={it.check}
+                    onChange={(e) => it.set(e.target.checked)}
+                    className="mt-0.5 h-5 w-5 accent-[#54c485] flex-shrink-0"
+                  />
+                  <span className={`text-sm ${it.check ? 'text-[#abf5d1]' : 'text-[#cbd6ff]'}`}>
+                    {it.label}
+                    {it.req && <span className="text-[#ff7a9d] ml-1">*</span>}
+                  </span>
+                </label>
+              ))}
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <button onClick={() => setFechamentoTarget(null)} className="rounded-xl border border-[rgba(113,154,255,0.35)] bg-[rgba(10,30,77,0.45)] px-4 py-2 text-sm font-bold">
+                Voltar
+              </button>
+              <button
+                onClick={confirmarFechamento}
+                disabled={!chkItensConferidos || !chkQuantidades}
+                className="rounded-xl border border-[rgba(54,196,133,0.45)] bg-[rgba(54,196,133,0.18)] px-4 py-2 text-sm font-bold text-[#abf5d1] disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Concluir requisição
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {denyTarget && (

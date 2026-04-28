@@ -21,6 +21,29 @@ export function Movimentacoes() {
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState('');
 
+  function grupoTipoMovimentacao(tipo: string): 'entrada' | 'saida' {
+    return tipo === 'entrada' || tipo === 'manutencao_fim' ? 'entrada' : 'saida';
+  }
+
+  function labelTipoMovimentacao(tipo: string): string {
+    const labels: Record<string, string> = {
+      entrada: 'Entrada',
+      saida: 'Saída',
+      saida_material: 'Saída material',
+      saida_ferramenta: 'Saída ferramenta',
+      saida_veiculo: 'Saída veículo',
+      saida_finalizada: 'Saída finalizada',
+      devolucao: 'Devolução',
+      cancelamento: 'Cancelamento',
+      cancelamento_separacao: 'Cancel. separação',
+      negativa: 'Negativa',
+      manutencao_inicio: 'Manut. início',
+      manutencao_fim: 'Manut. fim',
+      agenda_bloqueio: 'Bloqueio agenda',
+    };
+    return labels[tipo] || tipo.replace(/_/g, ' ');
+  }
+
   async function carregar() {
     setLoading(true);
     try {
@@ -87,7 +110,7 @@ export function Movimentacoes() {
       || m.obra?.toLowerCase().includes(q)
       || m.observacao?.toLowerCase().includes(q)
       || responsavelData?.nome?.toLowerCase().includes(q);
-    const matchTipo = filtroTipo === 'todos' || m.tipo === filtroTipo;
+    const matchTipo = filtroTipo === 'todos' || grupoTipoMovimentacao(m.tipo) === filtroTipo;
     return matchBusca && matchTipo;
   });
 
@@ -162,6 +185,7 @@ export function Movimentacoes() {
                 {filtrados.map(m => {
                   const itemData = m.item as unknown as { codigo: string; descricao: string; unidade: string };
                   const responsavelData = m.responsavel as unknown as { nome: string };
+                  const grupoTipo = grupoTipoMovimentacao(m.tipo);
                   return (
                     <tr key={m.id} className="hover:bg-slate-50/50 transition-colors">
                       <td className="px-5 py-3 text-xs text-slate-500">
@@ -169,9 +193,9 @@ export function Movimentacoes() {
                         <p className="text-[10px] text-slate-400">{formatDataHora(m.criado_em)}</p>
                       </td>
                       <td className="px-5 py-3">
-                        <span className={`inline-flex items-center gap-1 text-[11px] font-medium px-2.5 py-1 rounded-full ${m.tipo === 'entrada' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                          {m.tipo === 'entrada' ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
-                          {m.tipo === 'entrada' ? 'Entrada' : 'Saída'}
+                        <span className={`inline-flex items-center gap-1 text-[11px] font-medium px-2.5 py-1 rounded-full ${grupoTipo === 'entrada' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                          {grupoTipo === 'entrada' ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
+                          {labelTipoMovimentacao(m.tipo)}
                         </span>
                       </td>
                       <td className="px-5 py-3">

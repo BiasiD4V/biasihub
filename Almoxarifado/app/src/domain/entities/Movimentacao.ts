@@ -1,4 +1,17 @@
-export type TipoMovimentacao = 'entrada' | 'saida';
+export type TipoMovimentacao =
+  | 'entrada'
+  | 'saida'
+  | 'saida_material'
+  | 'saida_ferramenta'
+  | 'saida_veiculo'
+  | 'saida_finalizada'
+  | 'devolucao'
+  | 'cancelamento'
+  | 'cancelamento_separacao'
+  | 'negativa'
+  | 'manutencao_inicio'
+  | 'manutencao_fim'
+  | 'agenda_bloqueio';
 
 export interface Movimentacao {
   id: string;

@@ -4,6 +4,7 @@ import { CheckCircle2, Clock, Package, RefreshCw, RotateCcw, Truck, XCircle } fr
 import { supabase } from '../infrastructure/supabase/client';
 
 interface RequisicaoItem {
+  item_id?: string;
   descricao?: string;
   nome?: string;
   quantidade?: number;
@@ -285,6 +286,7 @@ export function FilaPublica() {
         .single();
 
       if (error) throw error;
+
       showToast('✅ Pedido repetido. Almoxarifado já recebeu.');
       void carregar(true);
     } catch (err) {
@@ -361,6 +363,26 @@ export function FilaPublica() {
     return status !== 'recebido' && status !== 'cancelado';
   }
 
+  async function registrarMovimentacaoCancelamentoPublico(pedido: Requisicao, motivo: string) {
+    try {
+      const itens = Array.isArray(pedido.itens) ? pedido.itens : [];
+      const rows = itens
+        .filter((it) => it.item_id && it.item_id !== '__OUTRO__')
+        .map((it) => ({
+          item_id: it.item_id,
+          tipo: 'cancelamento',
+          quantidade: Number(it.quantidade ?? 1) || 1,
+          obra: pedido.obra || null,
+          observacao: `Pedido ${pedido.id.slice(0, 8)} cancelado pelo solicitante${motivo ? ` - ${motivo}` : ''}`,
+          data: new Date().toISOString().slice(0, 10),
+        }));
+      if (rows.length === 0) return;
+      await supabase.from('movimentacoes_almoxarifado').insert(rows);
+    } catch (err) {
+      console.warn('[FilaPublica] rastro de cancelamento não registrado:', err);
+    }
+  }
+
   async function confirmarCancelamentoSolicitante() {
     if (!cancelTarget) return;
     const motivoObrigatorio = pedeMotivoCancelamento(cancelTarget);
@@ -405,6 +427,8 @@ export function FilaPublica() {
         .eq('id', cancelTarget.id);
 
       if (error) throw error;
+
+      await registrarMovimentacaoCancelamentoPublico(cancelTarget, motivo);
 
       // Se era frota liberada, libera o agendamento no calendário
       if (eraLiberada) {

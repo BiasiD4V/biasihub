@@ -143,6 +143,54 @@ export function Frota() {
     }
   }
 
+  async function acharItemAlmoxDoVeiculo(veiculoId: string): Promise<string | null> {
+    const veiculo = veiculos.find((v) => v.id === veiculoId);
+    if (!veiculo) return null;
+    const placa = String(veiculo.placa || '').trim();
+    const modelo = String(veiculo.modelo || '').trim();
+    try {
+      let query = supabase
+        .from('itens_almoxarifado')
+        .select('id')
+        .eq('ativo', true)
+        .eq('tipo', 'carro')
+        .limit(1);
+
+      if (placa) {
+        query = query.ilike('descricao', `%${placa}%`);
+      } else if (modelo) {
+        query = query.ilike('descricao', `%${modelo}%`);
+      } else {
+        return null;
+      }
+
+      const { data, error } = await query.maybeSingle();
+      if (error) return null;
+      return data?.id ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  async function registrarMovimentacaoFrota(veiculoId: string, tipo: 'manutencao_inicio' | 'manutencao_fim', observacao: string) {
+    if (!usuario) return;
+    const itemId = await acharItemAlmoxDoVeiculo(veiculoId);
+    if (!itemId) return;
+    try {
+      await supabase.from('movimentacoes_almoxarifado').insert({
+        item_id: itemId,
+        tipo,
+        quantidade: 1,
+        obra: null,
+        observacao,
+        data: new Date().toISOString().slice(0, 10),
+        responsavel_id: usuario.id,
+      });
+    } catch (err) {
+      console.warn('[Frota] falha ao registrar movimentacao de manutencao:', err);
+    }
+  }
+
   // -- Salvar veiculo ---------------------------------------------------------
   async function salvarVeiculo() {
     if (!formVeiculo.placa.trim() || !formVeiculo.modelo.trim()) { setErro('Placa e modelo são obrigatórios'); return; }
@@ -165,6 +213,13 @@ export function Frota() {
       : supabase.from('veiculos').insert(payload);
     const { error } = await fn;
     if (error) { setErro(error.message); setSalvando(false); return; }
+    if (editandoVeiculo?.status === 'manutencao' && payload.status === 'disponivel') {
+      await registrarMovimentacaoFrota(
+        editandoVeiculo.id,
+        'manutencao_fim',
+        `Veículo ${editandoVeiculo.placa} saiu de manutenção`
+      );
+    }
     await carregar();
     setModalVeiculo(false);
     setSalvando(false);
@@ -186,6 +241,18 @@ export function Frota() {
       criado_por: usuario!.id,
     });
     if (error) { setErro(error.message); setSalvando(false); return; }
+    await registrarMovimentacaoFrota(
+      modalManutencao!,
+      'manutencao_inicio',
+      `Manutenção ${formManut.tipo} iniciada${formManut.oficina.trim() ? ` - ${formManut.oficina.trim()}` : ''}`
+    );
+    if (formManut.data_saida) {
+      await registrarMovimentacaoFrota(
+        modalManutencao!,
+        'manutencao_fim',
+        `Manutenção ${formManut.tipo} finalizada em ${formManut.data_saida}`
+      );
+    }
     await carregarDetalhes(modalManutencao!);
     setModalManutencao(null);
     setSalvando(false);

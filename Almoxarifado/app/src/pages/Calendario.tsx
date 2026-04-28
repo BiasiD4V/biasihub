@@ -138,6 +138,7 @@ export function Calendario() {
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState('');
   const [sugestaoDispon, setSugestaoDispon] = useState<string | null>(null);
+  const [sugestaoAlternativos, setSugestaoAlternativos] = useState<ItemOpcao[]>([]);
   const [buscaItem, setBuscaItem] = useState('');
 
   const isGestor = ['gestor', 'admin', 'dono'].includes(usuario?.papel ?? '');
@@ -369,9 +370,31 @@ export function Calendario() {
     return proximo.toISOString();
   }
 
+  /** Lista veículos/ferramentas livres no período (excluindo o ocupado).
+      Usado quando dá conflito — sugere até 3 alternativas. */
+  function listarAlternativosLivres(itemIdOcupado: string, tipo: 'veiculo' | 'ferramenta', iniIso: string, fimIso: string): ItemOpcao[] {
+    const todos = tipo === 'veiculo' ? itensVeiculos : itensFerramentas;
+    return todos
+      .filter((opt) => opt.id !== itemIdOcupado)
+      .filter((opt) => {
+        // Tem conflito de agendamento?
+        const temAgConflito = eventos.some((ev) =>
+          ev.recurso_id === opt.id &&
+          ev.tipoRecurso === tipo &&
+          ev.status !== 'cancelado' &&
+          ev.status !== 'concluido' &&
+          ev.inicio <= fimIso &&
+          (ev.fim ? ev.fim >= iniIso : true)
+        );
+        return !temAgConflito;
+      })
+      .slice(0, 3);
+  }
+
   async function salvar() {
     setErro('');
     setSugestaoDispon(null);
+    setSugestaoAlternativos([]);
 
     if (!form.item_id) { setErro('Selecione um veículo ou ferramenta.'); return; }
     if (!form.data_inicio || !form.data_fim) { setErro('Preencha data e hora de início e fim.'); return; }
@@ -406,6 +429,9 @@ export function Calendario() {
           `${tipoLbl} já agendado neste período por ${c.solicitante_nome ?? 'outro usuário'} (${fmtCompleta(c.data_inicio)} → ${fmtCompleta(c.data_fim)}).`
         );
         if (proximo) setSugestaoDispon(`Próxima disponibilidade: ${fmtCompleta(proximo)}`);
+        // Lista alternativas livres no MESMO período
+        const alternativos = listarAlternativosLivres(form.item_id, form.tipo, iniIso, fimIso);
+        if (alternativos.length > 0) setSugestaoAlternativos(alternativos);
         return;
       }
 
@@ -744,6 +770,31 @@ export function Calendario() {
                 <div className="text-sm text-red-700 bg-red-50 border border-red-200 px-3 py-2 rounded-lg">
                   <p>{erro}</p>
                   {sugestaoDispon && <p className="mt-1 text-xs font-semibold text-red-600">{sugestaoDispon}</p>}
+                  {sugestaoAlternativos.length > 0 && (
+                    <div className="mt-2">
+                      <p className="text-xs font-semibold text-red-700 mb-1">
+                        Alternativas disponíveis no mesmo período:
+                      </p>
+                      <div className="flex flex-col gap-1">
+                        {sugestaoAlternativos.map((alt) => (
+                          <button
+                            key={alt.id}
+                            type="button"
+                            onClick={() => {
+                              setForm((f) => ({ ...f, item_id: alt.id }));
+                              setBuscaItem('');
+                              setErro('');
+                              setSugestaoDispon(null);
+                              setSugestaoAlternativos([]);
+                            }}
+                            className="text-left text-xs bg-white border border-red-300 hover:border-red-500 rounded-md px-2 py-1 transition"
+                          >
+                            ✓ {alt.descricao}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

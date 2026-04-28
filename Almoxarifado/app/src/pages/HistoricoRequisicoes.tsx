@@ -19,6 +19,7 @@ interface PedidoHist {
   dataIso: string;
   itens: string[];
   observacao: string;
+  freteLabel: string;
 }
 
 interface GrupoPessoa {
@@ -78,6 +79,22 @@ function itensResumo(raw: unknown): string[] {
       return `${desc}${qtd != null ? ` · ${qtd}${un ? ' ' + un : ''}` : ''}`.trim();
     })
     .filter(Boolean);
+}
+
+function formatarFrete(meta: Record<string, string>): string {
+  const tipo = normalize(meta.frete_tipo || '');
+  if (!tipo) return '';
+  if (tipo === 'terceiro') {
+    const nome = normalize(meta.frete_terceiro_nome || '');
+    const contato = normalize(meta.frete_terceiro_contato || '');
+    return `Terceiro${nome ? ` - ${nome}` : ''}${contato ? ` (${contato})` : ''}`;
+  }
+  if (tipo === 'proprio') return 'Solicitante retira pessoalmente';
+  if (tipo === 'outro') {
+    const desc = normalize(meta.frete_outro_descricao || '');
+    return `Outro${desc ? ` - ${desc}` : ''}`;
+  }
+  return 'Biasi Engenharia';
 }
 
 const STATUS_LABEL: Record<StatusRequisicao, string> = {
@@ -153,6 +170,7 @@ export function HistoricoRequisicoes() {
         dataIso: r.data_solicitacao || r.criado_em,
         itens: itensResumo(r.itens),
         observacao: normalize(meta.obs || ''),
+        freteLabel: formatarFrete(meta),
       };
 
       let grupo = map.get(chave);
@@ -172,7 +190,11 @@ export function HistoricoRequisicoes() {
           (g) =>
             g.nome.toLowerCase().includes(filtro) ||
             g.telefone.toLowerCase().includes(filtro) ||
-            g.pedidos.some((p) => p.obra.toLowerCase().includes(filtro) || p.numero.toLowerCase().includes(filtro))
+            g.pedidos.some((p) =>
+              p.obra.toLowerCase().includes(filtro) ||
+              p.numero.toLowerCase().includes(filtro) ||
+              p.freteLabel.toLowerCase().includes(filtro)
+            )
         )
       : lista;
 
@@ -312,6 +334,11 @@ export function HistoricoRequisicoes() {
                             )}
                             {p.observacao && (
                               <p className="m-0 mt-1 text-xs italic text-[#b8c8f7]">Obs.: {p.observacao}</p>
+                            )}
+                            {p.freteLabel && (
+                              <p className="m-0 mt-2 inline-flex rounded-full border border-[rgba(54,196,133,0.35)] bg-[rgba(54,196,133,0.12)] px-3 py-1 text-xs font-bold text-[#abf5d1]">
+                                Frete: {p.freteLabel}
+                              </p>
                             )}
                           </div>
                         ))}
