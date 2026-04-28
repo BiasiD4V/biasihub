@@ -186,7 +186,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.warn(`❌ Usuário ${novoUsuario.email} (papel: ${novoUsuario.papel}) não tem acesso ao módulo Almoxarifado`);
           // Redirecionar para o Hub sem fazer signOut (preserva sessão do Hub)
           const isElectron = navigator.userAgent.includes('Electron');
-          window.location.href = isElectron ? 'app://hub.local/' : 'https://biasihub-hub.vercel.app/';
+          const isCapacitor = !!(window as any).Capacitor;
+          window.location.href = isElectron
+            ? 'app://hub.local/'
+            : isCapacitor
+              ? '/'          // No APK, "/" serve o Hub (www/index.html)
+              : 'https://biasihub-hub.vercel.app/';
           return false;
         }
 

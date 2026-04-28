@@ -32,6 +32,8 @@ const IS_ELECTRON = navigator.userAgent.includes('Electron');
 // O BrowserRouter precisa do basename correto senão nenhuma rota bate e o app
 // redireciona para /login → sai do subpath → Capacitor serve o index.html do Hub.
 const IS_CAPACITOR = !!(window as any).Capacitor;
+// Electron e Capacitor são ambos contextos internos (equipe). Web (Vercel) é público.
+const IS_INTERNAL = IS_ELECTRON || IS_CAPACITOR;
 
 export default function App() {
   return (
@@ -41,8 +43,8 @@ export default function App() {
           <Suspense fallback={<SuspenseFallback />}>
             <Routes>
             {/* Raiz:
-                  - No Desktop (Electron): vai pra /dashboard (equipe interna logada).
-                  - No web (Vercel): vai pra /obra (porta pública pro pessoal de campo).
+                  - Interno (Electron/Capacitor): vai pra /dashboard (equipe logada).
+                  - Web (Vercel): vai pra /obra (porta pública pro pessoal de campo).
                 A URL biasihub-almoxarifado-weld.vercel.app abre direto a landing
                 da requisição. Equipe interna que precisa logar via web acessa
                 /login direto. */}
@@ -50,17 +52,17 @@ export default function App() {
               path="/"
               element={
                 <Navigate
-                  to={IS_ELECTRON ? '/dashboard' : '/obra'}
+                  to={IS_INTERNAL ? '/dashboard' : '/obra'}
                   replace
                 />
               }
             />
 
-            {/* Rotas públicas — sem login na web; no Electron redirecionam para o fluxo interno */}
-            <Route path="/obra" element={IS_ELECTRON ? <Navigate to="/dashboard" replace /> : <LandingPublica />} />
-            <Route path="/req" element={IS_ELECTRON ? <Navigate to="/requisicoes" replace /> : <RequisicaoPublica />} />
-            <Route path="/fila" element={IS_ELECTRON ? <Navigate to="/solicitacoes/gerenciar" replace /> : <FilaPublica />} />
-            <Route path="/rastreio" element={IS_ELECTRON ? <Navigate to="/solicitacoes/rastreio" replace /> : <RastreioEntregaMateriais />} />
+            {/* Rotas públicas — só na web; Electron e Capacitor vão pro fluxo interno */}
+            <Route path="/obra" element={IS_INTERNAL ? <Navigate to="/dashboard" replace /> : <LandingPublica />} />
+            <Route path="/req" element={IS_INTERNAL ? <Navigate to="/requisicoes" replace /> : <RequisicaoPublica />} />
+            <Route path="/fila" element={IS_INTERNAL ? <Navigate to="/solicitacoes/gerenciar" replace /> : <FilaPublica />} />
+            <Route path="/rastreio" element={IS_INTERNAL ? <Navigate to="/solicitacoes/rastreio" replace /> : <RastreioEntregaMateriais />} />
             <Route path="/login" element={<Login />} />
             <Route element={<LayoutAutenticado />}>
               <Route path="/dashboard" element={<Dashboard />} />
