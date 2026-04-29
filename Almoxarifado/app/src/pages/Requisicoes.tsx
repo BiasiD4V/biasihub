@@ -494,7 +494,7 @@ function ItemRow({
           <input
             type="text"
             className={styles.inputCompact}
-            placeholder="Observação do item (opcional)"
+            placeholder="Observação do item (se não enviar foto)"
             value={linha.observacao}
             onChange={(e) => onChange({ observacao: e.target.value })}
           />
@@ -511,6 +511,9 @@ function ItemRow({
             <Camera size={13} />
             {linha.fotosUrls.length > 0 ? `Adicionar foto (${linha.fotosUrls.length})` : 'Foto do item'}
           </button>
+          <p className="m-0 text-[0.75rem] text-[#89a2e2]">
+            Preencha a observação ou envie uma foto. Pode mandar os dois.
+          </p>
           {linha.fotosUrls.length > 0 && (
             <div className="flex items-center gap-2 flex-wrap">
               {linha.fotosUrls.map((url, idx) => (
@@ -946,9 +949,15 @@ export function Requisicoes() {
       return setErro('Justifique a urgência.');
     }
 
-    const itensSemFoto = categoria === 'frota' ? [] : itensValidos.filter((l) => (l.fotos?.length ?? 0) === 0);
-    if (itensSemFoto.length > 0) {
-      return setErro('Foto do item é obrigatória em todos os itens da requisição.');
+    const itensSemResposta = categoria === 'frota'
+      ? []
+      : itensValidos.filter((l) => {
+          const temFoto = (l.fotos?.length ?? 0) > 0 || (l.fotosUrls?.length ?? 0) > 0;
+          const temObservacao = l.observacao.trim().length > 0;
+          return !temFoto && !temObservacao;
+        });
+    if (itensSemResposta.length > 0) {
+      return setErro('Preencha a observação do item ou envie uma foto. Se não souber o nome, descreva o que precisa ou mande foto.');
     }
 
     if (categoria === 'ferramentas') {
