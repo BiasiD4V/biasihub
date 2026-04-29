@@ -12,6 +12,11 @@ export interface ItemAlmoxarifado {
   preco_unitario?: number | null;
   grupo?: string | null;
   familia?: string | null;
+  bloqueado_solicitacao?: boolean | null;
+  bloqueio_motivo?: string | null;
+  bloqueio_observacao?: string | null;
+  bloqueado_em?: string | null;
+  bloqueado_por?: string | null;
   ativo: boolean;
   criado_em: string;
   atualizado_em: string;

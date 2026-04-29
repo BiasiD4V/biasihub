@@ -4,8 +4,10 @@ import { QRCodeItem } from '../components/QRCodeItem';
 import { supabase } from '../infrastructure/supabase/client';
 import type { ItemAlmoxarifado } from '../domain/entities/ItemAlmoxarifado';
 import { useAuth } from '../context/AuthContext';
+import { ferramentaEstaBloqueada, motivoBloqueioFerramenta } from '../utils/solicitacaoRules';
 
 const UNIDADES = ['un', 'pc', 'par', 'conj', 'm', 'kit'];
+const MOTIVOS_BLOQUEIO = ['Em manutenção', 'Em aferição', 'Indisponível', 'Emprestada', 'Quebrada', 'Reservada', 'Outro'];
 const INVALID_OPTIONAL_VALUES = new Set(['-', '--', '—', ' - ', 'n/a', 'na', 'null', 'undefined', '(null)']);
 
 function sanitizeOptionalValue(value: string | null | undefined): string {
@@ -29,13 +31,24 @@ export function Ferramentas() {
   const [itens, setItens] = useState<ItemAlmoxarifado[]>([]);
   const [loading, setLoading] = useState(true);
   const [busca, setBusca] = useState('');
-  const [filtroStatus, setFiltroStatus] = useState<'todos' | 'manutencao' | 'ok'>('todos');
+  const [filtroStatus, setFiltroStatus] = useState<'todos' | 'bloqueadas' | 'manutencao' | 'ok'>('todos');
   const [pagina, setPagina] = useState(1);
   const ITENS_POR_PAGINA = 20;
 
   const [modalAberto, setModalAberto] = useState(false);
   const [editando, setEditando] = useState<ItemAlmoxarifado | null>(null);
-  const [form, setForm] = useState({ codigo: '', descricao: '', unidade: 'un', estoque_minimo: '1', localizacao: '', categoria: '', marca: '' });
+  const [form, setForm] = useState({
+    codigo: '',
+    descricao: '',
+    unidade: 'un',
+    estoque_minimo: '1',
+    localizacao: '',
+    categoria: '',
+    marca: '',
+    bloqueado_solicitacao: false,
+    bloqueio_motivo: '',
+    bloqueio_observacao: '',
+  });
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState('');
 
@@ -65,7 +78,7 @@ export function Ferramentas() {
 
   function abrirNovo() {
     setEditando(null);
-    setForm({ codigo: '', descricao: '', unidade: 'un', estoque_minimo: '', localizacao: '', categoria: '', marca: '' });
+    setForm({ codigo: '', descricao: '', unidade: 'un', estoque_minimo: '', localizacao: '', categoria: '', marca: '', bloqueado_solicitacao: false, bloqueio_motivo: '', bloqueio_observacao: '' });
     setErro('');
     setModalAberto(true);
   }
@@ -80,6 +93,9 @@ export function Ferramentas() {
       localizacao: sanitizeOptionalValue(item.localizacao),
       categoria: sanitizeOptionalValue(item.categoria),
       marca: sanitizeOptionalValue(item.marca),
+      bloqueado_solicitacao: ferramentaEstaBloqueada(item),
+      bloqueio_motivo: sanitizeOptionalValue(item.bloqueio_motivo),
+      bloqueio_observacao: sanitizeOptionalValue(item.bloqueio_observacao),
     });
     setErro('');
     setModalAberto(true);
@@ -99,6 +115,11 @@ export function Ferramentas() {
       categoria: sanitizeOptionalValue(form.categoria) || null,
       marca: sanitizeOptionalValue(form.marca) || null,
       tipo: 'ferramenta',
+      bloqueado_solicitacao: form.bloqueado_solicitacao,
+      bloqueio_motivo: form.bloqueado_solicitacao ? (sanitizeOptionalValue(form.bloqueio_motivo) || 'Indisponível') : null,
+      bloqueio_observacao: form.bloqueado_solicitacao ? (sanitizeOptionalValue(form.bloqueio_observacao) || null) : null,
+      bloqueado_em: form.bloqueado_solicitacao ? new Date().toISOString() : null,
+      bloqueado_por: form.bloqueado_solicitacao ? usuario?.id ?? null : null,
     };
 
     let error;
@@ -111,6 +132,25 @@ export function Ferramentas() {
     }
 
     if (error) { setErro(error.message); setSalvando(false); return; }
+
+    if (editando && ferramentaEstaBloqueada(editando) !== form.bloqueado_solicitacao) {
+      void supabase.from('requisicoes_almoxarifado_historico').insert({
+        requisicao_id: null,
+        acao: form.bloqueado_solicitacao ? 'ferramenta_congelada' : 'ferramenta_descongelada',
+        ator_id: usuario?.id ?? null,
+        ator_nome: usuario?.nome || usuario?.email || null,
+        mensagem: form.bloqueado_solicitacao
+          ? `Ferramenta congelada: ${payload.bloqueio_motivo || 'Indisponível'}`
+          : 'Ferramenta liberada para novas solicitações.',
+        detalhes: {
+          ferramenta_id: editando.id,
+          codigo: editando.codigo,
+          ferramenta: editando.descricao,
+          motivo: payload.bloqueio_motivo,
+          observacao: payload.bloqueio_observacao,
+        },
+      });
+    }
     await carregar();
     setModalAberto(false);
     setSalvando(false);
@@ -128,7 +168,12 @@ export function Ferramentas() {
       item.categoria?.toLowerCase().includes(busca.toLowerCase()) ||
       item.marca?.toLowerCase().includes(busca.toLowerCase());
     const isBaixo = item.estoque_atual < item.estoque_minimo;
-    const matchStatus = filtroStatus === 'todos' || (filtroStatus === 'manutencao' && isBaixo) || (filtroStatus === 'ok' && !isBaixo);
+    const bloqueada = ferramentaEstaBloqueada(item);
+    const matchStatus =
+      filtroStatus === 'todos' ||
+      (filtroStatus === 'bloqueadas' && bloqueada) ||
+      (filtroStatus === 'manutencao' && isBaixo) ||
+      (filtroStatus === 'ok' && !isBaixo && !bloqueada);
     return matchBusca && matchStatus;
   });
 
@@ -157,10 +202,10 @@ export function Ferramentas() {
             className="w-full pl-9 pr-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500" />
         </div>
         <div className="flex gap-2">
-          {(['todos', 'ok', 'manutencao'] as const).map(f => (
+          {(['todos', 'ok', 'bloqueadas', 'manutencao'] as const).map(f => (
             <button key={f} onClick={() => { setFiltroStatus(f); setPagina(1); }}
               className={`px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${filtroStatus === f ? 'bg-slate-800 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:border-slate-300'}`}>
-              {f === 'todos' ? 'Todas' : f === 'ok' ? 'Operacionais' : 'Manutenção'}
+              {f === 'todos' ? 'Todas' : f === 'ok' ? 'Operacionais' : f === 'bloqueadas' ? 'Congeladas' : 'Manutenção'}
             </button>
           ))}
         </div>
@@ -195,8 +240,9 @@ export function Ferramentas() {
               <tbody className="divide-y divide-slate-100">
                 {paginados.map(item => {
                   const baixo = item.estoque_atual < item.estoque_minimo;
+                  const bloqueada = ferramentaEstaBloqueada(item);
                   return (
-                    <tr key={item.id} className={`transition-colors hover:bg-slate-50/50 ${baixo ? 'bg-amber-50/30' : ''}`}>
+                    <tr key={item.id} className={`transition-colors hover:bg-slate-50/50 ${bloqueada ? 'bg-red-50/40' : baixo ? 'bg-amber-50/30' : ''}`} title={bloqueada ? motivoBloqueioFerramenta(item) : undefined}>
                       <td className="px-5 py-3 font-mono text-xs text-slate-600">{item.codigo}</td>
                       <td className="px-5 py-3">
                         <p className="font-medium text-slate-800">{item.descricao}</p>
@@ -210,7 +256,11 @@ export function Ferramentas() {
                         </span>
                       </td>
                       <td className="px-5 py-3">
-                        {baixo ? (
+                        {bloqueada ? (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-full bg-red-100 text-red-700" title={motivoBloqueioFerramenta(item)}>
+                            <AlertTriangle size={10} />Congelada
+                          </span>
+                        ) : baixo ? (
                           <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-full bg-amber-100 text-amber-700">
                             <AlertTriangle size={10} />Manutenção
                           </span>
@@ -315,6 +365,42 @@ export function Ferramentas() {
                   <input type="number" value={form.estoque_minimo} onChange={e => setForm(f => ({ ...f, estoque_minimo: e.target.value }))}
                     className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                 </div>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-3">
+                <label className="flex items-start gap-2 text-sm font-semibold text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={form.bloqueado_solicitacao}
+                    onChange={e => setForm(f => ({ ...f, bloqueado_solicitacao: e.target.checked }))}
+                    className="mt-1 h-4 w-4 accent-red-600"
+                  />
+                  Congelar ferramenta para novas solicitações
+                </label>
+                {form.bloqueado_solicitacao && (
+                  <div className="grid gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-slate-700 mb-1.5">Motivo do congelamento</label>
+                      <select
+                        value={form.bloqueio_motivo}
+                        onChange={e => setForm(f => ({ ...f, bloqueio_motivo: e.target.value }))}
+                        className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      >
+                        <option value="">Selecione o motivo</option>
+                        {MOTIVOS_BLOQUEIO.map(motivo => <option key={motivo} value={motivo}>{motivo}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-700 mb-1.5">Observação para tooltip/aviso</label>
+                      <textarea
+                        value={form.bloqueio_observacao}
+                        onChange={e => setForm(f => ({ ...f, bloqueio_observacao: e.target.value }))}
+                        rows={2}
+                        placeholder="Ex.: aguardando aferição até sexta-feira"
+                        className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
               {erro && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{erro}</p>}
             </div>

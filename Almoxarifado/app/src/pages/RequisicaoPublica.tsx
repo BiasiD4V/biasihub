@@ -3,6 +3,15 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { supabase } from '../infrastructure/supabase/client';
 import { Camera, CheckCircle2, Mic, Package, Paperclip, Plus, StopCircle, Truck, Video, Wrench, X } from 'lucide-react';
 import { CameraModal } from '../components/CameraModal';
+import {
+  ferramentaEstaBloqueada,
+  horarioSolicitacaoPermitido,
+  mensagemFerramentaBloqueada,
+  motivoBloqueioFerramenta,
+  origemLabel,
+  origemModulo,
+  SOLICITACAO_FORA_HORARIO_MSG,
+} from '../utils/solicitacaoRules';
 
 /* ======================================================================
    TIPOS / CONSTANTES
@@ -26,6 +35,9 @@ type FerramentaOpt = {
   marca: string | null;
   categoria: string | null;
   estoque_atual: number | null;
+  bloqueado_solicitacao?: boolean | null;
+  bloqueio_motivo?: string | null;
+  bloqueio_observacao?: string | null;
 };
 
 type VeiculoOpt = {
@@ -115,7 +127,7 @@ const selectFieldStyle = { colorScheme: 'dark' } as const;
    AUTOCOMPLETE GENÉRICO
    ====================================================================== */
 
-type AutocompleteItem = { id: string; titulo: string; sub?: string; disabled?: boolean };
+type AutocompleteItem = { id: string; titulo: string; sub?: string; disabled?: boolean; tooltip?: string };
 
 function Autocomplete<T extends AutocompleteItem>({
   items,
@@ -180,6 +192,7 @@ function Autocomplete<T extends AutocompleteItem>({
                       ? 'opacity-50 cursor-not-allowed text-[#b8c5eb]'
                       : 'text-[#f4f7ff] hover:bg-white/10 cursor-pointer'
                   }`}
+                  title={it.tooltip || it.sub || it.titulo}
                   onMouseDown={() => {
                     if (it.disabled) return;
                     onSelect(it);
@@ -256,7 +269,11 @@ function ItemRow({
       ferramentas.forEach((f) => arr.push({
         id: f.id,
         titulo: `${f.codigo} - ${normalizeDisplayText(f.descricao)}`,
-        sub: `${f.marca || ''}${f.marca ? ' • ' : ''}${f.unidade || 'un'}${f.estoque_atual != null ? ` • estoque ${f.estoque_atual}` : ''}`,
+        sub: ferramentaEstaBloqueada(f)
+          ? `Bloqueada: ${motivoBloqueioFerramenta(f)}`
+          : `${f.marca || ''}${f.marca ? ' • ' : ''}${f.unidade || 'un'}${f.estoque_atual != null ? ` • estoque ${f.estoque_atual}` : ''}`,
+        disabled: ferramentaEstaBloqueada(f),
+        tooltip: ferramentaEstaBloqueada(f) ? mensagemFerramentaBloqueada(f) : undefined,
       }));
       return arr;
     }
@@ -647,7 +664,7 @@ export function RequisicaoPublica() {
         const [obrasRes, insumosRes, ferrRes, veicRes] = await Promise.all([
           supabase.from('obras').select('nome').order('nome'),
           supabase.from('itens_almoxarifado').select('id,codigo,descricao,unidade,grupo').eq('ativo', true).eq('tipo', 'material').order('descricao').limit(5000),
-          supabase.from('itens_almoxarifado').select('id,codigo,descricao,unidade,marca,categoria,estoque_atual').eq('ativo', true).eq('tipo', 'ferramenta').order('descricao'),
+          supabase.from('itens_almoxarifado').select('*').eq('ativo', true).eq('tipo', 'ferramenta').order('descricao'),
           supabase.from('veiculos').select('id,placa,modelo,marca').eq('ativo', true).order('modelo'),
         ]);
         if (obrasRes.data && obrasRes.data.length > 0) setObras(obrasRes.data.map((o: { nome: string }) => o.nome));
@@ -787,6 +804,19 @@ export function RequisicaoPublica() {
     e?.preventDefault();
     setErro('');
 
+    if (!horarioSolicitacaoPermitido()) {
+      setErro(SOLICITACAO_FORA_HORARIO_MSG);
+      void supabase.from('requisicoes_almoxarifado_historico').insert({
+        requisicao_id: null,
+        acao: 'tentativa_fora_horario',
+        solicitante_nome: nome.trim() || null,
+        telefone: telefone.replace(/\D/g, '').slice(0, 11) || null,
+        mensagem: SOLICITACAO_FORA_HORARIO_MSG,
+        detalhes: { categoria, origem_modulo: origemModulo(categoria), origem_area: origemLabel(categoria) },
+      });
+      return;
+    }
+
     const obraFinal = obra === 'Outro' ? obraOutro.trim() : obra;
     if (!obraFinal) return setErro('Selecione a obra.');
     if (!nome.trim()) return setErro('Informe seu nome.');
@@ -814,6 +844,33 @@ export function RequisicaoPublica() {
 
     const itensSemFoto = categoria === 'frota' ? [] : itensValidos.filter((l) => (l.fotos?.length ?? 0) === 0);
     if (itensSemFoto.length > 0) return setErro('Foto do item é obrigatória em todos os itens da requisição.');
+
+    if (categoria === 'ferramentas') {
+      const bloqueada = itensValidos
+        .map((l) => ferramentas.find((f) => f.id === l.itemId))
+        .find((f) => ferramentaEstaBloqueada(f));
+      if (bloqueada) {
+        const msg = mensagemFerramentaBloqueada(bloqueada);
+        setErro(msg);
+        void supabase.from('requisicoes_almoxarifado_historico').insert({
+          requisicao_id: null,
+          acao: 'tentativa_ferramenta_bloqueada',
+          solicitante_nome: nome.trim() || null,
+          telefone: telefone.replace(/\D/g, '').slice(0, 11) || null,
+          mensagem: msg,
+          detalhes: {
+            ferramenta_id: bloqueada.id,
+            ferramenta_codigo: bloqueada.codigo,
+            ferramenta: bloqueada.descricao,
+            motivo: motivoBloqueioFerramenta(bloqueada),
+            origem_modulo: origemModulo(categoria),
+            origem_area: origemLabel(categoria),
+          },
+        });
+        return;
+      }
+    }
+
     if (categoria === 'frota') {
       if (!prazo) return setErro('Informe a data de uso/retirada do veículo.');
       if (!devolucaoFrota) return setErro('Informe a data de devolução do veículo.');
@@ -923,6 +980,9 @@ export function RequisicaoPublica() {
 
       const obsFinal = [
         `cargo:${cargo}`,
+        `origem_modulo:${origemModulo(categoria)}`,
+        `origem_area:${origemLabel(categoria)}`,
+        `origem_contexto:Formulário público da obra`,
         prazo ? `prazo:${prazo}` : '',
         (categoria === 'frota' || categoria === 'ferramentas') && devolucaoFrota ? `devolucao:${devolucaoFrota}` : '',
         `prioridade:${prioridade}`,
@@ -945,6 +1005,20 @@ export function RequisicaoPublica() {
         .single();
 
       if (error) throw error;
+
+      void supabase.from('requisicoes_almoxarifado_historico').insert({
+        requisicao_id: inserted?.id ?? null,
+        acao: 'solicitacao_criada',
+        solicitante_nome: nome.trim(),
+        telefone: tel,
+        mensagem: `Solicitação criada pela área ${origemLabel(categoria)}.`,
+        detalhes: {
+          categoria,
+          origem_modulo: origemModulo(categoria),
+          origem_area: origemLabel(categoria),
+          origem_contexto: 'Formulário público da obra',
+        },
+      });
 
       try {
         if (inserted?.criado_em) {

@@ -4,6 +4,15 @@ import type { Requisicao, StatusRequisicao } from '../domain/entities/Requisicao
 import { useAuth } from '../context/AuthContext';
 import { Camera, Check, CheckCircle2, ChevronDown, ChevronUp, ClipboardList, Clock, Mic, Package, Paperclip, Play, Plus, ShoppingCart, StopCircle, Truck, Video, Wrench, X, XCircle } from 'lucide-react';
 import { CameraModal } from '../components/CameraModal';
+import {
+  ferramentaEstaBloqueada,
+  horarioSolicitacaoPermitido,
+  mensagemFerramentaBloqueada,
+  motivoBloqueioFerramenta,
+  origemLabel,
+  origemModulo,
+  SOLICITACAO_FORA_HORARIO_MSG,
+} from '../utils/solicitacaoRules';
 
 /* ======================================================================
    TIPOS / CONSTANTES
@@ -27,6 +36,9 @@ type FerramentaOpt = {
   marca: string | null;
   categoria: string | null;
   estoque_atual: number | null;
+  bloqueado_solicitacao?: boolean | null;
+  bloqueio_motivo?: string | null;
+  bloqueio_observacao?: string | null;
 };
 
 type VeiculoOpt = {
@@ -136,7 +148,7 @@ const selectFieldStyle = { colorScheme: 'dark' } as const;
    AUTOCOMPLETE GENÉRICO
    ====================================================================== */
 
-type AutocompleteItem = { id: string; titulo: string; sub?: string; disabled?: boolean };
+type AutocompleteItem = { id: string; titulo: string; sub?: string; disabled?: boolean; tooltip?: string };
 
 function Autocomplete<T extends AutocompleteItem>({
   items,
@@ -208,6 +220,7 @@ function Autocomplete<T extends AutocompleteItem>({
                       ? 'opacity-50 cursor-not-allowed text-[#b8c5eb]'
                       : 'text-[#f4f7ff] hover:bg-white/10 cursor-pointer'
                   }`}
+                  title={it.tooltip || it.sub || it.titulo}
                   onMouseDown={() => {
                     if (it.disabled) return;
                     onSelect(it);
@@ -280,7 +293,11 @@ function ItemRow({
       ferramentas.forEach((f) => arr.push({
         id: f.id,
         titulo: `${f.codigo} - ${normalizeDisplayText(f.descricao)}`,
-        sub: `${f.marca || ''}${f.marca ? ' • ' : ''}${f.unidade || 'un'}${f.estoque_atual != null ? ` • estoque ${f.estoque_atual}` : ''}`,
+        sub: ferramentaEstaBloqueada(f)
+          ? `Bloqueada: ${motivoBloqueioFerramenta(f)}`
+          : `${f.marca || ''}${f.marca ? ' • ' : ''}${f.unidade || 'un'}${f.estoque_atual != null ? ` • estoque ${f.estoque_atual}` : ''}`,
+        disabled: ferramentaEstaBloqueada(f),
+        tooltip: ferramentaEstaBloqueada(f) ? mensagemFerramentaBloqueada(f) : undefined,
       }));
       return arr;
     }
@@ -677,7 +694,7 @@ export function Requisicoes() {
             .limit(5000),
           supabase
             .from('itens_almoxarifado')
-            .select('id,codigo,descricao,unidade,marca,categoria,estoque_atual')
+            .select('*')
             .eq('ativo', true)
             .eq('tipo', 'ferramenta')
             .order('descricao'),
@@ -886,6 +903,24 @@ export function Requisicoes() {
     e?.preventDefault();
     setErro('');
 
+    if (!horarioSolicitacaoPermitido()) {
+      setErro(SOLICITACAO_FORA_HORARIO_MSG);
+      void supabase.from('requisicoes_almoxarifado_historico').insert({
+        requisicao_id: null,
+        acao: 'tentativa_fora_horario',
+        ator_id: usuario?.id ?? null,
+        ator_nome: usuario?.nome || usuario?.email || null,
+        mensagem: SOLICITACAO_FORA_HORARIO_MSG,
+        detalhes: {
+          categoria,
+          origem_modulo: origemModulo(categoria),
+          origem_area: origemLabel(categoria),
+          origem_contexto: 'Requisição interna',
+        },
+      });
+      return;
+    }
+
     const obraFinal = obra === 'Outro' ? obraOutro.trim() : obra;
     if (!obraFinal) return setErro('Selecione a obra.');
     if (!cargo) return setErro('Selecione o cargo.');
@@ -914,6 +949,33 @@ export function Requisicoes() {
     const itensSemFoto = categoria === 'frota' ? [] : itensValidos.filter((l) => (l.fotos?.length ?? 0) === 0);
     if (itensSemFoto.length > 0) {
       return setErro('Foto do item é obrigatória em todos os itens da requisição.');
+    }
+
+    if (categoria === 'ferramentas') {
+      const bloqueada = itensValidos
+        .map((l) => ferramentas.find((f) => f.id === l.itemId))
+        .find((f) => ferramentaEstaBloqueada(f));
+      if (bloqueada) {
+        const msg = mensagemFerramentaBloqueada(bloqueada);
+        setErro(msg);
+        void supabase.from('requisicoes_almoxarifado_historico').insert({
+          requisicao_id: null,
+          acao: 'tentativa_ferramenta_bloqueada',
+          ator_id: usuario?.id ?? null,
+          ator_nome: usuario?.nome || usuario?.email || null,
+          mensagem: msg,
+          detalhes: {
+            ferramenta_id: bloqueada.id,
+            ferramenta_codigo: bloqueada.codigo,
+            ferramenta: bloqueada.descricao,
+            motivo: motivoBloqueioFerramenta(bloqueada),
+            origem_modulo: origemModulo(categoria),
+            origem_area: origemLabel(categoria),
+            origem_contexto: 'Requisição interna',
+          },
+        });
+        return;
+      }
     }
 
     if (categoria === 'frota') {
@@ -1019,6 +1081,9 @@ export function Requisicoes() {
 
       const obsFinal = [
         `cargo:${cargo}`,
+        `origem_modulo:${origemModulo(categoria)}`,
+        `origem_area:${origemLabel(categoria)}`,
+        `origem_contexto:Requisição interna`,
         prazo ? `prazo:${prazo}` : '',
         (categoria === 'frota' || categoria === 'ferramentas') && devolucaoFrota ? `devolucao:${devolucaoFrota}` : '',
         `prioridade:${prioridade}`,
@@ -1041,6 +1106,21 @@ export function Requisicoes() {
         .single();
 
       if (error) throw error;
+
+      void supabase.from('requisicoes_almoxarifado_historico').insert({
+        requisicao_id: inserted?.id ?? null,
+        acao: 'solicitacao_criada',
+        ator_id: usuario?.id ?? null,
+        ator_nome: usuario?.nome || usuario?.email || null,
+        solicitante_nome: usuario?.nome || null,
+        mensagem: `Solicitação criada pela área ${origemLabel(categoria)}.`,
+        detalhes: {
+          categoria,
+          origem_modulo: origemModulo(categoria),
+          origem_area: origemLabel(categoria),
+          origem_contexto: 'Requisição interna',
+        },
+      });
 
       // ---------- Calcular posição na fila ----------
       try {
