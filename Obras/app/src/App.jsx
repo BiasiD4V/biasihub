@@ -1,7 +1,7 @@
 import MeuPerfil from './pages/MeuPerfil'
 import ProtectedRoute from './components/ProtectedRoute'
 import React from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, HashRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { ChatProvider } from './components/claudia/ChatContext'
 import ChatWindow from './components/claudia/ChatWindow'
@@ -46,7 +46,12 @@ import RelatorioSemanal from './pages/planejamento/RelatorioSemanal'
 
 // URL do Hub para redirecionar quando não autenticado
 const IS_ELECTRON = navigator.userAgent.includes('Electron')
-const HUB_URL = IS_ELECTRON ? 'app://hub.local/' : 'https://biasihub-portal.vercel.app'
+const IS_CAPACITOR = !!(window?.Capacitor)
+const HUB_URL = IS_ELECTRON
+  ? 'app://hub.local/'
+  : IS_CAPACITOR
+    ? '/'          // No APK, "/" serve o Hub (www/index.html)
+    : 'https://biasihub-portal.vercel.app'
 
 function RotaProtegida({ children }) {
   const { isLogado, carregando } = useAuth()
@@ -262,16 +267,18 @@ function AppRoutes() {
   )
 }
 
-const IS_CAPACITOR = !!(window?.Capacitor);
+// No Capacitor o servidor de assets não resolve index.html pra diretórios.
+// Mesma estratégia do Hub e Almoxarifado: HashRouter no Capacitor.
+const Router = IS_CAPACITOR ? HashRouter : BrowserRouter;
 
 export default function App() {
   return (
-    <BrowserRouter basename={IS_CAPACITOR ? '/obras' : ''}>
+    <Router>
       <ChatProvider>
         <AuthProvider>
           <AppRoutes />
         </AuthProvider>
       </ChatProvider>
-    </BrowserRouter>
+    </Router>
   );
 }

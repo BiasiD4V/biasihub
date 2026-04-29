@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { LayoutAutenticado } from './components/layout/LayoutAutenticado';
 import { AuthProvider } from './context/AuthContext';
 import { ChunkErrorBoundary } from './components/ChunkErrorBoundary';
@@ -28,18 +28,20 @@ const Obras = lazy(() => import('./pages/Obras').then(m => ({ default: m.Obras }
 const Agentes = lazy(() => import('./pages/Agentes').then(m => ({ default: m.Agentes })));
 
 const IS_ELECTRON = navigator.userAgent.includes('Electron');
-// No Capacitor (APK) os módulos ficam em subpaths (/almox/, /comercial/, /obras/).
-// O BrowserRouter precisa do basename correto senão nenhuma rota bate e o app
-// redireciona para /login → sai do subpath → Capacitor serve o index.html do Hub.
 const IS_CAPACITOR = !!(window as any).Capacitor;
 // Electron e Capacitor são ambos contextos internos (equipe). Web (Vercel) é público.
 const IS_INTERNAL = IS_ELECTRON || IS_CAPACITOR;
+
+// No Capacitor o servidor de assets não resolve index.html pra diretórios.
+// O Hub navega pra /almox/index.html e o roteamento fica no hash (#/dashboard).
+// Mesma estratégia do Hub que já usa HashRouter.
+const Router = IS_CAPACITOR ? HashRouter : BrowserRouter;
 
 export default function App() {
   return (
     <ChunkErrorBoundary>
       <AuthProvider>
-        <BrowserRouter basename={IS_CAPACITOR ? '/almox' : ''}>
+        <Router>
           <Suspense fallback={<SuspenseFallback />}>
             <Routes>
             {/* Raiz:
@@ -87,7 +89,7 @@ export default function App() {
             <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>
           </Suspense>
-        </BrowserRouter>
+        </Router>
       </AuthProvider>
     </ChunkErrorBoundary>
   );
