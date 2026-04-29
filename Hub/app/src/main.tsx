@@ -1,8 +1,11 @@
 import { StrictMode, Suspense, lazy } from 'react'
 import { createRoot } from 'react-dom/client'
 import './styles/index.css'
+import { purgeMobileWebCaches } from './utils/runtime'
 
 const App = lazy(() => import('./App'))
+
+void purgeMobileWebCaches()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

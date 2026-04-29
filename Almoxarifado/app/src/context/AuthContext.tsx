@@ -10,6 +10,7 @@ import {
   validateRememberedSession,
   clearRememberedSession
 } from '../infrastructure/services/deviceSessionService';
+import { isCapacitorRuntime } from '../utils/runtime';
 
 interface AuthContextType {
   isAuthenticated: boolean;
@@ -186,12 +187,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.warn(`❌ Usuário ${novoUsuario.email} (papel: ${novoUsuario.papel}) não tem acesso ao módulo Almoxarifado`);
           // Redirecionar para o Hub sem fazer signOut (preserva sessão do Hub)
           const isElectron = navigator.userAgent.includes('Electron');
-          const isCapacitor = !!(window as any).Capacitor;
+          const isCapacitor = isCapacitorRuntime();
           window.location.href = isElectron
             ? 'app://hub.local/'
             : isCapacitor
               ? '/index.html#/' // No APK, volta pro Hub empacotado localmente
-              : 'https://biasihub-hub.vercel.app/';
+              : 'https://biasihub-portal.vercel.app/';
           return false;
         }
 

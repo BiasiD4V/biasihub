@@ -8,6 +8,7 @@ import { Login } from './pages/Login';
 import { RequisicaoPublica } from './pages/RequisicaoPublica';
 import { FilaPublica } from './pages/FilaPublica';
 import { LandingPublica } from './pages/LandingPublica';
+import { isCapacitorRuntime } from './utils/runtime';
 
 const Dashboard = lazy(() => import('./pages/Dashboard').then(m => ({ default: m.Dashboard })));
 const Estoque = lazy(() => import('./pages/Estoque').then(m => ({ default: m.Estoque })));
@@ -28,7 +29,7 @@ const Obras = lazy(() => import('./pages/Obras').then(m => ({ default: m.Obras }
 const Agentes = lazy(() => import('./pages/Agentes').then(m => ({ default: m.Agentes })));
 
 const IS_ELECTRON = navigator.userAgent.includes('Electron');
-const IS_CAPACITOR = !!(window as any).Capacitor;
+const IS_CAPACITOR = isCapacitorRuntime();
 // Electron e Capacitor são ambos contextos internos (equipe). Web (Vercel) é público.
 const IS_INTERNAL = IS_ELECTRON || IS_CAPACITOR;
 

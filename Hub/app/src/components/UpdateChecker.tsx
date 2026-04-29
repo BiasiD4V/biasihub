@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { AlertCircle, CheckCircle, Download, RefreshCw, X } from 'lucide-react';
+import { isCapacitorRuntime } from '../utils/runtime';
 
 interface UpdateStatus {
   hasUpdate: boolean;
@@ -32,7 +33,7 @@ export function UpdateChecker() {
   const [errorMsg, setErrorMsg] = useState('');
 
   const bridge = (window as any).electronBridge;
-  const isCapacitor = typeof window !== 'undefined' && !!(window as any).Capacitor;
+  const isCapacitor = isCapacitorRuntime();
   const mobileCurrentVersion = (import.meta.env.VITE_MOBILE_RELEASE_TAG || 'dev').replace(/^v/, '');
 
   useEffect(() => {

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { X, ArrowLeft, Sparkles, Download } from 'lucide-react';
+import { isCapacitorRuntime } from '../../utils/runtime';
 
 declare const __BUILD_VERSION__: string;
 
@@ -22,7 +23,7 @@ export function UpdateChecker() {
 
   const bridge = (window as any).electronBridge;
   const isDesktop = !!bridge;
-  const isCapacitor = typeof window !== 'undefined' && !!(window as any).Capacitor;
+  const isCapacitor = isCapacitorRuntime();
   const mobileCurrentVersion = (import.meta.env.VITE_MOBILE_RELEASE_TAG || 'dev').replace(/^v/, '');
 
   useEffect(() => {

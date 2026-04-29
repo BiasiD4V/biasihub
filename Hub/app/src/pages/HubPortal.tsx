@@ -5,6 +5,7 @@ import { supabase } from '../infrastructure/supabase/client';
 import { acessoRepository } from '../infrastructure/supabase/acessoRepository';
 import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { isCapacitorRuntime, purgeMobileWebCaches } from '../utils/runtime';
 
 interface ModuleDef {
   titulo: string;
@@ -19,7 +20,7 @@ interface ModuleDef {
 }
 
 const IS_ELECTRON = navigator.userAgent.includes('Electron');
-const IS_CAPACITOR = typeof window !== 'undefined' && !!(window as any).Capacitor;
+const IS_CAPACITOR = isCapacitorRuntime();
 const IS_DEV = import.meta.env.DEV;
 
 // URLs por ambiente:
@@ -37,7 +38,7 @@ const URLS = {
   almoxarifado: IS_ELECTRON
     ? 'app://almoxarifado.local'
     : IS_CAPACITOR
-      ? '/almox/index.html'
+      ? '/almox/index.html#/dashboard'
       : 'https://biasihub-almoxarifado-weld.vercel.app',
   obras: IS_ELECTRON
     ? 'app://obras.local'
@@ -180,7 +181,8 @@ export function HubPortal() {
     // e compartilham o localStorage — a sessão Supabase já está disponível.
     // Passar tokens no hash seria redundante e pode conflitar com o basename.
     if (IS_CAPACITOR) {
-      window.location.href = href;
+      await purgeMobileWebCaches();
+      window.location.assign(href);
       return;
     }
 

@@ -1,8 +1,11 @@
 import { StrictMode, Suspense, lazy } from 'react'
 import { createRoot } from 'react-dom/client'
 import './styles/index.css'
+import { isCapacitorRuntime, purgeMobileWebCaches } from './utils/runtime'
 
 const App = lazy(() => import('./App'))
+
+void purgeMobileWebCaches()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -29,7 +32,7 @@ const isPublicRoute =
   typeof window !== 'undefined' &&
   PWA_PUBLIC_ROUTES.some((r) => window.location.pathname.startsWith(r));
 
-if (typeof window !== 'undefined' && /^https?:$/.test(window.location.protocol)) {
+if (typeof window !== 'undefined' && /^https?:$/.test(window.location.protocol) && !isCapacitorRuntime()) {
   if (isPublicRoute) {
     // Em rotas públicas, GARANTE que NÃO fica SW antigo intermediando.
     // Quem visitou /req quando o SW estava ativo (antes do split) ainda tem

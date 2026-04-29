@@ -6,6 +6,7 @@ import { Sidebar } from './Sidebar';
 import { UpdateChecker } from './UpdateChecker';
 import { NotificacoesDropdown } from '../NotificacoesDropdown';
 import { ChatMembros } from '../ChatMembros';
+import { isCapacitorRuntime } from '../../utils/runtime';
 
 function LoadingScreen({ erroConexao }: { erroConexao: string | null }) {
   const [demorou, setDemorou] = useState(false);
@@ -94,13 +95,13 @@ export function LayoutAutenticado() {
 
   if (!isAuthenticated) {
     const isElectron = navigator.userAgent.includes('Electron');
-    const isCapacitor = typeof window !== 'undefined' && !!(window as any).Capacitor;
+    const isCapacitor = isCapacitorRuntime();
     window.location.replace(
       isElectron
         ? 'app://hub.local/'
         : isCapacitor
           ? '/index.html#/'
-          : 'https://biasihub-hub.vercel.app/'
+          : 'https://biasihub-portal.vercel.app/'
     );
     return (
       <div className="biasi-shell-bg flex min-h-screen items-center justify-center">
