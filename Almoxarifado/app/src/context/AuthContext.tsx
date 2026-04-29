@@ -190,7 +190,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           window.location.href = isElectron
             ? 'app://hub.local/'
             : isCapacitor
-              ? '/'          // No APK, "/" serve o Hub (www/index.html)
+              ? '/index.html#/' // No APK, volta pro Hub empacotado localmente
               : 'https://biasihub-hub.vercel.app/';
           return false;
         }

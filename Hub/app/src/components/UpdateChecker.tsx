@@ -1,14 +1,27 @@
 import { useEffect, useState } from 'react';
-import { AlertCircle, Download, X, RefreshCw, CheckCircle } from 'lucide-react';
+import { AlertCircle, CheckCircle, Download, RefreshCw, X } from 'lucide-react';
 
 interface UpdateStatus {
   hasUpdate: boolean;
   version: string | null;
   currentVersion: string;
+  downloadUrl?: string;
   error?: string;
 }
 
 type Phase = 'idle' | 'downloading' | 'ready' | 'error';
+
+function isNewerVersion(latestTag: string, currentTag: string) {
+  if (!latestTag) return false;
+  if (!currentTag || currentTag === 'dev') return true;
+  const latest = latestTag.replace(/^v/, '').split('.').map((n) => Number(n) || 0);
+  const current = currentTag.replace(/^v/, '').split('.').map((n) => Number(n) || 0);
+  for (let i = 0; i < Math.max(latest.length, current.length); i++) {
+    if ((latest[i] || 0) > (current[i] || 0)) return true;
+    if ((latest[i] || 0) < (current[i] || 0)) return false;
+  }
+  return false;
+}
 
 export function UpdateChecker() {
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus | null>(null);
@@ -19,9 +32,44 @@ export function UpdateChecker() {
   const [errorMsg, setErrorMsg] = useState('');
 
   const bridge = (window as any).electronBridge;
+  const isCapacitor = typeof window !== 'undefined' && !!(window as any).Capacitor;
+  const mobileCurrentVersion = (import.meta.env.VITE_MOBILE_RELEASE_TAG || 'dev').replace(/^v/, '');
 
-  // Verifica atualização ao montar e a cada 30min
   useEffect(() => {
+    if (isCapacitor) {
+      let cancelado = false;
+
+      async function checkMobileRelease() {
+        try {
+          const res = await fetch('https://api.github.com/repos/BiasiD4V/biasihub/releases/latest', { cache: 'no-store' });
+          if (!res.ok || cancelado) return;
+          const release = await res.json();
+          const latestTag = String(release.tag_name || '').replace(/^v/, '');
+          const apkAsset = (release.assets || []).find((asset: any) =>
+            String(asset.name || '').toLowerCase().endsWith('.apk')
+          );
+          if (latestTag && apkAsset?.browser_download_url && isNewerVersion(latestTag, mobileCurrentVersion)) {
+            setUpdateStatus({
+              hasUpdate: true,
+              version: latestTag,
+              currentVersion: mobileCurrentVersion,
+              downloadUrl: apkAsset.browser_download_url,
+            });
+            if (!dismissed) setShowNotification(true);
+          }
+        } catch (e) {
+          console.error('[UpdateChecker mobile] erro ao verificar release:', e);
+        }
+      }
+
+      checkMobileRelease();
+      const t = setInterval(checkMobileRelease, 30 * 60 * 1000);
+      return () => {
+        cancelado = true;
+        clearInterval(t);
+      };
+    }
+
     if (!bridge) return;
 
     async function check() {
@@ -39,9 +87,8 @@ export function UpdateChecker() {
     check();
     const t = setInterval(check, 30 * 60 * 1000);
     return () => clearInterval(t);
-  }, [dismissed]);
+  }, [bridge, dismissed, isCapacitor, mobileCurrentVersion]);
 
-  // Escuta progresso e conclusão do download
   useEffect(() => {
     if (!bridge) return;
 
@@ -53,9 +100,23 @@ export function UpdateChecker() {
       setPhase('ready');
       setProgress(100);
     });
-  }, []);
+  }, [bridge]);
 
   async function handleStartDownload() {
+    if (isCapacitor && updateStatus?.downloadUrl) {
+      try {
+        const browser = (window as any).Capacitor?.Plugins?.Browser;
+        if (browser?.open) {
+          await browser.open({ url: updateStatus.downloadUrl });
+        } else {
+          window.open(updateStatus.downloadUrl, '_blank');
+        }
+      } catch {
+        window.location.href = updateStatus.downloadUrl;
+      }
+      return;
+    }
+
     setPhase('downloading');
     setProgress(0);
     setErrorMsg('');
@@ -65,10 +126,9 @@ export function UpdateChecker() {
         setPhase('error');
         setErrorMsg(result?.error || 'Erro ao iniciar download');
       }
-      // Se success: true, o download está em andamento — aguardamos onUpdateDownloaded
     } catch (e: any) {
       setPhase('error');
-      setErrorMsg(e?.message || 'Erro de conexão');
+      setErrorMsg(e?.message || 'Erro de conexao');
     }
   }
 
@@ -81,8 +141,37 @@ export function UpdateChecker() {
     setDismissed(true);
   }
 
-  // Não mostra se não há update ou se o usuário fechou (exceto quando já baixou)
   if (!updateStatus?.hasUpdate || (!showNotification && phase !== 'ready')) return null;
+
+  if (isCapacitor) {
+    return (
+      <div className="fixed bottom-5 left-4 right-4 z-[9999] animate-in slide-in-from-bottom-8 duration-500">
+        <div className="bg-white border-2 border-indigo-100 p-4 rounded-[24px] shadow-2xl">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-indigo-600/10 flex items-center justify-center text-indigo-600">
+              <Download className="w-5 h-5" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">Atualizacao do APK</h3>
+              <p className="text-xs text-slate-500 mt-1">
+                Nova versao v{updateStatus.version} disponivel. Baixe o APK da release e instale por cima.
+              </p>
+            </div>
+            <button onClick={handleDismiss} className="text-slate-400 hover:text-slate-700">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          <button
+            onClick={handleStartDownload}
+            className="mt-3 w-full h-11 flex items-center justify-center gap-2 bg-indigo-600 text-white font-black text-xs uppercase tracking-[0.18em] rounded-2xl"
+          >
+            <Download className="w-4 h-4" />
+            Baixar APK
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed bottom-8 right-8 z-[9999] animate-in slide-in-from-bottom-8 duration-500">
@@ -92,27 +181,27 @@ export function UpdateChecker() {
         <div className="flex items-start gap-4 mb-5 relative z-10">
           <div className="shrink-0">
             {phase === 'ready' ? (
-              <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 border-2 border-emerald-500/50 flex items-center justify-center text-emerald-500 animate-in zoom-in-50 duration-500">
-                 <CheckCircle className="w-6 h-6" />
+              <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 border-2 border-emerald-500/50 flex items-center justify-center text-emerald-500">
+                <CheckCircle className="w-6 h-6" />
               </div>
             ) : phase === 'error' ? (
               <div className="w-12 h-12 rounded-2xl bg-rose-500/20 border-2 border-rose-500/50 flex items-center justify-center text-rose-500">
-                 <AlertCircle className="w-6 h-6" />
+                <AlertCircle className="w-6 h-6" />
               </div>
             ) : (
               <div className="w-12 h-12 rounded-2xl bg-indigo-600/20 border-2 border-indigo-600/50 flex items-center justify-center text-indigo-400">
-                 <RefreshCw className={`w-6 h-6 ${phase === 'downloading' ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`w-6 h-6 ${phase === 'downloading' ? 'animate-spin' : ''}`} />
               </div>
             )}
           </div>
           <div className="flex-1 min-w-0">
             <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest leading-none mb-1.5">
-              {phase === 'ready' ? 'Download Concluído' : phase === 'downloading' ? 'Sincronizando Nucleo' : 'Nova Versão Detectada'}
+              {phase === 'ready' ? 'Download concluido' : phase === 'downloading' ? 'Baixando atualizacao' : 'Nova versao detectada'}
             </h3>
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] leading-relaxed opacity-60">
               {phase === 'ready'
-                ? 'Relatório: Instalação v' + updateStatus.version + ' pronta.'
-                : `Protocolo: v${updateStatus.version} via rede distribuída.`}
+                ? `Instalacao v${updateStatus.version} pronta.`
+                : `Versao v${updateStatus.version} disponivel.`}
             </p>
           </div>
           {phase === 'idle' && (
@@ -122,30 +211,24 @@ export function UpdateChecker() {
           )}
         </div>
 
-        {/* Progress Bar High Tech */}
         {phase === 'downloading' && (
           <div className="mb-5 relative z-10">
             <div className="flex justify-between text-[10px] font-black text-indigo-600 uppercase tracking-widest mb-2">
-              <span>Transferindo Dados...</span>
+              <span>Transferindo...</span>
               <span>{progress}%</span>
             </div>
             <div className="w-full bg-slate-900/5 overflow-hidden rounded-full h-2 border border-white/40">
-              <div
-                className="bg-indigo-600 h-2 rounded-full transition-all duration-500 shadow-[0_0_8px_rgba(79,70,229,0.5)]"
-                style={{ width: `${progress}%` }}
-              />
+              <div className="bg-indigo-600 h-2 rounded-full transition-all duration-500" style={{ width: `${progress}%` }} />
             </div>
           </div>
         )}
 
-        {/* Erro */}
         {phase === 'error' && errorMsg && (
-          <div className="mb-5 p-3 premium-glass bg-rose-500/10 border-2 border-rose-500/20 rounded-2xl text-[10px] font-black text-rose-600 uppercase tracking-widest animate-in zoom-in-95">
-             Falha na Conexão: {errorMsg}
+          <div className="mb-5 p-3 bg-rose-500/10 border-2 border-rose-500/20 rounded-2xl text-[10px] font-black text-rose-600 uppercase tracking-widest">
+            Falha na conexao: {errorMsg}
           </div>
         )}
 
-        {/* Botões - Singularity Style */}
         <div className="flex gap-3 relative z-10">
           {phase === 'idle' && (
             <>
@@ -171,7 +254,7 @@ export function UpdateChecker() {
               className="flex-1 h-12 flex items-center justify-center gap-2 bg-emerald-500 text-white font-black text-[10px] uppercase tracking-[0.2em] rounded-2xl hover:bg-emerald-600 transition-all shadow-xl shadow-emerald-500/20"
             >
               <CheckCircle className="w-4 h-4" />
-              Reiniciar Nucleo
+              Reiniciar
             </button>
           )}
 
@@ -181,7 +264,7 @@ export function UpdateChecker() {
               className="flex-1 h-12 flex items-center justify-center gap-2 bg-slate-900 text-white font-black text-[10px] uppercase tracking-[0.2em] rounded-2xl hover:bg-indigo-600 transition-all shadow-xl"
             >
               <RefreshCw className="w-4 h-4" />
-              Tentar Novamente
+              Tentar novamente
             </button>
           )}
         </div>

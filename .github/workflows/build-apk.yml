@@ -68,11 +68,16 @@ jobs:
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_MOBILE_RELEASE_TAG: ${{ github.event.release.tag_name || github.event.inputs.tag || 'dev' }}
         run: npm run prepare-www
 
       - name: Capacitor add android (gera projeto nativo)
         working-directory: Mobile
         run: npx cap add android
+
+      - name: Patch Android permissions (camera/microfone)
+        working-directory: Mobile
+        run: npm run patch:android
 
       - name: Capacitor sync (copia www/ pro Android)
         working-directory: Mobile

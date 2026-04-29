@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "prepare-www": "node prepare-www.mjs",
+    "patch:android": "node patch-android.mjs",
     "sync": "cap sync android",
     "build:android": "npm run prepare-www && npm run sync && cd android && gradlew.bat assembleRelease",
     "build:android:debug": "npm run prepare-www && npm run sync && cd android && gradlew.bat assembleDebug",
@@ -13,6 +14,7 @@
   },
   "dependencies": {
     "@capacitor/android": "^7.0.0",
+    "@capacitor/browser": "^7.0.0",
     "@capacitor/core": "^7.0.0"
   },
   "devDependencies": {

@@ -94,7 +94,14 @@ export function LayoutAutenticado() {
 
   if (!isAuthenticated) {
     const isElectron = navigator.userAgent.includes('Electron');
-    window.location.replace(isElectron ? 'app://hub.local/' : 'https://biasihub-hub.vercel.app/');
+    const isCapacitor = typeof window !== 'undefined' && !!(window as any).Capacitor;
+    window.location.replace(
+      isElectron
+        ? 'app://hub.local/'
+        : isCapacitor
+          ? '/index.html#/'
+          : 'https://biasihub-hub.vercel.app/'
+    );
     return (
       <div className="biasi-shell-bg flex min-h-screen items-center justify-center">
         <div className="flex flex-col items-center gap-3">

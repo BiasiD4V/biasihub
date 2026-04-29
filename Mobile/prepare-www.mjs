@@ -13,7 +13,7 @@
 // Hub detecta Capacitor (via window.Capacitor) e linka pros subpaths locais.
 
 import { execSync } from 'child_process';
-import { existsSync, mkdirSync, rmSync, cpSync } from 'fs';
+import { copyFileSync, existsSync, mkdirSync, readdirSync, rmSync, statSync } from 'fs';
 import { join, resolve } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -31,6 +31,19 @@ const MODULES = [
 
 function log(msg) {
   console.log(`\x1b[36m[prepare-www]\x1b[0m ${msg}`);
+}
+
+function copyRecursive(src, dest) {
+  const stat = statSync(src);
+  if (stat.isDirectory()) {
+    mkdirSync(dest, { recursive: true });
+    for (const entry of readdirSync(src)) {
+      copyRecursive(join(src, entry), join(dest, entry));
+    }
+    return;
+  }
+  mkdirSync(resolve(dest, '..'), { recursive: true });
+  copyFileSync(src, dest);
 }
 
 function build(mod) {
@@ -53,7 +66,11 @@ function copyDist(mod) {
   log(`Copiando ${mod.name} → ${mod.dest}...`);
   if (existsSync(mod.dest)) rmSync(mod.dest, { recursive: true, force: true });
   mkdirSync(mod.dest, { recursive: true });
-  cpSync(distDir, mod.dest, { recursive: true });
+  // Copia o conteudo do dist, nao a pasta dist em si. Em Windows/OneDrive,
+  // cpSync(distDir, destExistente) pode falhar com EIO/Acesso negado.
+  for (const entry of readdirSync(distDir)) {
+    copyRecursive(join(distDir, entry), join(mod.dest, entry));
+  }
 }
 
 function main() {

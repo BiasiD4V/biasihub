@@ -79,8 +79,11 @@ const NAV_SECTIONS = [
 ];
 
 const IS_ELECTRON = navigator.userAgent.includes('Electron');
+const IS_CAPACITOR = typeof window !== 'undefined' && !!(window as any).Capacitor;
 const HUB_URL = IS_ELECTRON
   ? (import.meta.env.DEV ? 'http://localhost:5176/' : 'app://hub.local/')
+  : IS_CAPACITOR
+    ? '/index.html#/'
   : 'https://biasihub-portal.vercel.app/';
 const HUB_REDIRECT_TIMEOUT_MS = 5000;
 
@@ -120,6 +123,13 @@ export function Sidebar({ onAbrirChat }: SidebarProps) {
   }
 
   async function voltarAoHub() {
+    // APK: tudo está empacotado na mesma origem (https://localhost).
+    // Voltar ao Hub precisa ir para o index local, nunca para Vercel.
+    if (IS_CAPACITOR) {
+      window.location.href = HUB_URL;
+      return;
+    }
+
     try {
       const {
         data: { session },

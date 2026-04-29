@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { Camera, StopCircle, Video, X } from 'lucide-react';
+import { Camera, RefreshCw, StopCircle, Video, X } from 'lucide-react';
 
 /**
- * Modal de câmera que usa navigator.mediaDevices.getUserMedia para abrir a
- * câmera real — tanto em Electron desktop quanto em navegador mobile. Evita
- * o comportamento de `<input type=file capture="environment">`, que no
- * Electron/Chrome desktop cai no seletor de arquivos.
+ * Modal de camera que usa getUserMedia para abrir a camera real no Electron,
+ * navegador e Capacitor Android. No APK, o prompt nativo aparece quando as
+ * permissoes CAMERA/RECORD_AUDIO existem no AndroidManifest.
  */
 export function CameraModal({
   mode,
@@ -23,19 +22,47 @@ export function CameraModal({
   const [recording, setRecording] = useState(false);
   const [error, setError] = useState('');
   const [ready, setReady] = useState(false);
+  const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
 
   useEffect(() => {
     let active = true;
+
+    function stopStream() {
+      try {
+        if (recorderRef.current?.state === 'recording') recorderRef.current.stop();
+      } catch {
+        /* noop */
+      }
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+      setReady(false);
+      setRecording(false);
+    }
+
     async function start() {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: 'environment' } },
-          audio: mode === 'video',
-        });
+        setError('');
+        stopStream();
+
+        let stream: MediaStream;
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: { ideal: facingMode } },
+            audio: mode === 'video',
+          });
+        } catch (preferredErr) {
+          console.warn('[CameraModal] camera preferida falhou, tentando fallback:', preferredErr);
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: mode === 'video',
+          });
+        }
+
         if (!active) {
-          stream.getTracks().forEach((t) => t.stop());
+          stream.getTracks().forEach((track) => track.stop());
           return;
         }
+
         streamRef.current = stream;
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
@@ -46,21 +73,21 @@ export function CameraModal({
         }
       } catch (err) {
         console.error('[CameraModal] getUserMedia falhou:', err);
-        setError('Não foi possível acessar a câmera. Verifique as permissões do app.');
+        setError('Nao foi possivel acessar a camera/microfone. Verifique as permissoes do app no Android.');
       }
     }
+
     void start();
     return () => {
       active = false;
-      try {
-        if (recorderRef.current?.state === 'recording') recorderRef.current.stop();
-      } catch {
-        /* noop */
-      }
-      streamRef.current?.getTracks().forEach((t) => t.stop());
-      streamRef.current = null;
+      stopStream();
     };
-  }, [mode]);
+  }, [mode, facingMode]);
+
+  function virarCamera() {
+    if (recording) return;
+    setFacingMode((current) => (current === 'environment' ? 'user' : 'environment'));
+  }
 
   function tirarFoto() {
     const video = videoRef.current;
@@ -87,13 +114,14 @@ export function CameraModal({
     if (!streamRef.current) return;
     chunksRef.current = [];
     try {
-      const mr = new MediaRecorder(streamRef.current, { mimeType: 'video/webm' });
-      mr.ondataavailable = (e) => {
-        if (e.data && e.data.size > 0) chunksRef.current.push(e.data);
+      const mimeType = MediaRecorder.isTypeSupported('video/webm') ? 'video/webm' : '';
+      const mr = mimeType ? new MediaRecorder(streamRef.current, { mimeType }) : new MediaRecorder(streamRef.current);
+      mr.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) chunksRef.current.push(event.data);
       };
       mr.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: 'video/webm' });
-        const file = new File([blob], `video-${Date.now()}.webm`, { type: 'video/webm' });
+        const blob = new Blob(chunksRef.current, { type: mimeType || 'video/webm' });
+        const file = new File([blob], `video-${Date.now()}.webm`, { type: mimeType || 'video/webm' });
         onCapture(file);
         onClose();
       };
@@ -102,7 +130,7 @@ export function CameraModal({
       setRecording(true);
     } catch (err) {
       console.error('[CameraModal] MediaRecorder falhou:', err);
-      setError('Não foi possível iniciar a gravação de vídeo.');
+      setError('Nao foi possivel iniciar a gravacao de video.');
     }
   }
 
@@ -120,7 +148,7 @@ export function CameraModal({
       <div className="rounded-[18px] border border-[rgba(113,154,255,0.4)] bg-[#0d2258] p-4 max-w-[720px] w-full shadow-2xl">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-white font-extrabold text-[1.1rem] m-0">
-            {mode === 'photo' ? 'Tirar foto' : 'Gravar vídeo'}
+            {mode === 'photo' ? 'Tirar foto' : 'Gravar video'}
           </h3>
           <button
             type="button"
@@ -131,6 +159,7 @@ export function CameraModal({
             <X size={20} />
           </button>
         </div>
+
         {error ? (
           <div className="text-[#ff9797] py-10 text-center px-4">{error}</div>
         ) : (
@@ -141,7 +170,18 @@ export function CameraModal({
               playsInline
               className="w-full rounded-[12px] bg-black aspect-video object-cover"
             />
+
             <div className="flex gap-2 justify-center mt-3 flex-wrap">
+              <button
+                type="button"
+                onClick={virarCamera}
+                disabled={recording}
+                className="inline-flex items-center gap-2 font-extrabold py-3 px-5 rounded-[18px] border border-[rgba(113,154,255,0.28)] bg-white/[0.03] text-[#f4f7ff] disabled:opacity-50"
+              >
+                <RefreshCw size={16} />
+                Virar camera
+              </button>
+
               {mode === 'photo' ? (
                 <button
                   type="button"
@@ -160,7 +200,7 @@ export function CameraModal({
                   className="inline-flex items-center gap-2 font-extrabold py-3 px-5 rounded-[18px] bg-[linear-gradient(180deg,#4b7bf0,#3d6fe0)] text-white shadow-[0_10px_24px_rgba(52,104,223,0.35)] disabled:opacity-50"
                 >
                   <Video size={16} />
-                  Iniciar gravação
+                  Iniciar gravacao
                 </button>
               ) : (
                 <button
@@ -169,9 +209,10 @@ export function CameraModal({
                   className="inline-flex items-center gap-2 font-extrabold py-3 px-5 rounded-[18px] border border-[rgba(255,107,107,0.6)] bg-[rgba(255,107,107,0.18)] text-[#ff9797] animate-pulse"
                 >
                   <StopCircle size={16} />
-                  Parar gravação
+                  Parar gravacao
                 </button>
               )}
+
               <button
                 type="button"
                 onClick={onClose}
