@@ -1,9 +1,525 @@
 const { app, BrowserWindow, ipcMain, protocol, net, shell, Notification } = require('electron');
+const http = require('http');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 const { pathToFileURL } = require('url');
-const { autoUpdater } = require('electron-updater');
+let autoUpdater = null;
+let mainWindow = null;
+let automationServer = null;
+let automationState = null;
 const COMERCIAL_API_ORIGIN = 'https://biasihub-comercial.vercel.app';
+const DESKTOP_ROOT_DIR = path.join(__dirname, '..');
+const AUTOMATION_STATE_PATH = path.join(DESKTOP_ROOT_DIR, '.mcp-automation-state.json');
+const AUTOMATION_ARTIFACTS_DIR = path.join(DESKTOP_ROOT_DIR, '.mcp-artifacts');
+const UPDATER_LOG_PATH = path.join(DESKTOP_ROOT_DIR, 'updater.log');
+const nativeConsole = {
+  log: typeof console.log === 'function' ? console.log.bind(console) : null,
+  warn: typeof console.warn === 'function' ? console.warn.bind(console) : null,
+  error: typeof console.error === 'function' ? console.error.bind(console) : null,
+};
+
+function isBrokenPipeError(error) {
+  return (
+    error?.code === 'EPIPE' ||
+    error?.errno === 'EPIPE' ||
+    String(error?.message || '').includes('EPIPE: broken pipe')
+  );
+}
+
+function safeConsoleWrite(method, ...args) {
+  try {
+    const writer = nativeConsole?.[method];
+    if (typeof writer === 'function') {
+      writer(...args);
+      return;
+    }
+  } catch (error) {
+    if (isBrokenPipeError(error)) return;
+  }
+
+  try {
+    const text = args
+      .map((value) => {
+        if (value instanceof Error) return value.stack || value.message;
+        if (typeof value === 'string') return value;
+        try {
+          return JSON.stringify(value);
+        } catch {
+          return String(value);
+        }
+      })
+      .join(' ');
+    fs.appendFileSync(UPDATER_LOG_PATH, `[${new Date().toISOString()}] [${method}] ${text}\n`, 'utf8');
+  } catch {
+    // ignora falhas de log para não derrubar o processo principal
+  }
+}
+
+function updaterLog(...args) {
+  safeConsoleWrite('log', ...args);
+}
+
+function updaterWarn(...args) {
+  safeConsoleWrite('warn', ...args);
+}
+
+function updaterError(...args) {
+  safeConsoleWrite('error', ...args);
+}
+
+console.log = (...args) => safeConsoleWrite('log', ...args);
+console.warn = (...args) => safeConsoleWrite('warn', ...args);
+console.error = (...args) => safeConsoleWrite('error', ...args);
+
+function ensureDirectory(dirPath) {
+  fs.mkdirSync(dirPath, { recursive: true });
+  return dirPath;
+}
+
+function safeDeleteFile(filePath) {
+  try {
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+  } catch {
+    // ignora falhas na limpeza de estado local
+  }
+}
+
+function normalizeAutomationTimeout(value, fallbackMs = 10000) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallbackMs;
+  return Math.min(parsed, 5 * 60 * 1000);
+}
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function getMainWindow() {
+  if (mainWindow && !mainWindow.isDestroyed()) return mainWindow;
+  const fallbackWindow = BrowserWindow.getAllWindows().find((win) => !win.isDestroyed()) || null;
+  if (fallbackWindow) mainWindow = fallbackWindow;
+  return fallbackWindow;
+}
+
+function describeWindow(win = getMainWindow()) {
+  if (!win || win.isDestroyed()) {
+    return {
+      available: false,
+      title: null,
+      url: null,
+      isVisible: false,
+      isFocused: false,
+      isMinimized: false,
+      isLoading: false,
+      bounds: null,
+    };
+  }
+
+  return {
+    available: true,
+    title: win.getTitle(),
+    url: win.webContents.getURL(),
+    isVisible: win.isVisible(),
+    isFocused: win.isFocused(),
+    isMinimized: win.isMinimized(),
+    isLoading: win.webContents.isLoading() || win.webContents.isLoadingMainFrame(),
+    bounds: win.getBounds(),
+  };
+}
+
+function writeAutomationState() {
+  if (!automationState) return;
+  fs.writeFileSync(
+    AUTOMATION_STATE_PATH,
+    JSON.stringify(
+      {
+        ...automationState,
+        window: describeWindow(),
+      },
+      null,
+      2
+    ),
+    'utf-8'
+  );
+}
+
+function clearAutomationState() {
+  safeDeleteFile(AUTOMATION_STATE_PATH);
+}
+
+function normalizeRoute(route = '/') {
+  const raw = String(route || '/').trim();
+  if (!raw || raw === '#') return '/';
+  const withoutHash = raw.startsWith('#') ? raw.slice(1) : raw;
+  return withoutHash.startsWith('/') ? withoutHash : `/${withoutHash}`;
+}
+
+function buildAppAutomationUrl({ url, appName, route }) {
+  if (url && String(url).startsWith('app://')) return String(url);
+
+  const normalizedApp = String(appName || 'hub').trim() || 'hub';
+  const normalizedRoute = normalizeRoute(route || '/');
+
+  return `app://${normalizedApp}.local${normalizedRoute}`;
+}
+
+async function waitForMainWindowReady({ timeoutMs = 15000, settleMs = 350 } = {}) {
+  const win = getMainWindow();
+  if (!win) {
+    throw new Error('Janela principal nao encontrada.');
+  }
+
+  if (win.isMinimized()) win.restore();
+  if (!win.isVisible()) win.show();
+  win.focus();
+
+  if (win.webContents.isLoading() || win.webContents.isLoadingMainFrame()) {
+    await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        cleanup();
+        reject(new Error('Timeout aguardando a janela concluir o carregamento.'));
+      }, normalizeAutomationTimeout(timeoutMs, 15000));
+
+      const cleanup = () => {
+        clearTimeout(timer);
+        win.webContents.removeListener('did-finish-load', handleFinish);
+        win.webContents.removeListener('did-fail-load', handleFail);
+      };
+
+      const handleFinish = () => {
+        cleanup();
+        resolve();
+      };
+
+      const handleFail = (_event, code, description, validatedUrl) => {
+        cleanup();
+        reject(new Error(`Falha ao carregar a janela (${code} ${description}) ${validatedUrl || ''}`.trim()));
+      };
+
+      win.webContents.once('did-finish-load', handleFinish);
+      win.webContents.once('did-fail-load', handleFail);
+    });
+  }
+
+  if (settleMs > 0) {
+    await delay(settleMs);
+  }
+
+  return win;
+}
+
+async function runScriptInWindow(script, timeoutMs = 10000) {
+  const win = await waitForMainWindowReady({ timeoutMs, settleMs: 150 });
+  const effectiveTimeout = normalizeAutomationTimeout(timeoutMs, 10000);
+
+  return Promise.race([
+    win.webContents.executeJavaScript(String(script), true),
+    new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Timeout executando script na janela ativa.')), effectiveTimeout);
+    }),
+  ]);
+}
+
+function buildDomSnapshotScript(options = {}) {
+  const serializedOptions = JSON.stringify({
+    includeHtml: Boolean(options.includeHtml),
+    maxItems: Math.max(1, Math.min(80, Number(options.maxItems) || 24)),
+    maxTextLength: Math.max(400, Math.min(60000, Number(options.maxTextLength) || 12000)),
+    maxHtmlLength: Math.max(400, Math.min(60000, Number(options.maxHtmlLength) || 15000)),
+  });
+
+  return `(() => {
+    const options = ${serializedOptions};
+    const truncate = (value, maxLength) => {
+      const text = String(value || '').replace(/\\s+/g, ' ').trim();
+      return text.length > maxLength ? text.slice(0, maxLength) + '...' : text;
+    };
+    const isVisible = (element) => {
+      const style = window.getComputedStyle(element);
+      return style.display !== 'none' && style.visibility !== 'hidden' && element.offsetParent !== null;
+    };
+    const collect = (selector, mapper) =>
+      Array.from(document.querySelectorAll(selector))
+        .filter(isVisible)
+        .slice(0, options.maxItems)
+        .map((element, index) => {
+          try {
+            return mapper(element, index);
+          } catch (error) {
+            return { error: String(error) };
+          }
+        });
+
+    return {
+      title: document.title,
+      url: window.location.href,
+      readyState: document.readyState,
+      bodyText: truncate(document.body?.innerText || '', options.maxTextLength),
+      headings: collect('h1, h2, h3, [role="heading"]', (element) => ({
+        text: truncate(element.innerText || element.textContent || '', 300),
+        tag: element.tagName,
+      })),
+      buttons: collect('button, [role="button"], input[type="button"], input[type="submit"], a[href]', (element) => ({
+        text: truncate(element.innerText || element.textContent || element.value || element.getAttribute('aria-label') || '', 240),
+        tag: element.tagName,
+        id: element.id || null,
+        href: element.getAttribute('href') || null,
+        disabled: Boolean(element.disabled),
+      })),
+      inputs: collect('input, textarea, select', (element) => ({
+        tag: element.tagName,
+        type: element.getAttribute('type') || null,
+        name: element.getAttribute('name') || null,
+        id: element.id || null,
+        placeholder: element.getAttribute('placeholder') || null,
+        value: truncate(element.value || '', 160),
+      })),
+      links: collect('a[href]', (element) => ({
+        text: truncate(element.innerText || element.textContent || '', 200),
+        href: element.href,
+      })),
+      activeElement: document.activeElement
+        ? {
+            tag: document.activeElement.tagName,
+            id: document.activeElement.id || null,
+            name: document.activeElement.getAttribute('name') || null,
+          }
+        : null,
+      html: options.includeHtml ? truncate(document.documentElement?.outerHTML || '', options.maxHtmlLength) : undefined,
+      capturedAt: new Date().toISOString(),
+    };
+  })();`;
+}
+
+async function captureWindowScreenshot({ outputPath } = {}) {
+  const win = await waitForMainWindowReady({ timeoutMs: 15000, settleMs: 250 });
+  ensureDirectory(AUTOMATION_ARTIFACTS_DIR);
+
+  const finalPath = outputPath
+    ? path.isAbsolute(outputPath)
+      ? outputPath
+      : path.join(DESKTOP_ROOT_DIR, outputPath)
+    : path.join(AUTOMATION_ARTIFACTS_DIR, `desktop-screenshot-${Date.now()}.png`);
+
+  ensureDirectory(path.dirname(finalPath));
+  const image = await win.webContents.capturePage();
+  fs.writeFileSync(finalPath, image.toPNG());
+
+  return {
+    path: finalPath,
+    ...describeWindow(win),
+  };
+}
+
+function isLoopbackRequest(request) {
+  const address = request.socket?.remoteAddress || '';
+  return address === '127.0.0.1' || address === '::1' || address === '::ffff:127.0.0.1';
+}
+
+function isAutomationAuthorized(request) {
+  if (!automationState?.token) return false;
+
+  const authHeader = request.headers.authorization || '';
+  const bearerToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
+  const headerToken = request.headers['x-biasihub-automation-token'];
+
+  return bearerToken === automationState.token || headerToken === automationState.token;
+}
+
+function sendAutomationJson(response, statusCode, payload) {
+  const body = JSON.stringify(payload, null, 2);
+  response.writeHead(statusCode, {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Content-Length': Buffer.byteLength(body),
+  });
+  response.end(body);
+}
+
+async function readAutomationBody(request) {
+  return new Promise((resolve, reject) => {
+    let rawBody = '';
+
+    request.on('data', (chunk) => {
+      rawBody += chunk;
+      if (rawBody.length > 1024 * 1024) {
+        reject(new Error('Payload excede 1MB.'));
+        request.destroy();
+      }
+    });
+
+    request.on('end', () => {
+      if (!rawBody) {
+        resolve({});
+        return;
+      }
+
+      try {
+        resolve(JSON.parse(rawBody));
+      } catch {
+        reject(new Error('JSON invalido.'));
+      }
+    });
+
+    request.on('error', reject);
+  });
+}
+
+async function handleAutomationRequest(request, response) {
+  if (!isLoopbackRequest(request)) {
+    sendAutomationJson(response, 403, { error: 'Loopback only.' });
+    return;
+  }
+
+  if (!isAutomationAuthorized(request)) {
+    sendAutomationJson(response, 401, { error: 'Unauthorized.' });
+    return;
+  }
+
+  const requestUrl = new URL(request.url || '/', 'http://127.0.0.1');
+
+  try {
+    if (request.method === 'GET' && requestUrl.pathname === '/health') {
+      sendAutomationJson(response, 200, {
+        ok: true,
+        pid: process.pid,
+        startedAt: automationState?.startedAt || null,
+        appVersion: app.getVersion(),
+        window: describeWindow(),
+      });
+      return;
+    }
+
+    if (request.method === 'POST' && requestUrl.pathname === '/navigate') {
+      const body = await readAutomationBody(request);
+      const targetUrl = buildAppAutomationUrl({
+        url: body.url,
+        appName: body.app_name,
+        route: body.route,
+      });
+
+      const win = await waitForMainWindowReady({
+        timeoutMs: body.timeout_ms || 20000,
+        settleMs: 100,
+      });
+
+      await win.loadURL(targetUrl);
+      await waitForMainWindowReady({
+        timeoutMs: body.timeout_ms || 20000,
+        settleMs: body.settle_ms || 500,
+      });
+      writeAutomationState();
+
+      sendAutomationJson(response, 200, {
+        ok: true,
+        targetUrl,
+        window: describeWindow(win),
+      });
+      return;
+    }
+
+    if (request.method === 'POST' && requestUrl.pathname === '/dom-snapshot') {
+      const body = await readAutomationBody(request);
+      const snapshot = await runScriptInWindow(
+        buildDomSnapshotScript({
+          includeHtml: body.include_html,
+          maxItems: body.max_items,
+          maxTextLength: body.max_text_length,
+          maxHtmlLength: body.max_html_length,
+        }),
+        body.timeout_ms || 12000
+      );
+
+      sendAutomationJson(response, 200, {
+        ok: true,
+        window: describeWindow(),
+        snapshot,
+      });
+      return;
+    }
+
+    if (request.method === 'POST' && requestUrl.pathname === '/screenshot') {
+      const body = await readAutomationBody(request);
+      const result = await captureWindowScreenshot({
+        outputPath: body.output_path,
+      });
+
+      sendAutomationJson(response, 200, {
+        ok: true,
+        screenshot: result,
+      });
+      return;
+    }
+
+    if (request.method === 'POST' && requestUrl.pathname === '/eval') {
+      const body = await readAutomationBody(request);
+      if (!body.script || !String(body.script).trim()) {
+        sendAutomationJson(response, 400, { error: 'script obrigatorio.' });
+        return;
+      }
+
+      const result = await runScriptInWindow(body.script, body.timeout_ms || 12000);
+      sendAutomationJson(response, 200, {
+        ok: true,
+        window: describeWindow(),
+        result,
+      });
+      return;
+    }
+
+    sendAutomationJson(response, 404, { error: 'Not found.' });
+  } catch (error) {
+    sendAutomationJson(response, 500, {
+      error: String(error?.message || error),
+      stack: error?.stack || null,
+    });
+  }
+}
+
+async function setupAutomationServer() {
+  if (automationServer) return;
+
+  ensureDirectory(AUTOMATION_ARTIFACTS_DIR);
+
+  automationServer = http.createServer((request, response) => {
+    handleAutomationRequest(request, response).catch((error) => {
+      sendAutomationJson(response, 500, {
+        error: String(error?.message || error),
+        stack: error?.stack || null,
+      });
+    });
+  });
+
+  await new Promise((resolve, reject) => {
+    automationServer.once('error', reject);
+    automationServer.listen(0, '127.0.0.1', () => {
+      automationServer.removeListener('error', reject);
+      resolve();
+    });
+  });
+
+  const address = automationServer.address();
+  automationState = {
+    port: typeof address === 'object' && address ? address.port : null,
+    token: crypto.randomBytes(24).toString('hex'),
+    startedAt: new Date().toISOString(),
+    pid: process.pid,
+    stateFilePath: AUTOMATION_STATE_PATH,
+    artifactsDir: AUTOMATION_ARTIFACTS_DIR,
+  };
+
+  writeAutomationState();
+}
+
+function stopAutomationServer() {
+  if (automationServer) {
+    automationServer.close();
+    automationServer = null;
+  }
+
+  automationState = null;
+  clearAutomationState();
+}
 
 function isVersionNewer(nextVersion, currentVersion) {
   const nextParts = String(nextVersion).split('.').map((value) => Number.parseInt(value, 10) || 0);
@@ -56,6 +572,7 @@ async function getStore() {
 
 // ── Handler da API de Solicitações (substitui Vercel serverless) ─────────────
 const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
+const OPENAI_ASSISTANTS_API_URL = 'https://api.openai.com/v1/assistants';
 const SUPABASE_URL = 'https://vzaabtzcilyoknksvhrc.supabase.co';
 const SUPABASE_SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ6YWFidHpjaWx5b2tua3N2aHJjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NDUyNDI0NiwiZXhwIjoyMDkwMTAwMjQ2fQ.b0QCcqqIJMrx8li0g_uRXoJ9z114YWyiHvu5QPjMG7o';
 
@@ -234,6 +751,329 @@ function fallbackClassificacao({ texto, categoria, subcategoria, urgente }) {
   };
 }
 
+function slugify(text) {
+  return String(text || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+function sanitizeOwnerName(rawOwner) {
+  const owner = String(rawOwner || '').trim();
+  return owner || 'Sem responsavel';
+}
+
+function pickOwnerName(assistant) {
+  const metadata = assistant?.metadata || {};
+  const ownerCandidates = [
+    metadata.responsavel_nome,
+    metadata.responsavel,
+    metadata.owner_name,
+    metadata.owner,
+    metadata.criador,
+    metadata.gestor,
+    assistant?.owner_name,
+    assistant?.created_by?.name,
+  ];
+
+  for (const candidate of ownerCandidates) {
+    const clean = String(candidate || '').trim();
+    if (clean) return clean;
+  }
+
+  return 'Sem responsavel';
+}
+
+function buildGroupName(ownerName) {
+  if (String(ownerName).toLowerCase() === 'sem responsavel') return 'Grupo Sem Responsavel';
+  return `Grupo ${ownerName}`;
+}
+
+function buildAgentFunction(assistant) {
+  const instructions = String(assistant?.instructions || '').trim();
+  if (instructions) {
+    const resumo = instructions.replace(/\s+/g, ' ').trim().slice(0, 180);
+    return resumo || 'Agente sincronizado do ChatGPT.';
+  }
+
+  return 'Agente sincronizado do ChatGPT.';
+}
+
+async function readJsonResponse(response) {
+  const raw = await response.text();
+  if (!raw) return {};
+
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return { raw };
+  }
+}
+
+async function supabaseRest(pathname, { method = 'GET', body, prefer } = {}) {
+  const headers = {
+    'apikey': SUPABASE_SERVICE_KEY,
+    'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+  };
+
+  if (body !== undefined) {
+    headers['Content-Type'] = 'application/json';
+  }
+
+  if (prefer) {
+    headers['Prefer'] = prefer;
+  }
+
+  const response = await net.fetch(`${SUPABASE_URL}${pathname}`, {
+    method,
+    headers,
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+
+  const payload = await readJsonResponse(response);
+  if (!response.ok) {
+    const message = payload?.message || payload?.error_description || payload?.error || 'Erro no Supabase REST';
+    throw new Error(`${message} (${response.status})`);
+  }
+
+  return payload;
+}
+
+async function fetchChatgptAssistants(openaiKey) {
+  const allAssistants = [];
+  let after = null;
+  let hasMore = true;
+
+  while (hasMore) {
+    const query = after ? `?order=desc&limit=100&after=${encodeURIComponent(after)}` : '?order=desc&limit=100';
+    const response = await net.fetch(`${OPENAI_ASSISTANTS_API_URL}${query}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${openaiKey}`,
+        'Content-Type': 'application/json',
+        'OpenAI-Beta': 'assistants=v2',
+      },
+    });
+
+    const payload = await readJsonResponse(response);
+    if (!response.ok) {
+      const message =
+        payload?.error?.message ||
+        payload?.message ||
+        payload?.error ||
+        'Nao foi possivel listar agentes no OpenAI.';
+      throw new Error(`${message} (${response.status})`);
+    }
+
+    const page = Array.isArray(payload?.data) ? payload.data : [];
+    allAssistants.push(...page);
+    hasMore = Boolean(payload?.has_more);
+    after = page.length > 0 ? page[page.length - 1].id : null;
+
+    if (!after) hasMore = false;
+  }
+
+  return allAssistants;
+}
+
+async function syncChatgptAgents({ openaiKey, importedByName } = {}) {
+  const cfg = await getStore();
+  const key =
+    String(openaiKey || '').trim() ||
+    String(cfg.get('openaiKey') || '').trim() ||
+    String(process.env.OPENAI_API_KEY || '').trim();
+
+  if (!key) {
+    throw new Error('Chave OpenAI nao configurada. Informe a chave para sincronizar os agentes.');
+  }
+
+  const assistants = await fetchChatgptAssistants(key);
+  if (!assistants.length) {
+    return {
+      synced: true,
+      totalAssistants: 0,
+      groupsCreated: 0,
+      groupsUpdated: 0,
+      agentsCreated: 0,
+      agentsUpdated: 0,
+      agentsPaused: 0,
+      message: 'Nenhum agente encontrado na conta OpenAI.',
+    };
+  }
+
+  const grouped = new Map();
+
+  assistants.forEach((assistant) => {
+    const owner = sanitizeOwnerName(pickOwnerName(assistant));
+    const groupName = buildGroupName(owner);
+    const slug = slugify(groupName) || `grupo-${slugify(owner) || 'sem-responsavel'}`;
+    const current = grouped.get(slug) || {
+      nome: groupName,
+      slug,
+      descricao: `Grupo sincronizado automaticamente do ChatGPT. Responsavel: ${owner}.`,
+      origem: 'chatgpt',
+      ativo: true,
+      atualizado_em: new Date().toISOString(),
+      ownerName: owner,
+      agentes: [],
+    };
+
+    current.agentes.push({
+      nome: String(assistant?.name || assistant?.id || 'Agente sem nome').trim(),
+      funcao: buildAgentFunction(assistant),
+      descricao: String(assistant?.description || '').trim(),
+      status: 'ativo',
+      requer_validacao: Boolean(assistant?.metadata?.requer_validacao || assistant?.metadata?.requires_validation),
+      etapa_atual: 'Sincronizado do ChatGPT',
+      ultima_execucao: null,
+      ordem: current.agentes.length,
+    });
+
+    grouped.set(slug, current);
+  });
+
+  const groupsPayload = [...grouped.values()].map((group) => ({
+    nome: group.nome,
+    slug: group.slug,
+    descricao: group.descricao,
+    origem: group.origem,
+    ativo: true,
+    atualizado_em: group.atualizado_em,
+  }));
+
+  const existingGroupsBefore = await supabaseRest('/rest/v1/agente_grupos?select=id,slug,nome&origem=eq.chatgpt');
+  const existingSlugsBefore = new Set(
+    (Array.isArray(existingGroupsBefore) ? existingGroupsBefore : []).map((group) => String(group.slug || ''))
+  );
+
+  const groupsCreated = groupsPayload.filter((group) => !existingSlugsBefore.has(group.slug)).length;
+  const groupsUpdated = groupsPayload.length - groupsCreated;
+
+  await supabaseRest('/rest/v1/agente_grupos?on_conflict=slug', {
+    method: 'POST',
+    prefer: 'resolution=merge-duplicates,return=representation',
+    body: groupsPayload,
+  });
+
+  const existingGroups = await supabaseRest('/rest/v1/agente_grupos?select=id,slug,nome&origem=eq.chatgpt');
+  const groupBySlug = new Map((Array.isArray(existingGroups) ? existingGroups : []).map((group) => [group.slug, group]));
+
+  const targetGroupIds = [];
+  const targetNames = [];
+
+  grouped.forEach((group, slug) => {
+    const match = groupBySlug.get(slug);
+    if (!match?.id) return;
+    targetGroupIds.push(match.id);
+    targetNames.push(match.nome);
+  });
+
+  if (!targetGroupIds.length) {
+    throw new Error('Nao foi possivel resolver os grupos apos sincronizar no Supabase.');
+  }
+
+  const agentsByGroup = new Map();
+  for (const groupId of targetGroupIds) {
+    const rows = await supabaseRest(`/rest/v1/agentes?select=id,nome,status,grupo_id&grupo_id=eq.${groupId}`);
+    agentsByGroup.set(groupId, Array.isArray(rows) ? rows : []);
+  }
+
+  let agentsCreated = 0;
+  let agentsUpdated = 0;
+  let agentsPaused = 0;
+
+  for (const [slug, group] of grouped.entries()) {
+    const dbGroup = groupBySlug.get(slug);
+    if (!dbGroup?.id) continue;
+
+    const existingAgents = agentsByGroup.get(dbGroup.id) || [];
+    const existingByName = new Map();
+
+    existingAgents.forEach((agent) => {
+      const keyName = String(agent.nome || '').trim().toLowerCase();
+      if (!keyName || existingByName.has(keyName)) return;
+      existingByName.set(keyName, agent);
+    });
+
+    const importedNames = new Set();
+
+    for (const importedAgent of group.agentes) {
+      const keyName = String(importedAgent.nome || '').trim().toLowerCase();
+      if (!keyName) continue;
+      importedNames.add(keyName);
+
+      const current = existingByName.get(keyName);
+      if (current?.id) {
+        await supabaseRest(`/rest/v1/agentes?id=eq.${current.id}`, {
+          method: 'PATCH',
+          prefer: 'return=minimal',
+          body: {
+            funcao: importedAgent.funcao,
+            descricao: importedAgent.descricao,
+            status: 'ativo',
+            requer_validacao: importedAgent.requer_validacao,
+            etapa_atual: importedAgent.etapa_atual,
+            ultima_execucao: importedAgent.ultima_execucao,
+            ordem: importedAgent.ordem,
+            atualizado_em: new Date().toISOString(),
+          },
+        });
+        agentsUpdated += 1;
+      } else {
+        await supabaseRest('/rest/v1/agentes', {
+          method: 'POST',
+          prefer: 'return=minimal',
+          body: {
+            grupo_id: dbGroup.id,
+            nome: importedAgent.nome,
+            funcao: importedAgent.funcao,
+            descricao: importedAgent.descricao,
+            status: 'ativo',
+            requer_validacao: importedAgent.requer_validacao,
+            etapa_atual: importedAgent.etapa_atual,
+            ultima_execucao: importedAgent.ultima_execucao,
+            ordem: importedAgent.ordem,
+          },
+        });
+        agentsCreated += 1;
+      }
+    }
+
+    for (const staleAgent of existingAgents) {
+      const keyName = String(staleAgent.nome || '').trim().toLowerCase();
+      if (!keyName || importedNames.has(keyName)) continue;
+      if (String(staleAgent.status || '') === 'pausado') continue;
+
+      await supabaseRest(`/rest/v1/agentes?id=eq.${staleAgent.id}`, {
+        method: 'PATCH',
+        prefer: 'return=minimal',
+        body: {
+          status: 'pausado',
+          etapa_atual: 'Nao encontrado na ultima sincronizacao',
+          atualizado_em: new Date().toISOString(),
+        },
+      });
+      agentsPaused += 1;
+    }
+  }
+
+  return {
+    synced: true,
+    totalAssistants: assistants.length,
+    groupsCreated,
+    groupsUpdated,
+    agentsCreated,
+    agentsUpdated,
+    agentsPaused,
+    groups: targetNames,
+    importedByName: importedByName || null,
+    importedAt: new Date().toISOString(),
+    message: `Sincronizacao concluida: ${assistants.length} agentes em ${groupsPayload.length} grupos.`,
+  };
+}
+
 async function proxyExternalRequest(request, targetUrl) {
   const method = (request.method || 'GET').toUpperCase();
   const headers = new Headers(request.headers || {});
@@ -279,18 +1119,38 @@ async function handleMembrosUpdate(request) {
     }
 
     const body = await request.json();
-    const { userId, papel, departamento, isActive, password } = body;
+    const {
+      userId,
+      papel,
+      departamento,
+      isActive,
+      ativo,
+      password,
+      novaSenha,
+    } = body;
+
+    const senhaParaAtualizar = password ?? novaSenha;
+    const ativoParaAtualizar = isActive ?? ativo;
+
+    if (!userId) {
+      return new Response(JSON.stringify({ error: 'userId é obrigatório' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
 
     const isSuper = callerPapel === 'admin' || callerPapel === 'dono';
     if (!isSuper && papel && ['admin', 'dono'].includes(papel)) {
       return new Response(JSON.stringify({ error: 'Nao pode atribuir papel superior' }), { status: 403, headers: { 'Content-Type': 'application/json' } });
     }
 
-    if (password) {
+    const resultado = {};
+
+    if (senhaParaAtualizar) {
       const updateAuthRes = await net.fetch(`${SUPABASE_URL}/auth/v1/admin/users/${userId}`, {
         method: 'PUT',
         headers: { 'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`, 'apikey': SUPABASE_SERVICE_KEY, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password })
+        body: JSON.stringify({ password: senhaParaAtualizar })
       });
       if (!updateAuthRes.ok) return new Response(JSON.stringify({ error: 'Erro de senha' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
       
@@ -299,12 +1159,22 @@ async function handleMembrosUpdate(request) {
         headers: { 'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`, 'apikey': SUPABASE_SERVICE_KEY, 'Content-Type': 'application/json' },
         body: JSON.stringify({ senha_definida: true })
       });
+      resultado.senhaRedefinida = true;
     }
 
     let ops = {};
-    if (papel !== undefined) ops.papel = papel;
-    if (departamento !== undefined) ops.departamento = departamento;
-    if (isActive !== undefined) ops.ativo = isActive;
+    if (papel !== undefined) {
+      ops.papel = papel;
+      resultado.papel = papel;
+    }
+    if (departamento !== undefined) {
+      ops.departamento = departamento;
+      resultado.departamento = departamento;
+    }
+    if (ativoParaAtualizar !== undefined) {
+      ops.ativo = !!ativoParaAtualizar;
+      resultado.ativo = !!ativoParaAtualizar;
+    }
 
     if (Object.keys(ops).length > 0) {
       const patchRes = await net.fetch(`${SUPABASE_URL}/rest/v1/usuarios?id=eq.${userId}`, {
@@ -315,7 +1185,7 @@ async function handleMembrosUpdate(request) {
       if (!patchRes.ok) return new Response(JSON.stringify({ error: 'Erro DB' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
     }
 
-    return new Response(JSON.stringify({ success: true }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    return new Response(JSON.stringify({ success: true, ...resultado }), { status: 200, headers: { 'Content-Type': 'application/json' } });
   } catch (error) {
     return new Response(JSON.stringify({ error: 'Internal Error' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
@@ -445,6 +1315,28 @@ async function handleMembros(request) {
 // ── Protocol handler: serve arquivos dos apps ────────────────────────────────
 const appDirsChecked = new Set();
 
+function getStaticContentType(filePath) {
+  const ext = path.extname(filePath).toLowerCase();
+  const map = {
+    '.html': 'text/html; charset=utf-8',
+    '.js': 'text/javascript; charset=utf-8',
+    '.mjs': 'text/javascript; charset=utf-8',
+    '.css': 'text/css; charset=utf-8',
+    '.json': 'application/json; charset=utf-8',
+    '.svg': 'image/svg+xml; charset=utf-8',
+    '.txt': 'text/plain; charset=utf-8',
+    '.webmanifest': 'application/manifest+json; charset=utf-8',
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.webp': 'image/webp',
+    '.ico': 'image/x-icon',
+    '.woff': 'font/woff',
+    '.woff2': 'font/woff2',
+  };
+  return map[ext] || 'application/octet-stream';
+}
+
 function setupProtocol() {
   protocol.handle('app', async (request) => {
     const url = new URL(request.url);
@@ -514,11 +1406,57 @@ function setupProtocol() {
       }
     }
 
-    return net.fetch(pathToFileURL(filePath).href);
+    const body = fs.readFileSync(filePath);
+    return new Response(body, {
+      headers: {
+        'Content-Type': getStaticContentType(filePath),
+        'Cache-Control': 'no-store',
+      },
+    });
   });
 }
 
 // ── Criação da janela principal ──────────────────────────────────────────────
+function resolveInitialUrl() {
+  const cliUrl = process.argv.find((arg) => typeof arg === 'string' && arg.startsWith('app://'));
+  const envUrl = process.env.BIASI_START_URL;
+  return cliUrl || envUrl || 'app://hub.local/';
+}
+
+function isInternalAppUrl(url) {
+  return typeof url === 'string' && url.startsWith('app://');
+}
+
+function recoverElectronWindow(win, reason, targetUrl) {
+  if (!win || win.isDestroyed()) return;
+
+  const now = Date.now();
+  if (win.__lastRecoveryReloadAt && now - win.__lastRecoveryReloadAt < 5000) return;
+  win.__lastRecoveryReloadAt = now;
+
+  const currentUrl = win.webContents.getURL();
+  const recoveryUrl = isInternalAppUrl(targetUrl)
+    ? targetUrl
+    : isInternalAppUrl(currentUrl)
+      ? currentUrl
+      : resolveInitialUrl();
+
+  console.warn(`[Electron] Recuperando janela (${reason}) em ${recoveryUrl}`);
+
+  setTimeout(() => {
+    if (win.isDestroyed()) return;
+
+    if (isInternalAppUrl(recoveryUrl) && recoveryUrl !== win.webContents.getURL()) {
+      win.loadURL(recoveryUrl).catch((error) => {
+        console.error('[Electron] Falha ao recarregar URL de recuperacao:', error);
+      });
+      return;
+    }
+
+    win.webContents.reloadIgnoringCache();
+  }, 600);
+}
+
 function createWindow() {
   const win = new BrowserWindow({
     width: 1280,
@@ -536,8 +1474,10 @@ function createWindow() {
     backgroundColor: '#f8fafc',
   });
 
+  mainWindow = win;
+
   // Sempre carrega via app:// (builds estáticos — sem dev servers)
-  win.loadURL('app://hub.local/');
+  win.loadURL(resolveInitialUrl());
 
   // Abre links externos no browser padrão do sistema
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -556,6 +1496,42 @@ function createWindow() {
     }
   });
 
+  win.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedUrl, isMainFrame) => {
+    if (!isMainFrame || errorCode === -3) return;
+    if (!isInternalAppUrl(validatedUrl)) return;
+
+    console.warn(`[Electron] Falha no carregamento principal (${errorCode} ${errorDescription}) ${validatedUrl}`);
+    recoverElectronWindow(win, `did-fail-load ${errorCode}`, validatedUrl);
+  });
+
+  win.webContents.on('render-process-gone', (_event, details) => {
+    console.warn(`[Electron] Renderer finalizado (${details.reason || 'unknown'}).`);
+    recoverElectronWindow(win, `render-process-gone ${details.reason || 'unknown'}`);
+  });
+
+  win.on('unresponsive', () => {
+    recoverElectronWindow(win, 'unresponsive');
+  });
+
+  win.webContents.on('did-finish-load', () => {
+    writeAutomationState();
+  });
+
+  win.webContents.on('did-navigate', () => {
+    writeAutomationState();
+  });
+
+  win.webContents.on('did-navigate-in-page', () => {
+    writeAutomationState();
+  });
+
+  win.on('closed', () => {
+    if (mainWindow === win) {
+      mainWindow = null;
+    }
+    writeAutomationState();
+  });
+
   return win;
 }
 
@@ -569,6 +1545,17 @@ function setupIPC() {
   ipcMain.handle('config:setAnthropicKey', async (_event, key) => {
     const cfg = await getStore();
     cfg.set('anthropicKey', key.trim());
+    return true;
+  });
+
+  ipcMain.handle('config:getOpenAiKey', async () => {
+    const cfg = await getStore();
+    return cfg.get('openaiKey') || '';
+  });
+
+  ipcMain.handle('config:setOpenAiKey', async (_event, key) => {
+    const cfg = await getStore();
+    cfg.set('openaiKey', String(key || '').trim());
     return true;
   });
 
@@ -608,7 +1595,7 @@ function setupIPC() {
       let hasUpdate = false;
 
       try {
-        const result = await autoUpdater.checkForUpdates();
+        const result = await autoUpdater?.checkForUpdates();
         latestVersion = result?.updateInfo?.version;
 
         // Validar que latestVersion é diferente de currentVersion
@@ -616,7 +1603,7 @@ function setupIPC() {
           hasUpdate = true;
         }
       } catch (checkError) {
-        console.error('[updater] erro ao verificar releases:', checkError);
+        updaterError('[updater] erro ao verificar releases:', checkError);
         // Continua sem erro crítico
       }
 
@@ -626,7 +1613,7 @@ function setupIPC() {
         currentVersion,
       };
     } catch (error) {
-      console.error('[updater] erro ao verificar:', error);
+      updaterError('[updater] erro ao verificar:', error);
       return { hasUpdate: false, error: error.message };
     }
   });
@@ -634,20 +1621,35 @@ function setupIPC() {
   ipcMain.handle('updater:downloadAndInstall', async () => {
     try {
       // Apenas inicia o download — o quit acontece via evento 'update-downloaded'
-      autoUpdater.downloadUpdate();
+      autoUpdater?.downloadUpdate();
       return { success: true };
     } catch (error) {
-      console.error('[updater] erro ao iniciar download:', error);
+      updaterError('[updater] erro ao iniciar download:', error);
       return { success: false, error: error.message };
     }
   });
 
   ipcMain.handle('updater:quitAndInstall', () => {
     // isSilent=true: instala sem mostrar assistente; isForceRunAfter=true: reabre o app
-    autoUpdater.quitAndInstall(true, true);
+    autoUpdater?.quitAndInstall(true, true);
   });
 
   // ── Criar usuário quando admin aprova acesso ──────────────────
+  ipcMain.handle('agentes:syncChatgpt', async (_event, payload = {}) => {
+    try {
+      const result = await syncChatgptAgents({
+        openaiKey: payload?.apiKey,
+        importedByName: payload?.usuarioNome || null,
+      });
+      return { sucesso: true, ...result };
+    } catch (error) {
+      return {
+        sucesso: false,
+        erro: String(error?.message || error),
+      };
+    }
+  });
+
   ipcMain.handle('admin:criarUsuario', async (_event, { email, nome, papel, senhaTemp }) => {
     try {
       // 1. Criar usuário no Supabase Auth com senha temporária
@@ -749,9 +1751,22 @@ function setupIPC() {
 
 // ── Setup Auto-updater ──────────────────────────────────────────────────────────
 function setupUpdater() {
+  try {
+    autoUpdater = require('electron-updater').autoUpdater;
+  } catch (e) {
+    console.warn('[updater] electron-updater não disponível:', e.message);
+    return;
+  }
+
   // Mudamos para TRUE para garantir que todos os usuários recebam a atualização em background
   autoUpdater.autoDownload = true;
   autoUpdater.allowPrerelease = false;
+  autoUpdater.logger = {
+    info: (...args) => updaterLog(...args),
+    warn: (...args) => updaterWarn(...args),
+    error: (...args) => updaterError(...args),
+    debug: (...args) => updaterLog(...args),
+  };
 
   autoUpdater.on('update-available', (info) => {
     console.log('[updater] Atualização disponível:', info.version);
@@ -797,11 +1812,18 @@ app.whenReady().then(() => {
   setupProtocol();
   setupIPC();
   setupUpdater();
+  setupAutomationServer().catch((error) => {
+    console.error('[automation] erro ao iniciar ponte local:', error);
+  });
   createWindow();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
+});
+
+app.on('before-quit', () => {
+  stopAutomationServer();
 });
 
 app.on('window-all-closed', () => {

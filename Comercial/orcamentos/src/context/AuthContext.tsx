@@ -24,6 +24,24 @@ const AuthContext = createContext<AuthContextType | null>(null);
 
 const AUTH_TIMEOUT_MS = 30000;
 
+function isCapacitorRuntime() {
+  if (typeof window === 'undefined') return false;
+  const w = window as any;
+  return Boolean(
+    w.Capacitor ||
+      w.cordova ||
+      window.location.origin === 'https://localhost' ||
+      navigator.userAgent.includes('Capacitor')
+  );
+}
+
+function hubUrlLocalOuWeb() {
+  const isElectron = navigator.userAgent.includes('Electron');
+  if (isElectron) return 'app://hub.local/';
+  if (isCapacitorRuntime()) return '/index.html#/';
+  return 'https://biasihub-portal.vercel.app/';
+}
+
 // Consulta o banco para verificar se o papel tem acesso ao módulo
 async function podeAcessarModulo(papel: string, moduloKey: string): Promise<boolean> {
   const p = papel.toLowerCase().trim();
@@ -88,8 +106,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!temAcesso) {
         console.warn(`❌ Usuário ${novoUsuario.email} (papel: ${novoUsuario.papel}) não tem acesso ao módulo Comercial`);
         // Redirecionar para o Hub sem fazer signOut (preserva sessão do Hub)
-        const isElectron = navigator.userAgent.includes('Electron');
-        window.location.href = isElectron ? 'app://hub.local/' : 'https://biasihub-hub.vercel.app/';
+        window.location.href = hubUrlLocalOuWeb();
         return false;
       }
 

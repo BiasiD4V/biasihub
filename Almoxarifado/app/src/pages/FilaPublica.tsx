@@ -202,13 +202,13 @@ function pedidoEhFrota(pedido: Pick<Requisicao, 'itens'>) {
 }
 
 function labelPedido(status: StatusPublico, entregaSolicitada: boolean, isFrota: boolean, meta: ReturnType<typeof extrairMeta>) {
-  if (status === 'cancelado') return 'SolicitaÃ§Ã£o negada';
+  if (status === 'cancelado') return 'Solicitação negada';
   if (isFrota) {
-    if (meta.frotaStatus === 'liberada' || meta.decisao === 'frota_liberada') return 'VeÃ­culo liberado';
-    if (meta.frotaStatus === 'negada' || meta.decisao === 'frota_negada') return 'SolicitaÃ§Ã£o negada';
-    return 'Aguardando liberaÃ§Ã£o';
+    if (meta.frotaStatus === 'liberada' || meta.decisao === 'frota_liberada') return 'Veículo liberado';
+    if (meta.frotaStatus === 'negada' || meta.decisao === 'frota_negada') return 'Solicitação negada';
+    return 'Aguardando liberação';
   }
-  if (status === 'aguardando') return 'Aguardando anÃ¡lise';
+  if (status === 'aguardando') return 'Aguardando análise';
   return labelEtapa(status, entregaSolicitada);
 }
 
@@ -245,22 +245,22 @@ export function FilaPublica() {
   const [cancelando, setCancelando] = useState(false);
   const [toast, setToast] = useState('');
 
-  // ProlongaÃ§Ã£o pelo solicitante
+  // Prolongação pelo solicitante
   const [prolongTarget, setProlongTarget] = useState<Requisicao | null>(null);
   const [prolongData, setProlongData] = useState('');
   const [prolongMotivo, setProlongMotivo] = useState('');
   const [prolongando, setProlongando] = useState(false);
 
-  /** Repete o pedido criando direto uma nova requisiÃ§Ã£o (sem passar pelo form).
-      Clona obra + itens + observaÃ§Ã£o humana. MantÃ©m as URLs das fotos do
-      Supabase Storage (item.foto_material continua vÃ¡lido). */
+  /** Repete o pedido criando direto uma nova requisição (sem passar pelo form).
+      Clona obra + itens + observação humana. Mantém as URLs das fotos do
+      Supabase Storage (item.foto_material continua válido). */
   async function repetirPedidoDireto(p: Requisicao) {
     if (!nome || !tel) {
       showToast('Volta pra tela inicial e informe nome e WhatsApp.');
       return;
     }
     try {
-      // Limpa metas tÃ©cnicas do observacao antigo, mantÃ©m sÃ³ o "obs:" humano
+      // Limpa metas técnicas do observacao antigo, mantém só o "obs:" humano
       const obsLimpo = String(p.observacao || '')
         .split('|')
         .map(s => s.trim())
@@ -268,7 +268,7 @@ export function FilaPublica() {
         .map(s => s.slice(4).trim())
         .join(' ');
 
-      // ReconstrÃ³i o observacao com metas bÃ¡sicas + flag de repetiÃ§Ã£o
+      // Reconstrói o observacao com metas básicas + flag de repetição
       const novaObs = [
         `cargo:Solicitante`,
         `prioridade:normal`,
@@ -277,7 +277,7 @@ export function FilaPublica() {
         obsLimpo ? `obs:${obsLimpo}` : '',
       ].filter(Boolean).join(' | ');
 
-      // Itens vÃ£o idÃªnticos â€” mantÃ©m URLs de fotos antigas (Storage do Supabase)
+      // Itens vão idênticos — mantém URLs de fotos antigas (Storage do Supabase)
       const novosItens = (p.itens || []).map(it => ({
         ...it,
         fase_rastreio: 0, // reseta rastreio
@@ -298,7 +298,7 @@ export function FilaPublica() {
 
       if (error) throw error;
 
-      showToast('âœ… Pedido repetido. Almoxarifado jÃ¡ recebeu.');
+      showToast('Pedido repetido. Almoxarifado já recebeu.');
       void carregar(true);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -309,7 +309,7 @@ export function FilaPublica() {
   function podeProlongar(p: Requisicao) {
     const meta = extrairMeta(p.observacao);
     const status = inferirStatusPublico(p);
-    // SÃ³ permite prolongar se foi liberado (frota) ou separado/finalizado (ferramenta)
+    // Só permite prolongar se foi liberado (frota) ou separado/finalizado (ferramenta)
     if (status === 'cancelado' || status === 'recebido') return false;
     const liberadaFrota = meta.frotaStatus === 'liberada' || meta.decisao === 'frota_liberada';
     if (liberadaFrota) return true;
@@ -346,11 +346,11 @@ export function FilaPublica() {
       setProlongTarget(null);
       setProlongData('');
       setProlongMotivo('');
-      showToast('Pedido de prolongaÃ§Ã£o enviado ao almoxarifado.');
+      showToast('Pedido de prolongação enviado ao almoxarifado.');
       void carregar(true);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      showToast(`Erro ao solicitar prolongaÃ§Ã£o: ${msg}`);
+      showToast(`Erro ao solicitar prolongação: ${msg}`);
     } finally {
       setProlongando(false);
     }
@@ -362,7 +362,7 @@ export function FilaPublica() {
   }
 
   function pedeMotivoCancelamento(p: Requisicao) {
-    // Se jÃ¡ foi liberado/separando, exige motivo. Se ainda estÃ¡ aguardando, motivo Ã© opcional.
+    // Se já foi liberado/separando, exige motivo. Se ainda está aguardando, motivo é opcional.
     const meta = extrairMeta(p.observacao);
     const status = inferirStatusPublico(p);
     const liberadaFrota = meta.frotaStatus === 'liberada' || meta.decisao === 'frota_liberada';
@@ -390,7 +390,7 @@ export function FilaPublica() {
       if (rows.length === 0) return;
       await supabase.from('movimentacoes_almoxarifado').insert(rows);
     } catch (err) {
-      console.warn('[FilaPublica] rastro de cancelamento nÃ£o registrado:', err);
+      console.warn('[FilaPublica] rastro de cancelamento não registrado:', err);
     }
   }
 
@@ -425,7 +425,7 @@ export function FilaPublica() {
       partes.push(`cancelado_em:${now}`);
       partes.push(`cancelado_por:solicitante`);
       if (motivo) partes.push(`motivo_cancelamento:${motivo.replace(/\|/g, '/')}`);
-      // Se for frota liberada, marca como cancelada tambÃ©m no campo frota_status
+      // Se for frota liberada, marca como cancelada também no campo frota_status
       const meta = extrairMeta(cancelTarget.observacao);
       const eraLiberada = meta.frotaStatus === 'liberada' || meta.decisao === 'frota_liberada';
       if (eraLiberada) partes.push('frota_status:cancelada');
@@ -441,7 +441,7 @@ export function FilaPublica() {
 
       await registrarMovimentacaoCancelamentoPublico(cancelTarget, motivo);
 
-      // Se era frota liberada, libera o agendamento no calendÃ¡rio
+      // Se era frota liberada, libera o agendamento no calendário
       if (eraLiberada) {
         try {
           await supabase
@@ -467,7 +467,7 @@ export function FilaPublica() {
 
   const carregar = useCallback(async (silencioso = false) => {
     if (!tel) {
-      setErro('Telefone nÃ£o informado.');
+      setErro('Telefone não informado.');
       setLoading(false);
       return;
     }
@@ -492,7 +492,7 @@ export function FilaPublica() {
       ]);
 
       if (pedidosRes.error) throw pedidosRes.error;
-      if (filaRes.error) console.warn('[FilaPublica] fila geral indisponÃ­vel:', filaRes.error);
+      if (filaRes.error) console.warn('[FilaPublica] fila geral indisponível:', filaRes.error);
 
       setPedidos((pedidosRes.data as Requisicao[]) || []);
       setFilaAtiva(((filaRes.data as PedidoFila[]) || []).filter(pedidoEstaNaFila));
@@ -543,16 +543,16 @@ export function FilaPublica() {
             to="/obra"
             className="inline-flex items-center gap-2 rounded-xl border border-[rgba(113,154,255,0.35)] bg-[rgba(8,24,64,0.55)] px-3 py-2 text-xs font-bold text-white/95 hover:bg-[rgba(8,24,64,0.75)] transition"
           >
-            â† Voltar ao inÃ­cio
+            Voltar ao início
           </Link>
         </div>
 
         <div className="rounded-[28px] border border-white/10 bg-white/[0.04] shadow-[0_24px_60px_rgba(0,0,0,0.35)] px-5 py-6 mb-5">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="text-[#9fb8f5] text-xs font-black uppercase tracking-[0.18em] mb-2">Almoxarifado Â· Biasi Engenharia</p>
+              <p className="text-[#9fb8f5] text-xs font-black uppercase tracking-[0.18em] mb-2">Almoxarifado · Biasi Engenharia</p>
               <h1 className="text-3xl font-black tracking-[-0.04em] text-white">Meus Pedidos</h1>
-              {nome && <p className="text-[#c8d6ff] text-sm mt-1">OlÃ¡, {nome}!</p>}
+              {nome && <p className="text-[#c8d6ff] text-sm mt-1">Olá, {nome}!</p>}
             </div>
             <button
               type="button"
@@ -578,7 +578,7 @@ export function FilaPublica() {
 
           {ultimaAtualizacao && (
             <p className="mt-4 text-xs text-[#8fa6da]">
-              Ãšltima atualizaÃ§Ã£o: {ultimaAtualizacao.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+              Última atualização: {ultimaAtualizacao.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
             </p>
           )}
         </div>
@@ -592,7 +592,7 @@ export function FilaPublica() {
         {!loading && !erro && pedidos.length === 0 && (
           <div className="text-center py-12 rounded-[24px] border border-white/10 bg-white/[0.04]">
             <Package size={30} className="mx-auto mb-3 text-[#8fa6da]" />
-            <p className="text-[#c8d6ff]">Nenhum pedido encontrado para este nÃºmero.</p>
+            <p className="text-[#c8d6ff]">Nenhum pedido encontrado para este número.</p>
           </div>
         )}
 
@@ -626,7 +626,7 @@ export function FilaPublica() {
                     <p className="text-2xl font-black text-white mt-1">{estaNaFila ? pedidosNaFrente : 0}</p>
                   </div>
                   <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2">
-                    <p className="text-[0.68rem] uppercase tracking-widest text-[#8fa6da] font-black">Sua posiÃ§Ã£o</p>
+                    <p className="text-[0.68rem] uppercase tracking-widest text-[#8fa6da] font-black">Sua posição</p>
                     <p className="text-2xl font-black text-white mt-1">{posicao ?? (statusPublico === 'recebido' ? 'OK' : '-')}</p>
                   </div>
                 </div>
@@ -654,7 +654,7 @@ export function FilaPublica() {
                     <div key={i} className="flex items-start gap-2 text-sm text-[#e6edff] border-t border-white/8 pt-2 first:border-t-0 first:pt-0">
                       <span className="mt-1 h-1.5 w-1.5 rounded-full bg-[#5c9bff] shrink-0" />
                       <span>
-                        <strong>{it.quantidade ?? '-'} {it.unidade ?? ''}</strong> Â· {it.descricao || it.nome || 'Item'}
+                        <strong>{it.quantidade ?? '-'} {it.unidade ?? ''}</strong> · {it.descricao || it.nome || 'Item'}
                       </span>
                     </div>
                   ))}
@@ -670,7 +670,7 @@ export function FilaPublica() {
                   {meta.devolucao && (
                     <span className="inline-flex items-center gap-1 rounded-full bg-white/[0.05] border border-white/10 px-3 py-1">
                       <Clock size={12} />
-                      DevoluÃ§Ã£o: {meta.devolucao}
+                      Devolução: {meta.devolucao}
                     </span>
                   )}
                   {meta.prioridade && (
@@ -685,14 +685,14 @@ export function FilaPublica() {
                   )}
                   {!isFrota && (
                     <span className="rounded-full bg-white/[0.05] border border-white/10 px-3 py-1">
-                      Entrega: {meta.entregaSolicitada ? 'Sim' : 'NÃ£o'}
+                      Entrega: {meta.entregaSolicitada ? 'Sim' : 'Não'}
                     </span>
                   )}
                 </div>
 
                 {isFrota && statusPublico === 'aguardando' && !meta.motivoNegativa && meta.frotaStatus !== 'liberada' && (
                   <div className="mt-3 rounded-2xl border border-amber-300/25 bg-amber-400/10 px-3 py-2 text-xs text-amber-100">
-                    Aguardando resposta do almoxarifado para liberaÃ§Ã£o do veÃ­culo.
+                    Aguardando resposta do almoxarifado para liberação do veículo.
                   </div>
                 )}
 
@@ -708,13 +708,13 @@ export function FilaPublica() {
                 )}
                 {isFrota && (meta.frotaStatus === 'liberada' || meta.decisao === 'frota_liberada') && (
                   <div className="mt-3 rounded-2xl border border-emerald-300/25 bg-emerald-400/10 px-3 py-2 text-xs text-emerald-100">
-                    VeÃ­culo liberado{meta.prazo ? ` a partir de ${meta.prazo}` : ''}{meta.devolucao ? ` atÃ© ${meta.devolucao}` : ''}.
+                    Veículo liberado{meta.prazo ? ` a partir de ${meta.prazo}` : ''}{meta.devolucao ? ` até ${meta.devolucao}` : ''}.
                   </div>
                 )}
 
                 {statusPublico === 'cancelado' && meta.motivoNegativa && !meta.canceladoPor && (
                   <div className="mt-3 rounded-2xl border border-red-300/25 bg-red-400/10 px-3 py-2 text-xs text-red-100">
-                    <strong>SolicitaÃ§Ã£o negada pelo almoxarifado.</strong>
+                    <strong>Solicitação negada pelo almoxarifado.</strong>
                     <br />
                     Motivo: {meta.motivoNegativa}
                   </div>
@@ -722,7 +722,7 @@ export function FilaPublica() {
 
                 {statusPublico === 'cancelado' && meta.canceladoPor === 'solicitante' && (
                   <div className="mt-3 rounded-2xl border border-red-300/25 bg-red-400/10 px-3 py-2 text-xs text-red-100">
-                    <strong>Pedido cancelado por vocÃª</strong>
+                    <strong>Pedido cancelado por você</strong>
                     {meta.canceladoEm ? ` em ${meta.canceladoEm}` : ''}.
                     {meta.motivoCancelamento && (
                       <>
@@ -758,22 +758,22 @@ export function FilaPublica() {
 
                 {meta.prolongacaoPedida && !meta.prolongacaoAprovada && (
                   <div className="mt-3 rounded-2xl border border-amber-300/25 bg-amber-400/10 px-3 py-2 text-xs text-amber-100">
-                    <strong>ProlongaÃ§Ã£o solicitada</strong> atÃ© {meta.prolongacaoPedidaFmt}
-                    {meta.prolongacaoMotivo ? ` â€” ${meta.prolongacaoMotivo}` : ''}.
+                    <strong>Prolongação solicitada</strong> até {meta.prolongacaoPedidaFmt}
+                    {meta.prolongacaoMotivo ? ` — ${meta.prolongacaoMotivo}` : ''}.
                     <br />
-                    Aguardando aprovaÃ§Ã£o do almoxarifado.
+                    Aguardando aprovação do almoxarifado.
                   </div>
                 )}
 
                 {meta.prolongacaoAprovada === 'sim' && (
                   <div className="mt-3 rounded-2xl border border-emerald-300/25 bg-emerald-400/10 px-3 py-2 text-xs text-emerald-100">
-                    <strong>ProlongaÃ§Ã£o aprovada</strong> atÃ© {meta.prolongacaoPedidaFmt}.
+                    <strong>Prolongação aprovada</strong> até {meta.prolongacaoPedidaFmt}.
                   </div>
                 )}
 
                 {meta.prolongacaoAprovada === 'nao' && (
                   <div className="mt-3 rounded-2xl border border-red-300/25 bg-red-400/10 px-3 py-2 text-xs text-red-100">
-                    <strong>ProlongaÃ§Ã£o negada.</strong> Devolva no prazo original.
+                    <strong>Prolongação negada.</strong> Devolva no prazo original.
                   </div>
                 )}
 
@@ -786,13 +786,13 @@ export function FilaPublica() {
                   <span>
                     {statusPublico === 'recebido'
                       ? 'Pedido recebido. Esse status veio do app do almoxarifado.'
-                      : 'Quando o almoxarifado avanÃ§ar no app, essa tela atualiza aqui.'}
+                      : 'Quando o almoxarifado avançar no app, essa tela atualiza aqui.'}
                   </span>
                 </div>
 
                 <div className="mt-3 flex justify-end gap-2 flex-wrap">
                   {/* Prolongar agendamento: pra pedidos liberados de frota ou separados de ferramenta.
-                       Pede nova data e motivo. Almoxarifado vÃª e aprova/nega. */}
+                       Pede nova data e motivo. Almoxarifado vê e aprova/nega. */}
                   {podeProlongar(p) && !meta.prolongacaoPedida && (
                     <button
                       type="button"
@@ -810,10 +810,10 @@ export function FilaPublica() {
                     </button>
                   )}
 
-                  {/* Repetir pedido: cria DIRETO uma nova requisiÃ§Ã£o clonando
-                      obra + itens + observaÃ§Ã£o humana do pedido antigo. Sem
-                      passar pelo form â€” clica e pronto. As fotos URLs sÃ£o
-                      reaproveitadas (Supabase Storage) entÃ£o o almoxarifado
+                  {/* Repetir pedido: cria DIRETO uma nova requisição clonando
+                      obra + itens + observação humana do pedido antigo. Sem
+                      passar pelo form — clica e pronto. As fotos URLs são
+                      reaproveitadas (Supabase Storage) então o almoxarifado
                       continua vendo as imagens. */}
                   <button
                     type="button"
@@ -847,10 +847,10 @@ export function FilaPublica() {
           href={`/req?tel=${tel}&nome=${encodeURIComponent(nome)}`}
           className="block mt-6 text-center bg-[linear-gradient(180deg,#6257ff,#493fe6)] hover:opacity-95 text-white font-black py-4 px-6 rounded-2xl transition shadow-[0_16px_30px_rgba(78,70,225,0.35)]"
         >
-          + Nova RequisiÃ§Ã£o
+          + Nova Requisição
         </a>
 
-        <p className="text-center text-[#4f638f] text-xs mt-6">BiasiHub Â· Almoxarifado Â· Biasi Engenharia e InstalaÃ§Ãµes</p>
+        <p className="text-center text-[#4f638f] text-xs mt-6">BiasiHub · Almoxarifado · Biasi Engenharia e Instalações</p>
       </div>
 
       {prolongTarget && (
@@ -858,7 +858,7 @@ export function FilaPublica() {
           <div className="w-full max-w-lg rounded-2xl border border-[rgba(54,196,133,0.35)] bg-[linear-gradient(180deg,#172540,#0f1c34)] p-5 shadow-2xl">
             <h3 className="m-0 text-xl font-black text-white">Prolongar agendamento</h3>
             <p className="mt-2 text-sm text-[#cbd6ff]">
-              Informe a nova data e hora prevista de devoluÃ§Ã£o. O almoxarifado precisa aprovar.
+              Informe a nova data e hora prevista de devolução. O almoxarifado precisa aprovar.
             </p>
             <label className="block mt-4">
               <span className="text-[10px] font-bold uppercase tracking-widest text-[#9db2e7]">Nova data prevista *</span>
@@ -894,7 +894,7 @@ export function FilaPublica() {
                 onClick={confirmarProlongacao}
                 className="rounded-xl border border-[rgba(54,196,133,0.45)] bg-[rgba(54,196,133,0.18)] px-4 py-2 text-sm font-bold text-[#abf5d1] disabled:opacity-50"
               >
-                {prolongando ? 'Enviando...' : 'Solicitar prolongaÃ§Ã£o'}
+                {prolongando ? 'Enviando...' : 'Solicitar prolongação'}
               </button>
             </div>
           </div>
@@ -907,8 +907,8 @@ export function FilaPublica() {
             <h3 className="m-0 text-xl font-black text-white">Cancelar pedido</h3>
             <p className="mt-2 text-sm text-[#cbd6ff]">
               {pedeMotivoCancelamento(cancelTarget)
-                ? 'Este pedido jÃ¡ foi liberado/iniciado. Informe o motivo do cancelamento â€” o almoxarifado verÃ¡ esta justificativa.'
-                : 'Tem certeza que deseja cancelar este pedido? VocÃª pode informar um motivo se quiser.'}
+                ? 'Este pedido já foi liberado/iniciado. Informe o motivo do cancelamento — o almoxarifado verá esta justificativa.'
+                : 'Tem certeza que deseja cancelar este pedido? Você pode informar um motivo se quiser.'}
             </p>
             <textarea
               className="mt-4 min-h-[110px] w-full rounded-2xl border border-[rgba(255,122,157,0.35)] bg-[rgba(10,30,77,0.55)] px-4 py-3 text-sm text-white outline-none placeholder:text-[#9db2e7]"

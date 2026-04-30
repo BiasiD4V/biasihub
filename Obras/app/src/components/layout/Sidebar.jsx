@@ -20,6 +20,7 @@ import {
   LayoutDashboard,
   LogOut,
   MessageCircle,
+  Bot,
   ShoppingCart,
   ShieldCheck,
   Target,
@@ -73,6 +74,7 @@ const grupos = [
   {
     titulo: 'Administracao',
     itens: [
+      { path: '/agentes', icone: Bot, label: 'Agentes' },
       { path: '/audit-log', icone: ShieldCheck, label: 'Auditoria' },
       { path: '/sienge-sync', icone: Database, label: 'Integracao Sienge' },
     ],

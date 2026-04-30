@@ -68,7 +68,7 @@ export function ModuleCard({
           </div>
         ) : (
           <div className="flex items-center gap-3 text-[#FFC82D] font-black text-[11px] uppercase tracking-[0.2em] group-hover:translate-x-2 transition-all duration-300">
-            Iniciar modulo <ChevronRight size={18} />
+            {'Iniciar m\u00f3dulo'} <ChevronRight size={18} />
           </div>
         )}
       </div>

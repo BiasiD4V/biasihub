@@ -1,7 +1,12 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { supabase } from './infrastructure/supabase/client';
+import { installConnectionRecovery, purgeMobileWebCaches } from './utils/runtime';
 import './styles/index.css';
+
+void purgeMobileWebCaches();
+installConnectionRecovery(supabase);
 
 const rootElement = document.getElementById('root');
 

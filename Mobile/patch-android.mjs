@@ -11,6 +11,8 @@ const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const manifestPath = join(__dirname, 'android', 'app', 'src', 'main', 'AndroidManifest.xml');
 
 const permissions = [
+  'android.permission.INTERNET',
+  'android.permission.ACCESS_NETWORK_STATE',
   'android.permission.CAMERA',
   'android.permission.RECORD_AUDIO',
   'android.permission.MODIFY_AUDIO_SETTINGS',

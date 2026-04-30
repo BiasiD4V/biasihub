@@ -1,0 +1,1062 @@
+﻿.orcamento-page {
+  --bg: #081735;
+  --bg-2: #0d1f48;
+  --bg-3: #11285d;
+  --line: #28457f;
+  --card: #0f2352;
+  --text: #f4f7ff;
+  --muted: #9fb3de;
+  --blue: #2d72ff;
+  --green: #2dc58d;
+  --amber: #f4b44f;
+  --danger: #ff7b7b;
+  --shadow: 0 18px 40px rgba(0,0,0,.22);
+  --step-accent: #4b8cff;
+  width: 100%;
+  min-width: 0;
+  color: var(--text);
+  background:
+    radial-gradient(circle at 16% 0%, rgba(49,111,255,.22), transparent 30%),
+    radial-gradient(circle at 82% 10%, rgba(45,197,141,.12), transparent 26%),
+    linear-gradient(180deg, #06122b 0%, #071735 100%);
+  overflow-x: hidden;
+}
+
+.orcamento-page[data-current-view="overview"] { --step-accent: #4b8cff; }
+.orcamento-page[data-current-view="cadastro"] { --step-accent: #2dc58d; }
+.orcamento-page[data-current-view="scope"] { --step-accent: #f4b44f; }
+.orcamento-page[data-current-view="quotes"] { --step-accent: #9b7cff; }
+.orcamento-page[data-current-view="proposal"] { --step-accent: #28d2c0; }
+.orcamento-page[data-current-view="history"] { --step-accent: #ff8b5f; }
+
+.orcamento-page *,
+.orcamento-page *::before,
+.orcamento-page *::after { box-sizing: border-box; }
+
+.orcamento-page button,
+.orcamento-page input,
+.orcamento-page select,
+.orcamento-page textarea { font: inherit; }
+
+.orcamento-page .app {
+  min-height: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) !important;
+  width: 100% !important;
+  min-width: 0 !important;
+}
+
+.orcamento-page .main {
+  width: 100% !important;
+  min-width: 0 !important;
+  overflow-x: hidden !important;
+}
+
+.orcamento-page .content {
+  width: 100% !important;
+  max-width: 100% !important;
+  margin: 0 !important;
+  padding: 16px 18px !important;
+}
+
+.orcamento-page .workspace {
+  overflow: hidden !important;
+  border-radius: 24px !important;
+  background: linear-gradient(180deg, rgba(12,31,74,.98), rgba(7,19,47,.99));
+  border: 1px solid rgba(255,255,255,.10);
+  box-shadow: 0 18px 50px rgba(0,0,0,.20);
+}
+
+.orcamento-page .workspace-head {
+  padding: 18px 20px 16px !important;
+  border-bottom: 1px solid rgba(255,255,255,.08);
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+  background:
+    radial-gradient(circle at 12% 10%, rgba(255,255,255,.07), transparent 30%),
+    linear-gradient(135deg, rgba(45,114,255,.14), rgba(255,255,255,.025));
+}
+
+.orcamento-page .workspace-title h3 {
+  margin: 0;
+  font-size: clamp(20px, 2vw, 26px);
+  line-height: 1.15;
+  letter-spacing: -.03em;
+}
+
+.orcamento-page .workspace-title p,
+.orcamento-page p {
+  color: #b3c6ef;
+  line-height: 1.58;
+}
+
+.orcamento-page .workspace-title p { margin: 6px 0 0; font-size: 13px; max-width: 760px; }
+
+.orcamento-page .workspace-body {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) 286px !important;
+  gap: 16px !important;
+  padding: 16px !important;
+  align-items: start !important;
+  min-width: 0;
+}
+
+.orcamento-page .core,
+.orcamento-page .workspace-body,
+.orcamento-page .panel,
+.orcamento-page .stage-workspace,
+.orcamento-page .stage-action-card,
+.orcamento-page .stage-task-grid { min-width: 0; }
+
+.orcamento-page .side {
+  position: sticky;
+  top: 14px;
+  width: 100%;
+  max-width: 286px;
+  min-width: 0;
+  overflow: hidden;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.orcamento-page .panel,
+.orcamento-page .score-card,
+.orcamento-page .next-action-card,
+.orcamento-page .quiet-card,
+.orcamento-page .stage-main-card,
+.orcamento-page .stage-action-card,
+.orcamento-page .stage-task-card,
+.orcamento-page .doc,
+.orcamento-page .timeline-item,
+.orcamento-page .field,
+.orcamento-page .mini-card,
+.orcamento-page .kpi-box,
+.orcamento-page .quote-card,
+.orcamento-page .scope-item,
+.orcamento-page .area-card,
+.orcamento-page .detail-item {
+  border: 1px solid rgba(255,255,255,.08);
+  background: rgba(255,255,255,.045);
+  border-radius: 18px;
+  box-shadow: none;
+}
+
+.orcamento-page .panel,
+.orcamento-page .score-card { padding: 14px; overflow: hidden; }
+
+.orcamento-page .chip,
+.orcamento-page .badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.06);
+  color: #dce8ff;
+  border: 1px solid rgba(255,255,255,.08);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.orcamento-page .chip.brand,
+.orcamento-page .badge {
+  background: color-mix(in srgb, var(--step-accent) 18%, rgba(255,255,255,.05));
+  border-color: color-mix(in srgb, var(--step-accent) 35%, rgba(255,255,255,.10));
+  color: #f7fbff;
+}
+
+.orcamento-page .chip.ok { background: rgba(45,197,141,.14); color: #8ef1c8; border-color: rgba(45,197,141,.25); }
+.orcamento-page .chip.warn { background: rgba(244,180,79,.14); color: #ffd993; border-color: rgba(244,180,79,.28); }
+
+.orcamento-page .header-actions,
+.orcamento-page .top-actions,
+.orcamento-page .next-actions,
+.orcamento-page .stage-actions,
+.orcamento-page .doc-actions,
+.orcamento-page .inline-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+
+.orcamento-page .ux-steps {
+  display: grid !important;
+  grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  gap: 8px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  margin-bottom: 14px !important;
+}
+
+.orcamento-page .ux-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  min-height: 64px;
+  padding: 11px 12px;
+  border-radius: 16px;
+  background: rgba(255,255,255,.045);
+  border: 1px solid rgba(255,255,255,.075);
+  color: #edf4ff;
+  text-align: left;
+  cursor: pointer;
+  transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease, background .18s ease;
+}
+
+.orcamento-page .ux-step:hover,
+.orcamento-page .launch-btn:hover,
+.orcamento-page .primary-btn:hover,
+.orcamento-page .ghost-btn:hover,
+.orcamento-page .detail-primary:hover,
+.orcamento-page .stage-choice:hover,
+.orcamento-page .scope-item:hover,
+.orcamento-page .quote-card:hover,
+.orcamento-page .option-btn:hover,
+.orcamento-page .mini-cta:hover { transform: translateY(-1px); }
+
+.orcamento-page .ux-step small {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  margin: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 13px;
+  background: rgba(255,255,255,.08);
+  color: #b8c9ec;
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.orcamento-page .ux-step strong { display: block; font-size: 13px; line-height: 1.25; letter-spacing: -.01em; }
+.orcamento-page .ux-step span { display: none; }
+
+.orcamento-page .ux-step.active {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--step-accent) 34%, #122b62), rgba(255,255,255,.075));
+  border-color: color-mix(in srgb, var(--step-accent) 58%, rgba(255,255,255,.15));
+  box-shadow: 0 16px 34px color-mix(in srgb, var(--step-accent) 22%, transparent);
+}
+
+.orcamento-page .ux-step.active small {
+  background: var(--step-accent);
+  color: #06152d;
+}
+.orcamento-page .launch-panel {
+  position: relative;
+  overflow: hidden;
+  padding: 18px;
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 82% 10%, color-mix(in srgb, var(--step-accent) 26%, transparent), transparent 28%),
+    linear-gradient(135deg, rgba(255,255,255,.075), rgba(255,255,255,.035));
+  border: 1px solid color-mix(in srgb, var(--step-accent) 28%, rgba(255,255,255,.10));
+  box-shadow: 0 18px 42px rgba(0,0,0,.18);
+  margin-bottom: 14px;
+}
+
+.orcamento-page .launch-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 150px;
+  gap: 14px;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.orcamento-page .eyebrow,
+.orcamento-page .mini-title {
+  display: block;
+  color: color-mix(in srgb, var(--step-accent) 74%, #d7e4ff);
+  font-size: 11px;
+  font-weight: 950;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+
+.orcamento-page .launch-copy h4,
+.orcamento-page .next-action-card h4,
+.orcamento-page .stage-main-card h4 {
+  margin: 0;
+  font-size: clamp(22px, 2.2vw, 30px);
+  line-height: 1.08;
+  letter-spacing: -.04em;
+}
+
+.orcamento-page .launch-copy p,
+.orcamento-page .launch-detail-copy p,
+.orcamento-page .stage-main-card p,
+.orcamento-page .stage-action-card p,
+.orcamento-page .section-head p { margin: 8px 0 0; color: #c0ceec; font-size: 13px; }
+
+.orcamento-page .launch-art {
+  min-height: 118px;
+  border-radius: 24px;
+  display: grid;
+  place-items: center;
+  background: rgba(255,255,255,.065);
+  border: 1px solid rgba(255,255,255,.08);
+  color: var(--step-accent);
+}
+
+.orcamento-page .launch-art svg { width: 100%; max-width: 160px; height: auto; filter: drop-shadow(0 18px 24px rgba(0,0,0,.16)); }
+
+.orcamento-page .launch-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.orcamento-page .launch-btn {
+  position: relative;
+  isolation: isolate;
+  min-width: 0;
+  min-height: 108px;
+  padding: 14px;
+  border-radius: 18px;
+  background: rgba(4,17,43,.58);
+  border: 1px solid rgba(255,255,255,.085);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.06);
+  color: #eff4ff;
+  cursor: pointer;
+  text-align: left;
+  transition: transform .18s ease, background .18s ease, border-color .18s ease, box-shadow .18s ease;
+}
+
+.orcamento-page .launch-btn i {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--step-accent) 24%, rgba(255,255,255,.10));
+  color: #fff;
+  font-style: normal;
+  font-size: 13px;
+  font-weight: 950;
+  margin-bottom: 10px;
+}
+
+.orcamento-page .launch-btn strong { display: block; font-size: 14px; letter-spacing: -.01em; }
+.orcamento-page .launch-btn span { display: block; margin-top: 6px; color: #b8c8e9; font-size: 12px; line-height: 1.48; }
+
+.orcamento-page .launch-btn:hover,
+.orcamento-page .launch-btn.active {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--step-accent) 44%, #0b1e49), rgba(255,255,255,.08));
+  border-color: color-mix(in srgb, var(--step-accent) 72%, rgba(255,255,255,.12));
+  box-shadow: 0 18px 34px color-mix(in srgb, var(--step-accent) 22%, transparent), inset 0 1px 0 rgba(255,255,255,.10);
+}
+
+.orcamento-page .launch-btn.active::after {
+  content: 'Aberto';
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.18);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 950;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.orcamento-page .launch-detail-panel {
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 20px;
+  display: grid;
+  grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr);
+  gap: 12px;
+  background: rgba(3,12,32,.42);
+  border: 1px solid rgba(255,255,255,.09);
+  animation: detailIn .18s ease;
+}
+
+@keyframes detailIn { from { opacity: .4; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+.orcamento-page .launch-detail-copy {
+  padding: 16px;
+  border-radius: 16px;
+  background:
+    radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--step-accent) 20%, transparent), transparent 40%),
+    rgba(255,255,255,.045);
+  border: 1px solid rgba(255,255,255,.07);
+}
+
+.orcamento-page .launch-detail-copy h5,
+.orcamento-page .stage-action-card h5 {
+  margin: 0;
+  font-size: 20px;
+  line-height: 1.12;
+  letter-spacing: -.03em;
+}
+
+.orcamento-page .launch-detail-items {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.orcamento-page .detail-item { min-height: 78px; padding: 12px; border-radius: 16px; }
+.orcamento-page .detail-item strong,
+.orcamento-page .detail-item span { display: block; }
+.orcamento-page .detail-item strong { font-size: 14px; color: #f4f7ff; }
+.orcamento-page .detail-item span { margin-top: 7px; font-size: 12px; line-height: 1.5; color: #9fb4df; }
+
+.orcamento-page .progress-card {
+  display: grid;
+  grid-template-columns: 230px minmax(0, 1fr);
+  gap: 14px;
+  align-items: center;
+  margin-bottom: 14px;
+  padding: 15px;
+  border-radius: 18px;
+  background: rgba(255,255,255,.045);
+  border: 1px solid rgba(255,255,255,.075);
+}
+
+.orcamento-page .progress-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.orcamento-page .progress-top strong { display: block; font-size: 15px; }
+.orcamento-page .progress-top span:not(.chip) { display: block; color: #a8bce6; margin-top: 6px; font-size: 12px; }
+
+.orcamento-page .progress-track {
+  width: 100%;
+  min-width: 0;
+  height: 9px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.08);
+  overflow: hidden;
+}
+
+.orcamento-page .progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--step-accent), color-mix(in srgb, var(--step-accent) 70%, white));
+  transition: width .2s ease;
+}
+
+.orcamento-page .stage-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, .92fr) minmax(0, 1.08fr);
+  gap: 14px;
+  margin-bottom: 18px;
+  align-items: stretch;
+  overflow: hidden;
+  animation: fadeIn .2s ease;
+}
+
+@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+.orcamento-page .stage-main-card {
+  grid-column: 1 / -1;
+  min-height: auto;
+  padding: 18px;
+  border-radius: 20px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  background:
+    radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--step-accent) 22%, transparent), transparent 38%),
+    linear-gradient(135deg, rgba(255,255,255,.075), rgba(255,255,255,.035));
+}
+
+.orcamento-page .stage-action-card {
+  padding: 18px;
+  border-radius: 20px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--step-accent) 22%, rgba(255,255,255,.09));
+  background:
+    radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--step-accent) 18%, transparent), transparent 36%),
+    rgba(255,255,255,.052);
+}
+
+.orcamento-page .stage-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 14px 0;
+}
+
+.orcamento-page .stage-form-grid label,
+.orcamento-page .form-field label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  color: #8fa9dc;
+  font-size: 10px;
+  font-weight: 950;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+
+.orcamento-page .stage-form-grid label.wide { grid-column: 1 / -1; }
+
+.orcamento-page input,
+.orcamento-page select,
+.orcamento-page textarea {
+  width: 100%;
+  border: 1px solid rgba(255,255,255,.08);
+  outline: none;
+  border-radius: 12px;
+  padding: 11px 12px;
+  background: rgba(3,13,34,.72);
+  color: #eff4ff;
+  font-size: 13px;
+  font-weight: 750;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.orcamento-page input[readonly] {
+  color: color-mix(in srgb, var(--step-accent) 78%, #fff);
+  background: color-mix(in srgb, var(--step-accent) 12%, rgba(3,13,34,.72));
+}
+
+.orcamento-page .stage-action-card:focus-within,
+.orcamento-page .panel:focus-within {
+  border-color: color-mix(in srgb, var(--step-accent) 55%, rgba(255,255,255,.15));
+}
+.orcamento-page .primary-btn,
+.orcamento-page .detail-primary {
+  border: 0;
+  cursor: pointer;
+  border-radius: 14px;
+  padding: 12px 14px;
+  background: linear-gradient(135deg, var(--step-accent), color-mix(in srgb, var(--step-accent) 70%, #0e2f79));
+  color: #06152d;
+  font-weight: 950;
+  box-shadow: 0 14px 26px color-mix(in srgb, var(--step-accent) 18%, transparent);
+  transition: transform .18s ease, filter .18s ease;
+}
+
+.orcamento-page .primary-btn:disabled { opacity: .6; cursor: progress; }
+
+.orcamento-page .ghost-btn,
+.orcamento-page .mini-cta {
+  border: 1px solid rgba(255,255,255,.09);
+  border-radius: 12px;
+  padding: 11px 14px;
+  background: rgba(255,255,255,.06);
+  color: #dce8ff;
+  font-weight: 900;
+  cursor: pointer;
+  transition: transform .18s ease, background .18s ease;
+}
+
+.orcamento-page .mini-cta { padding: 8px 10px; font-size: 12px; }
+.orcamento-page .ghost-btn:hover,
+.orcamento-page .mini-cta:hover { background: rgba(255,255,255,.10); }
+
+.orcamento-page .stage-task-grid.compact {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.orcamento-page .stage-task-card {
+  min-height: 118px;
+  padding: 14px;
+  border-radius: 18px;
+  position: relative;
+  overflow: hidden;
+}
+
+.orcamento-page .stage-task-card::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--step-accent), transparent);
+  opacity: .75;
+}
+
+.orcamento-page .stage-task-card small {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 24px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--step-accent) 24%, rgba(255,255,255,.08));
+  color: #fff;
+  font-weight: 950;
+  margin-bottom: 8px;
+  font-size: 11px;
+}
+
+.orcamento-page .stage-task-card strong,
+.orcamento-page .stage-task-card span { display: block; overflow-wrap: anywhere; }
+.orcamento-page .stage-task-card strong { font-size: 15px; color: #f7faff; }
+.orcamento-page .stage-task-card span { margin-top: 7px; color: #9fb4df; font-size: 12px; line-height: 1.55; }
+
+.orcamento-page .stage-choice-grid,
+.orcamento-page .discipline-check-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.orcamento-page .stage-choice {
+  border: 1px solid rgba(255,255,255,.08);
+  cursor: pointer;
+  border-radius: 16px;
+  padding: 13px 14px;
+  background: rgba(3,13,34,.55);
+  color: #edf4ff;
+  font-weight: 900;
+  text-align: left;
+  transition: transform .18s ease, background .18s ease, border-color .18s ease;
+}
+
+.orcamento-page .stage-choice:hover,
+.orcamento-page .stage-choice.active {
+  background: color-mix(in srgb, var(--step-accent) 28%, rgba(3,13,34,.65));
+  border-color: color-mix(in srgb, var(--step-accent) 58%, rgba(255,255,255,.12));
+}
+
+.orcamento-page .check-card {
+  min-height: 46px;
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center;
+  gap: 10px !important;
+  padding: 11px 12px;
+  border-radius: 14px;
+  cursor: pointer;
+  background: rgba(3,13,34,.55);
+  border: 1px solid rgba(255,255,255,.08);
+  color: #eaf1ff !important;
+  font-size: 13px !important;
+  font-weight: 900 !important;
+  letter-spacing: normal !important;
+  text-transform: none !important;
+}
+
+.orcamento-page .check-card:hover,
+.orcamento-page .check-card:has(input:checked) {
+  background: color-mix(in srgb, var(--step-accent) 20%, rgba(3,13,34,.55));
+  border-color: color-mix(in srgb, var(--step-accent) 48%, rgba(255,255,255,.10));
+}
+
+.orcamento-page .check-card input { width: 17px !important; height: 17px; accent-color: var(--step-accent); padding: 0 !important; flex: 0 0 auto; }
+
+.orcamento-page .view.active { display: block; animation: fadeIn .22s ease; }
+
+.orcamento-page .section-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+  padding: 0 2px;
+}
+
+.orcamento-page .section-head.compact { align-items: center; margin-bottom: 10px; padding: 0; }
+.orcamento-page .section-head h4,
+.orcamento-page .panel h4,
+.orcamento-page .proposal-detail h4 { margin: 0; font-size: 21px; letter-spacing: -.02em; }
+
+.orcamento-page .overview-clean-grid,
+.orcamento-page .feature-split,
+.orcamento-page .scope-layout,
+.orcamento-page .quote-layout,
+.orcamento-page .proposal-two {
+  display: grid;
+  gap: 14px;
+}
+
+.orcamento-page .overview-clean-grid { grid-template-columns: minmax(0, 1.25fr) minmax(320px, .75fr); }
+.orcamento-page .feature-split { grid-template-columns: 1fr; }
+.orcamento-page .scope-layout,
+.orcamento-page .quote-layout { grid-template-columns: minmax(280px, 340px) minmax(0, 1fr); }
+.orcamento-page .proposal-two { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 14px; }
+
+.orcamento-page .next-action-card,
+.orcamento-page .quiet-card { padding: 20px; border-radius: 22px; }
+.orcamento-page .next-action-card {
+  background:
+    radial-gradient(circle at 90% 8%, color-mix(in srgb, var(--step-accent) 24%, transparent), transparent 28%),
+    linear-gradient(135deg, rgba(255,255,255,.075), rgba(255,255,255,.035));
+}
+
+.orcamento-page .quiet-list,
+.orcamento-page .scope-list,
+.orcamento-page .quote-list,
+.orcamento-page .timeline,
+.orcamento-page .docs { display: flex; flex-direction: column; gap: 10px; }
+
+.orcamento-page .quiet-list div,
+.orcamento-page .doc,
+.orcamento-page .field,
+.orcamento-page .mini-card,
+.orcamento-page .kpi-box { padding: 12px; min-width: 0; overflow-wrap: anywhere; }
+
+.orcamento-page .quiet-list strong,
+.orcamento-page .quiet-list span,
+.orcamento-page .doc strong,
+.orcamento-page .doc span,
+.orcamento-page .field strong,
+.orcamento-page .field span { display: block; }
+.orcamento-page .quiet-list span,
+.orcamento-page .doc span,
+.orcamento-page .field span { margin-top: 4px; color: #9fb3de; font-size: 12px; line-height: 1.45; }
+
+.orcamento-page .document-card {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.orcamento-page .doc-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.orcamento-page .document-link,
+.orcamento-page .document-note {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  max-width: 100%;
+  border-radius: 10px;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.orcamento-page .document-link {
+  padding: 7px 9px;
+  color: #7df0df;
+  background: rgba(40,210,192,.10);
+  border: 1px solid rgba(40,210,192,.24);
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.orcamento-page .document-link:hover {
+  background: rgba(40,210,192,.18);
+  transform: translateY(-1px);
+}
+
+.orcamento-page .document-note {
+  color: #b3c6ef;
+  overflow-wrap: anywhere;
+}
+
+.orcamento-page .icon-danger-btn {
+  border: 1px solid rgba(255,123,123,.24);
+  border-radius: 999px;
+  padding: 6px 9px;
+  background: rgba(255,123,123,.10);
+  color: #ffc4c4;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+  flex: 0 0 auto;
+}
+
+.orcamento-page .icon-danger-btn:hover {
+  background: rgba(255,123,123,.18);
+  transform: translateY(-1px);
+}
+
+.orcamento-page .icon-danger-btn:disabled {
+  cursor: progress;
+  opacity: .55;
+}
+
+.orcamento-page .fields,
+.orcamento-page .quote-meta,
+.orcamento-page .area-summary-strip,
+.orcamento-page .score-grid,
+.orcamento-page .side-kpi {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.orcamento-page .area-summary-strip { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.orcamento-page .area-summary-strip div,
+.orcamento-page .quote-meta div,
+.orcamento-page .score-grid div,
+.orcamento-page .side-kpi div {
+  padding: 12px;
+  border-radius: 14px;
+  background: rgba(255,255,255,.055);
+  border: 1px solid rgba(255,255,255,.07);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.orcamento-page label,
+.orcamento-page .quote-meta label,
+.orcamento-page .area-summary-strip label,
+.orcamento-page .score-grid label,
+.orcamento-page .side-kpi label {
+  display: block;
+  color: #8fa9dc;
+  font-size: 10px;
+  font-weight: 950;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  margin-bottom: 7px;
+}
+
+.orcamento-page .area-summary-strip strong { display: block; font-size: 24px; line-height: 1; }
+.orcamento-page .area-management { display: grid; gap: 14px; margin-top: 12px; }
+.orcamento-page .area-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+.orcamento-page .area-card { padding: 15px; background: rgba(3,13,34,.42); transition: transform .18s ease, border-color .18s ease, background .18s ease; }
+.orcamento-page .area-card:hover { transform: translateY(-1px); border-color: color-mix(in srgb, var(--step-accent) 34%, rgba(255,255,255,.10)); background: color-mix(in srgb, var(--step-accent) 8%, rgba(3,13,34,.42)); }
+.orcamento-page .area-card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.orcamento-page .area-card-top strong { font-size: 15px; line-height: 1.25; }
+.orcamento-page .area-card-top span { white-space: nowrap; padding: 7px 9px; border-radius: 999px; color: #06152d; background: var(--step-accent); font-size: 12px; font-weight: 950; }
+.orcamento-page .area-discipline-pills { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.orcamento-page .area-discipline-pills small { padding: 6px 8px; border-radius: 999px; background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.07); color: #c6d6f7; font-size: 11px; font-weight: 800; }
+
+.orcamento-page .discipline-tabs,
+.orcamento-page .quote-item-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 6px;
+  margin-bottom: 12px;
+  background: rgba(255,255,255,.035);
+  border: 1px solid rgba(255,255,255,.06);
+  border-radius: 16px;
+}
+
+.orcamento-page .discipline-btn,
+.orcamento-page .quote-item-btn {
+  border: 1px solid transparent;
+  cursor: pointer;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: transparent;
+  color: #dce8ff;
+  font-weight: 900;
+}
+
+.orcamento-page .discipline-btn.active,
+.orcamento-page .quote-item-btn.active,
+.orcamento-page .scope-item.active,
+.orcamento-page .quote-card.considered,
+.orcamento-page .option-btn.active {
+  background: color-mix(in srgb, var(--step-accent) 22%, rgba(3,13,34,.65));
+  border-color: color-mix(in srgb, var(--step-accent) 55%, rgba(255,255,255,.12));
+  box-shadow: 0 14px 26px color-mix(in srgb, var(--step-accent) 18%, transparent);
+}
+.orcamento-page .scope-item {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  padding: 14px;
+  color: #eff4ff;
+  transition: transform .18s ease, border-color .18s ease, background .18s ease;
+}
+
+.orcamento-page .scope-item strong,
+.orcamento-page .scope-item span { display: block; }
+.orcamento-page .scope-item strong { font-size: 14px; }
+.orcamento-page .scope-item span { margin-top: 6px; color: #a8bce6; font-size: 12px; }
+
+.orcamento-page .split {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.orcamento-page .mini-card p,
+.orcamento-page .proposal-detail p,
+.orcamento-page .timeline-item p,
+.orcamento-page .score-card p,
+.orcamento-page .side .panel p { margin: 8px 0 0; color: #c3d0ec; font-size: 13px; }
+.orcamento-page .mini-card ul { margin: 0; padding-left: 18px; color: #dce8ff; font-size: 13px; line-height: 1.7; }
+.orcamento-page .inner-note { margin-top: 14px; }
+
+.orcamento-page .quote-card {
+  width: 100%;
+  position: relative;
+  text-align: left;
+  cursor: pointer;
+  padding: 14px;
+  color: #f4f7ff;
+  overflow: hidden;
+  transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+}
+
+.orcamento-page .quote-card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 5px;
+  background: linear-gradient(180deg, var(--step-accent), color-mix(in srgb, var(--step-accent) 50%, white));
+}
+
+.orcamento-page .quote-card h4 { margin: 10px 0 0; }
+.orcamento-page .quote-meta { margin-top: 12px; }
+.orcamento-page .quote-meta strong { font-size: 14px; }
+
+.orcamento-page .compare-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.orcamento-page .option-btn {
+  border: 1px solid rgba(255,255,255,.08);
+  cursor: pointer;
+  padding: 14px;
+  border-radius: 16px;
+  background: rgba(255,255,255,.045);
+  color: #eff4ff;
+  text-align: left;
+  transition: transform .18s ease, border-color .18s ease, background .18s ease;
+}
+
+.orcamento-page .option-btn small { display: block; text-transform: uppercase; letter-spacing: .14em; opacity: .82; margin-bottom: 10px; }
+.orcamento-page .option-btn strong { display: block; font-size: 20px; line-height: 1.08; }
+.orcamento-page .option-btn p { margin: 10px 0 0; font-size: 13px; line-height: 1.55; color: inherit; opacity: .88; }
+.orcamento-page .proposal-detail { margin-top: 14px; }
+
+.orcamento-page .history-visual { position: relative; padding-left: 22px; }
+.orcamento-page .history-visual::before { content: ''; position: absolute; left: 9px; top: 2px; bottom: 2px; width: 2px; background: linear-gradient(180deg, var(--step-accent), color-mix(in srgb, var(--step-accent) 40%, white)); }
+.orcamento-page .timeline-item { position: relative; padding: 14px; }
+.orcamento-page .history-visual .timeline-item::before { content: ''; position: absolute; left: -19px; top: 20px; width: 10px; height: 10px; border-radius: 50%; background: var(--step-accent); box-shadow: 0 0 0 6px color-mix(in srgb, var(--step-accent) 16%, transparent); }
+
+.orcamento-page .score-card {
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--step-accent) 18%, transparent), transparent 40%),
+    rgba(255,255,255,.045);
+}
+
+.orcamento-page .score-number { display: flex; align-items: flex-end; gap: 8px; margin-top: 12px; }
+.orcamento-page .score-number strong { font-size: 36px; line-height: 1; }
+.orcamento-page .score-number span { color: #a8bce6; font-weight: 900; }
+.orcamento-page .score-grid,
+.orcamento-page .side-kpi { grid-template-columns: 1fr; margin-top: 12px; gap: 8px; }
+.orcamento-page .score-grid strong,
+.orcamento-page .side-kpi strong { font-size: 14px; }
+.orcamento-page .side .panel p,
+.orcamento-page .score-card p,
+.orcamento-page .tiny-list { font-size: 12px; line-height: 1.45; color: #9fb3de; }
+
+.orcamento-page .compact-list .doc { padding: 10px; border-radius: 14px; }
+.orcamento-page .empty-state {
+  border: 1px dashed rgba(122,155,223,.28);
+  border-radius: 16px;
+  padding: 14px;
+  background: rgba(255,255,255,.035);
+  color: #a8bce6;
+  line-height: 1.65;
+  font-size: 13px;
+}
+
+.orcamento-page .tiny-list { margin: 10px 0 0; padding-left: 18px; }
+.orcamento-page .feedback-chip {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  z-index: 40;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--step-accent) 38%, #1b438f), #14377a);
+  border: 1px solid color-mix(in srgb, var(--step-accent) 42%, rgba(123,171,255,.36));
+  color: #eff4ff;
+  padding: 12px 14px;
+  border-radius: 14px;
+  box-shadow: 0 16px 30px rgba(0,0,0,.24);
+  font-size: 13px;
+  font-weight: 900;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(10px);
+  transition: opacity .18s ease, transform .18s ease;
+}
+
+.orcamento-page .feedback-chip.show { opacity: 1; transform: translateY(0); }
+
+.orcamento-page .loading-state,
+.orcamento-page .error-state {
+  min-height: 320px;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  gap: 12px;
+  padding: 30px;
+  color: #dce8ff;
+}
+
+.orcamento-page .loader {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 3px solid rgba(255,255,255,.12);
+  border-top-color: var(--step-accent);
+  animation: spin .8s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+@media (max-width: 1500px) {
+  .orcamento-page .workspace-body { grid-template-columns: minmax(0, 1fr) 260px !important; }
+  .orcamento-page .side { max-width: 260px; }
+  .orcamento-page .stage-workspace { grid-template-columns: 1fr; }
+  .orcamento-page .stage-task-grid.compact { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 1280px) {
+  .orcamento-page .app { grid-template-columns: minmax(0, 1fr) !important; }
+  .orcamento-page .workspace-body { grid-template-columns: 1fr !important; }
+  .orcamento-page .side {
+    position: static;
+    max-width: none;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .orcamento-page .launch-grid,
+  .orcamento-page .ux-steps { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  .orcamento-page .progress-card,
+  .orcamento-page .launch-detail-panel,
+  .orcamento-page .stage-main-card,
+  .orcamento-page .scope-layout,
+  .orcamento-page .quote-layout,
+  .orcamento-page .overview-clean-grid { grid-template-columns: 1fr !important; }
+  .orcamento-page .stage-actions { justify-content: flex-start; }
+}
+
+@media (max-width: 860px) {
+  .orcamento-page .content,
+  .orcamento-page .workspace-body { padding: 10px !important; }
+  .orcamento-page .launch-main,
+  .orcamento-page .launch-grid,
+  .orcamento-page .ux-steps,
+  .orcamento-page .stage-task-grid.compact,
+  .orcamento-page .stage-form-grid,
+  .orcamento-page .launch-detail-items,
+  .orcamento-page .fields,
+  .orcamento-page .quote-meta,
+  .orcamento-page .side,
+  .orcamento-page .split,
+  .orcamento-page .compare-grid,
+  .orcamento-page .area-summary-strip,
+  .orcamento-page .proposal-two,
+  .orcamento-page .stage-choice-grid,
+  .orcamento-page .discipline-check-grid { grid-template-columns: 1fr !important; }
+  .orcamento-page .launch-art { display: none; }
+  .orcamento-page .workspace-head { padding: 14px !important; }
+  .orcamento-page .stage-main-card { display: block; }
+  .orcamento-page .stage-actions { margin-top: 12px; }
+}

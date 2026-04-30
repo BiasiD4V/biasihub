@@ -1,4 +1,4 @@
-﻿import { supabase, sanitizeFilterValue } from './client'
+import { supabase, sanitizeFilterValue } from './client'
 import type { Pendencia } from '../../domain/entities/Pendencia'
 
 export interface PropostaSupabase {
@@ -84,6 +84,24 @@ type PendenciaRowFlex = {
   criado_em?: string | null
   resolvido_em?: string | null
   atualizado_em?: string | null
+}
+
+interface ResumoOperacionalProposta {
+  followUps: number
+  mudancasEtapa: number
+  pendenciasAbertas: number
+}
+
+function criarResumoOperacional(): ResumoOperacionalProposta {
+  return { followUps: 0, mudancasEtapa: 0, pendenciasAbertas: 0 }
+}
+
+function chunkArray<T>(items: T[], size: number): T[][] {
+  const chunks: T[][] = []
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size))
+  }
+  return chunks
 }
 
 function normalizarStatusPendencia(status?: string | null, resolvida?: boolean | null): Pendencia['status'] {
@@ -425,6 +443,74 @@ export const propostasRepository = {
     return (data || []) as any
   },
 
+  async buscarTodosParaClientes(): Promise<Pick<PropostaSupabase, 'id' | 'numero_composto' | 'cliente' | 'obra' | 'objeto' | 'disciplina' | 'valor_orcado' | 'status' | 'resultado_comercial' | 'data_entrada' | 'ano' | 'responsavel' | 'responsavel_comercial' | 'etapa_funil' | 'chance_fechamento' | 'urgencia' | 'proxima_acao' | 'data_proxima_acao' | 'ultima_interacao' | 'link_arquivo' | 'data_limite' | 'observacao_comercial'>[]> {
+    const { data, error } = await supabase
+      .from('propostas')
+      .select('id,numero_composto,cliente,obra,objeto,disciplina,valor_orcado,status,resultado_comercial,data_entrada,ano,responsavel,responsavel_comercial,etapa_funil,chance_fechamento,urgencia,proxima_acao,data_proxima_acao,ultima_interacao,link_arquivo,data_limite,observacao_comercial')
+      .limit(5000)
+    if (error) { console.error('buscarTodosParaClientes:', error); return [] }
+    return (data || []) as any
+  },
+
+  async buscarResumoOperacionalParaClientes(propostaIds: string[]): Promise<Record<string, ResumoOperacionalProposta>> {
+    const idsUnicos = [...new Set(propostaIds.filter(Boolean))]
+    const resumo: Record<string, ResumoOperacionalProposta> = Object.fromEntries(
+      idsUnicos.map((id) => [id, criarResumoOperacional()])
+    )
+    if (!idsUnicos.length) return resumo
+
+    for (const ids of chunkArray(idsUnicos, 300)) {
+      const followUps = await supabase
+        .from('follow_ups')
+        .select('proposta_id,tipo')
+        .in('proposta_id', ids)
+        .neq('tipo', 'workspace_orcamento_v1')
+
+      if (!followUps.error) {
+        for (const row of followUps.data || []) {
+          const propostaId = String((row as { proposta_id?: string | null }).proposta_id || '')
+          if (resumo[propostaId]) resumo[propostaId].followUps += 1
+        }
+      }
+
+      const mudancas = await supabase
+        .from('mudancas_etapa')
+        .select('proposta_id')
+        .in('proposta_id', ids)
+
+      if (!mudancas.error) {
+        for (const row of mudancas.data || []) {
+          const propostaId = String((row as { proposta_id?: string | null }).proposta_id || '')
+          if (resumo[propostaId]) resumo[propostaId].mudancasEtapa += 1
+        }
+      }
+
+      const pendenciasVistas = new Set<string>()
+      const consultasPendencias = [
+        () => supabase.from('pendencias').select('*').in('orcamento_id', ids),
+        () => supabase.from('pendencias').select('*').in('proposta_id', ids),
+      ]
+
+      for (const consultar of consultasPendencias) {
+        const { data, error } = await consultar()
+        if (error) continue
+
+        for (const row of (data || []) as PendenciaRowFlex[]) {
+          const pendenciaId = String(row.id || '')
+          if (pendenciaId && pendenciasVistas.has(pendenciaId)) continue
+          if (pendenciaId) pendenciasVistas.add(pendenciaId)
+
+          const propostaId = String(row.proposta_id || row.orcamento_id || '')
+          if (!resumo[propostaId]) continue
+          const status = normalizarStatusPendencia(row.status, row.resolvida)
+          if (status === 'aberta') resumo[propostaId].pendenciasAbertas += 1
+        }
+      }
+    }
+
+    return resumo
+  },
+
   async buscarPorId(id: string): Promise<PropostaSupabase | null> {
     const { data, error } = await supabase
       .from('propostas')
@@ -472,6 +558,9 @@ export const propostasRepository = {
       .from('follow_ups')
       .select('*')
       .eq('proposta_id', propostaId)
+      // Registro tecnico usado como fallback do workspace dinamico.
+      // Ele salva no Supabase, mas nao deve aparecer como follow-up comum.
+      .neq('tipo', 'workspace_orcamento_v1')
       .order('data', { ascending: false })
     if (error) { console.error('follow_ups:', error); return [] }
     return data || []

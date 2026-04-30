@@ -5,9 +5,12 @@ contextBridge.exposeInMainWorld('electronBridge', {
   // Config da IA (Anthropic + Ollama)
   getAnthropicKey: () => ipcRenderer.invoke('config:getAnthropicKey'),
   setAnthropicKey: (key) => ipcRenderer.invoke('config:setAnthropicKey', key),
+  getOpenAiKey: () => ipcRenderer.invoke('config:getOpenAiKey'),
+  setOpenAiKey: (key) => ipcRenderer.invoke('config:setOpenAiKey', key),
   getOllamaModel: () => ipcRenderer.invoke('config:getOllamaModel'),
   setOllamaModel: (model) => ipcRenderer.invoke('config:setOllamaModel', model),
   checkOllama: () => ipcRenderer.invoke('config:checkOllama'),
+  syncChatgptAgents: (payload) => ipcRenderer.invoke('agentes:syncChatgpt', payload),
 
   // Info da versão do app
   getAppVersion: () => ipcRenderer.invoke('app:getVersion'),

@@ -10,6 +10,24 @@ import { UpdateChecker } from './UpdateChecker';
 const STORAGE_KEY_SIDEBAR_HIDDEN = 'layout-sidebar-hidden-v1';
 const CALL_WINDOW_NAME = 'biasi-hub-call';
 
+function isCapacitorRuntime() {
+  if (typeof window === 'undefined') return false;
+  const w = window as any;
+  return Boolean(
+    w.Capacitor ||
+      w.cordova ||
+      window.location.origin === 'https://localhost' ||
+      navigator.userAgent.includes('Capacitor')
+  );
+}
+
+function hubUrlLocalOuWeb() {
+  const isElectron = navigator.userAgent.includes('Electron');
+  if (isElectron) return 'app://hub.local/';
+  if (isCapacitorRuntime()) return '/index.html#/';
+  return 'https://biasihub-portal.vercel.app/';
+}
+
 export function LayoutAutenticado() {
   const { isAuthenticated, loading, erroConexao, usuario } = useAuth();
   const [authTimeout, setAuthTimeout] = useState(false);
@@ -331,7 +349,7 @@ export function LayoutAutenticado() {
     };
   }, [usuario?.id]);
 
-  // â”€â”€ Presença global (registra online para todos os usuários autenticados) â”€â”€
+  // Presença global (registra online para todos os usuários autenticados)
   useEffect(() => {
     if (!usuario?.id) return;
 
@@ -443,8 +461,7 @@ export function LayoutAutenticado() {
               <button
                 onClick={() => {
                   limparSessaoLocal();
-                  const isElectron = navigator.userAgent.includes('Electron');
-              window.location.replace(isElectron ? 'app://hub.local/' : 'https://biasihub-hub.vercel.app/');
+                  window.location.replace(hubUrlLocalOuWeb());
                 }}
                 className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors"
               >
@@ -478,8 +495,7 @@ export function LayoutAutenticado() {
   }
 
   if (!isAuthenticated) {
-    const isElectron = navigator.userAgent.includes('Electron');
-    window.location.replace(isElectron ? 'app://hub.local/' : 'https://biasihub-hub.vercel.app/');
+    window.location.replace(hubUrlLocalOuWeb());
     return (
       <div className="flex items-center justify-center min-h-screen bg-slate-50">
         <div className="text-center">

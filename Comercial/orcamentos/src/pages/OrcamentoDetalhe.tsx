@@ -13,6 +13,7 @@ import { AlertasOrcamento } from '../components/orcamentos/AlertasOrcamento';
 import { ModalNovoFollowUp } from '../components/orcamentos/ModalNovoFollowUp';
 import { ModalNovaPendencia } from '../components/orcamentos/ModalNovaPendencia';
 import { MapaJornadaComercial } from '../components/orcamentos/MapaJornadaComercial';
+import { CentralOrcamentoDinamica } from '../components/orcamentos/CentralOrcamentoDinamica';
 import { gamificacaoService } from '../services/gamificacaoService';
 import { supabase } from '../infrastructure/supabase/client';
 
@@ -478,7 +479,7 @@ export function OrcamentoDetalhe() {
   return (
     <div className="flex flex-col h-full">
       {/* Top bar */}
-      <div className="px-3 py-3 sm:px-8 sm:py-4 border-b border-slate-200 bg-white flex items-center gap-2 sm:gap-4">
+      <div className="hidden">
         <button
           onClick={() => navigate('/orcamentos')}
           className="flex items-center gap-1.5 text-slate-500 hover:text-slate-700 text-sm transition-colors flex-shrink-0"
@@ -552,7 +553,7 @@ export function OrcamentoDetalhe() {
       </div>
 
       {/* Meta strip */}
-      <div className={`px-3 py-2 sm:px-8 sm:py-3 border-b border-slate-200 ${
+      <div className={`hidden ${
         orc.resultadoComercial === 'ganho' ? 'bg-green-50' : 
         orc.resultadoComercial === 'perdido' ? 'bg-red-50' : 'bg-slate-50'
       }`}>
@@ -609,7 +610,24 @@ export function OrcamentoDetalhe() {
       </div>
 
       {/* Body */}
-      <div className="flex-1 p-3 sm:p-8 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto bg-[#06132d] p-2 sm:p-3">
+        <CentralOrcamentoDinamica
+          propostaId={id || orc.id}
+          orc={orc}
+          usuarioNome={usuario?.nome || orc.responsavel}
+          followUps={followUps}
+          pendencias={pendencias}
+          mudancasEtapa={mudancasEtapa}
+          onRegistrarFollowUp={() => setModalFollowUpAberto(true)}
+          onAdicionarPendencia={() => setModalPendenciaAberto(true)}
+          onResolverPendencia={(pendenciaId) => { void handleResolverPendencia(pendenciaId); }}
+        />
+
+        <details className="hidden">
+          <summary className="cursor-pointer px-5 py-4 text-sm font-bold text-slate-700 hover:text-blue-700">
+            Abrir acompanhamento antigo do orçamento
+          </summary>
+          <div className="px-5 pb-5">
         {(() => {
           const prioridade = calcularPrioridade(orc);
           if (!prioridade || prioridade === 'baixa') return null;
@@ -760,6 +778,8 @@ export function OrcamentoDetalhe() {
             </div>
           </div>
         </div>
+          </div>
+        </details>
       </div>
 
       {id && (

@@ -57,27 +57,27 @@ const MENU: SecaoMenu[] = [
       { rotulo: 'Clientes', para: '/clientes', icone: Users },
       { rotulo: 'Fornecedores', para: '/fornecedores', icone: Truck },
       { rotulo: 'Insumos', para: '/insumos', icone: Package },
-      { rotulo: 'Composicoes', para: '/composicoes', icone: Layers },
+      { rotulo: 'Composi\u00e7\u00f5es', para: '/composicoes', icone: Layers },
       { rotulo: 'Templates', para: '/templates', icone: FileText },
-      { rotulo: 'Mao de obra', para: '/mao-de-obra', icone: Hammer },
+      { rotulo: 'M\u00e3o de obra', para: '/mao-de-obra', icone: Hammer },
       { rotulo: 'Incluso / Excluso', para: '/incluso-excluso', icone: CheckSquare },
     ],
   },
   {
-    titulo: 'Operacao',
+    titulo: 'Opera\u00e7\u00e3o',
     itens: [
-      { rotulo: 'Orcamentos', para: '/orcamentos', icone: ClipboardList },
+      { rotulo: 'Or\u00e7amentos', para: '/orcamentos', icone: ClipboardList },
       { rotulo: 'Planilha Orc.', para: '/planilha-orcamentaria', icone: FileSpreadsheet },
-      { rotulo: 'Aprovacoes', para: '/aprovacoes', icone: CheckSquare },
-      { rotulo: 'Indicacoes', para: '/indicacoes', icone: Gift },
+      { rotulo: 'Aprova\u00e7\u00f5es', para: '/aprovacoes', icone: CheckSquare },
+      { rotulo: 'Indica\u00e7\u00f5es', para: '/indicacoes', icone: Gift },
     ],
   },
   {
-    titulo: 'Gestao',
+    titulo: 'Gest\u00e3o',
     itens: [
       { rotulo: 'Arena', para: '/arena', icone: Trophy },
       { rotulo: 'Bira', para: '/bira', icone: KanbanSquare },
-      { rotulo: 'Reuniões', para: '/reunioes', icone: Calendar },
+      { rotulo: 'Reuni\u00f5es', para: '/reunioes', icone: Calendar },
       { rotulo: 'ADM Central', para: '/adm-central', icone: BarChart2 },
       { rotulo: 'Aprendizados', para: '/aprendizados', icone: BookOpen },
     ],
@@ -85,7 +85,7 @@ const MENU: SecaoMenu[] = [
   {
     titulo: 'Sistema',
     itens: [
-      { rotulo: 'Configuracoes', para: '/configuracoes', icone: Settings },
+      { rotulo: 'Configura\u00e7\u00f5es', para: '/configuracoes', icone: Settings },
       { rotulo: 'Meus dispositivos', para: '/meus-dispositivos', icone: Smartphone },
     ],
   },
@@ -94,20 +94,34 @@ const MENU: SecaoMenu[] = [
 const MENU_GESTAO: SecaoMenu[] = [
   {
     titulo: 'Obras',
-    itens: [{ rotulo: 'Diario de obra', para: '/rdo', icone: HardHat }],
+    itens: [{ rotulo: 'Di\u00e1rio de obra', para: '/rdo', icone: HardHat }],
   },
 ];
 
 const MENU_ADMIN: SecaoMenu[] = [
   {
-    titulo: 'Administracao',
+    titulo: 'Administra\u00e7\u00e3o',
     itens: [{ rotulo: 'Membros', para: '/membros', icone: Users }],
   },
 ];
 
+function isCapacitorRuntime() {
+  if (typeof window === 'undefined') return false;
+  const w = window as any;
+  return Boolean(
+    w.Capacitor ||
+      w.cordova ||
+      window.location.origin === 'https://localhost' ||
+      navigator.userAgent.includes('Capacitor')
+  );
+}
+
 const IS_ELECTRON = navigator.userAgent.includes('Electron');
+const IS_CAPACITOR = isCapacitorRuntime();
 const HUB_URL = IS_ELECTRON
   ? (import.meta.env.DEV ? 'http://localhost:5176/' : 'app://hub.local/')
+  : IS_CAPACITOR
+  ? '/index.html#/'
   : 'https://biasihub-portal.vercel.app/';
 
 function renderSecao(secao: SecaoMenu, onNavigate?: () => void) {
@@ -204,6 +218,11 @@ export function SidebarAutenticada({
     : 'U';
 
   async function voltarAoHub() {
+    if (IS_CAPACITOR) {
+      window.location.assign(HUB_URL);
+      return;
+    }
+
     // Fast-path: tenta pegar a sessão sincronamente do localStorage para evitar o delay do getSession()
     try {
       const storageKey = 'sb-vzaabtzcilyoknksvhrc-auth-token';
@@ -306,7 +325,7 @@ export function SidebarAutenticada({
               <span className="text-white text-xs font-black tracking-tighter">{iniciais}</span>
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-white text-[11px] font-black uppercase tracking-widest truncate">{usuario?.nome?.split(' ')[0] ?? 'Usuario'}</p>
+              <p className="text-white text-[11px] font-black uppercase tracking-widest truncate">{usuario?.nome?.split(' ')[0] ?? 'Usuário'}</p>
               <p className="text-[#FFC82D] text-[9px] uppercase font-black tracking-[0.3em] truncate mt-0.5">{usuario?.papel ?? ''}</p>
             </div>
           </div>

@@ -11,7 +11,7 @@ import { useAuth } from '../context/AuthContext';
 import { supabase } from '../infrastructure/supabase/client';
 import { acessoRepository, type Solicitacao, type Cargo, type ModuloAcesso } from '../infrastructure/supabase/acessoRepository';
 
-// â”€â”€â”€ Constants â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ------------------------------------------------------------
 
 const PAPEIS_OPCOES = [
   { value: 'dono',          label: 'Dono' },
@@ -31,7 +31,7 @@ const MODULOS_LISTA = [
   { key: 'logistica',     label: 'Logística',     descricao: 'Frota, rotas e entregas' },
 ];
 
-// â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ------------------------------------------------------------
 
 function formatarData(iso: string): string {
   return new Date(iso).toLocaleString('pt-BR', {
@@ -57,7 +57,7 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-// â”€â”€â”€ Tab: Solicitacoes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ------------------------------------------------------------
 
 function TabSolicitacoes({ usuarioId }: { usuarioId: string }) {
   const [solicitacoes, setSolicitacoes] = useState<Solicitacao[]>([]);
@@ -100,7 +100,7 @@ function TabSolicitacoes({ usuarioId }: { usuarioId: string }) {
       setModalAprovar(null);
       await carregar();
     } else {
-      setMensagem({ tipo: 'erro', texto: resultado.erro ?? 'FALHA NA AUTENTICACAO DO PROTOCOLO.' });
+      setMensagem({ tipo: 'erro', texto: resultado.erro ?? 'FALHA NA AUTENTICAÇÃO DO PROTOCOLO.' });
     }
     setSalvando(false);
   }
@@ -110,7 +110,7 @@ function TabSolicitacoes({ usuarioId }: { usuarioId: string }) {
     setSalvando(true);
     const resultado = await acessoRepository.negarSolicitacao(modalNegar.id, usuarioId, observacaoNegar || undefined);
     if (resultado.sucesso) {
-      setMensagem({ tipo: 'sucesso', texto: 'Solicitacao negada.' });
+      setMensagem({ tipo: 'sucesso', texto: 'Solicitação negada.' });
       setModalNegar(null);
       setObservacaoNegar('');
       await carregar();
@@ -139,7 +139,7 @@ function TabSolicitacoes({ usuarioId }: { usuarioId: string }) {
               }`}
             >
               <div className="flex items-center gap-3 relative z-10">
-                {f === 'pendente' ? 'Fila de Triagem' : f === 'aprovado' ? 'Acessos Ativos' : f === 'negado' ? 'Historico de Recusas' : 'Relatorio Global'}
+                {f === 'pendente' ? 'Fila de Triagem' : f === 'aprovado' ? 'Acessos Ativos' : f === 'negado' ? 'Histórico de Recusas' : 'Relatório Global'}
                 {f === 'pendente' && pendentes > 0 && (
                   <span className="bg-amber-500 text-white px-2 py-0.5 rounded-lg leading-none text-[8px] animate-pulse shadow-lg shadow-amber-500/20">{pendentes}</span>
                 )}
@@ -162,13 +162,13 @@ function TabSolicitacoes({ usuarioId }: { usuarioId: string }) {
       {loading ? (
         <div className="premium-glass border-2 border-dashed border-white/10 rounded-[48px] p-32 text-center animate-pulse shadow-2xl">
           <div className="w-16 h-16 border-4 border-sky-400 border-t-transparent rounded-full animate-spin mx-auto mb-8 shadow-[0_0_20px_rgba(56,189,248,0.3)]" />
-          <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.5em] opacity-60">Interceptando Trafego de Credenciais...</p>
+          <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.5em] opacity-60">Interceptando Tráfego de Credenciais...</p>
         </div>
       ) : solicitacoes.length === 0 ? (
         <div className="premium-glass bg-white/5 border-2 border-white/10 rounded-[60px] p-40 text-center shadow-2xl relative overflow-hidden group">
           <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-transparent opacity-50" />
           <ClipboardList size={64} className="mx-auto text-slate-800 mb-8 opacity-20 group-hover:scale-110 transition-transform duration-700" />
-          <p className="text-[11px] font-black text-slate-600 uppercase tracking-[0.6em] relative z-10">O Radar De Segurança Está Limpo · Sem Solicitacoes</p>
+          <p className="text-[11px] font-black text-slate-600 uppercase tracking-[0.6em] relative z-10">O Radar De Segurança Está Limpo · Sem Solicitações</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -211,7 +211,7 @@ function TabSolicitacoes({ usuarioId }: { usuarioId: string }) {
                       )}
                       <button 
                         onClick={async () => {
-                          if (!confirm(`Remover solicitacao de "${sol.nome}"?`)) return;
+                          if (!confirm(`Remover solicitação de "${sol.nome}"?`)) return;
                           const res = await acessoRepository.deletarSolicitacao(sol.id);
                           if (res.sucesso) { setMensagem({ tipo: 'sucesso', texto: 'REGISTRO DELETADO DO DIARIO.' }); await carregar(); }
                         }}
@@ -258,7 +258,7 @@ function TabSolicitacoes({ usuarioId }: { usuarioId: string }) {
               <div className="space-y-4">
                 <label className="flex items-center gap-3 text-[10px] font-black text-slate-500 uppercase tracking-[0.5em] mb-4 ml-2">
                    <Shield size={14} className="text-sky-400" />
-                   Atribuicao de Cargo Central
+                   Atribuição de Cargo Central
                 </label>
                 <div className="relative group">
                   <select
@@ -324,7 +324,7 @@ function TabSolicitacoes({ usuarioId }: { usuarioId: string }) {
                 disabled={salvando}
                 className="h-16 flex-[2] rounded-[24px] bg-rose-600 text-white text-[12px] font-black uppercase tracking-[0.4em] shadow-[0_20px_40px_rgba(225,29,72,0.3)] hover:bg-rose-700 hover:translate-y-[-4px] active:scale-95 transition-all border-b-4 border-rose-800"
               >
-                {salvando ? 'PROCESSANDO...' : 'CONFIRMAR REJEICAO'}
+                {salvando ? 'PROCESSANDO...' : 'CONFIRMAR REJEIÇÃO'}
               </button>
             </div>
           </div>
@@ -365,7 +365,7 @@ function TabSolicitacoes({ usuarioId }: { usuarioId: string }) {
 
             <div className="bg-amber-500/10 border-2 border-amber-500/20 rounded-[28px] p-6 mb-12 relative z-10">
                <p className="text-[10px] font-black text-amber-500 uppercase tracking-[0.3em] leading-relaxed">
-                 Atencao: esta chave sera invalidada apos o primeiro login. Solicite a reconfiguracao imediata.
+                 Atenção: esta chave será invalidada após o primeiro login. Solicite a reconfiguração imediata.
                </p>
             </div>
 
@@ -382,7 +382,7 @@ function TabSolicitacoes({ usuarioId }: { usuarioId: string }) {
   );
 }
 
-// â”€â”€â”€ Tab: Cargos â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ------------------------------------------------------------
 
 function TabCargos() {
   const [cargos, setCargos] = useState<Cargo[]>([]);
@@ -429,7 +429,7 @@ function TabCargos() {
       setMostrarForm(false);
       await carregar();
     } else {
-      setMensagem({ tipo: 'erro', texto: resultado.erro ?? 'FALHA NA INTEGRACAO DO CARGO.' });
+      setMensagem({ tipo: 'erro', texto: resultado.erro ?? 'FALHA NA INTEGRAÇÃO DO CARGO.' });
     }
     setSalvando(false);
   }
@@ -489,8 +489,8 @@ function TabCargos() {
                 <Plus size={28} className="text-sky-400" />
              </div>
              <div>
-                <h3 className="text-3xl font-black text-white tracking-tighter uppercase leading-none mb-2">Protocolar Nova Funcao</h3>
-                <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">Expansao de Estrutura Organizacional</p>
+                <h3 className="text-3xl font-black text-white tracking-tighter uppercase leading-none mb-2">Protocolar Nova Função</h3>
+                <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">Expansão de Estrutura Organizacional</p>
              </div>
           </div>
           
@@ -516,7 +516,7 @@ function TabCargos() {
                     required
                     className="w-full h-20 bg-slate-950 border-2 border-white/5 rounded-[32px] px-8 text-sm font-black text-white focus:border-sky-500 focus:outline-none appearance-none transition-all uppercase tracking-[0.2em] shadow-inner group-hover:border-white/10"
                   >
-                    <option value="" className="bg-slate-950 text-slate-700">- SELECIONAR NIVEL -</option>
+                    <option value="" className="bg-slate-950 text-slate-700">- SELECIONAR NÍVEL -</option>
                     {PAPEIS_OPCOES.map(p => (
                       <option key={p.value} value={p.value} className="bg-slate-950 text-white font-black">{p.label.toUpperCase()}</option>
                     ))}
@@ -526,7 +526,7 @@ function TabCargos() {
               </div>
             </div>
             <div className="space-y-4">
-              <label className="flex items-center gap-3 text-[10px] font-black text-slate-500 uppercase tracking-[0.5em] mb-4 ml-2">Descricao de Atribuicoes</label>
+              <label className="flex items-center gap-3 text-[10px] font-black text-slate-500 uppercase tracking-[0.5em] mb-4 ml-2">Descrição de Atribuicoes</label>
               <textarea
                 value={novaDescricao}
                 onChange={e => setNovaDescricao(e.target.value)}
@@ -607,7 +607,7 @@ function TabCargos() {
           {inativos.length > 0 && (
             <div className="premium-glass bg-white/5 border-2 border-white/5 rounded-[60px] overflow-hidden opacity-40 grayscale transition-all hover:grayscale-0 hover:opacity-100 duration-700">
               <div className="px-12 py-8 border-b-2 border-white/5 bg-white/5">
-                <p className="text-[11px] font-black text-slate-600 uppercase tracking-[0.4em]">Arquivo Historico de Patentes</p>
+                <p className="text-[11px] font-black text-slate-600 uppercase tracking-[0.4em]">Arquivo Histórico de Patentes</p>
               </div>
               <div className="divide-y-2 divide-white/5">
                 {inativos.map(c => (
@@ -637,7 +637,7 @@ function TabCargos() {
             <div className="w-24 h-24 bg-rose-500 border-4 border-white/20 rounded-[40px] flex items-center justify-center mx-auto mb-10 shadow-[0_0_50px_rgba(225,29,72,0.4)] animate-pulse">
               <AlertTriangle size={48} className="text-white" />
             </div>
-            <h3 className="text-4xl font-black text-white tracking-tighter uppercase leading-none mb-4">Suspender Funcao?</h3>
+            <h3 className="text-4xl font-black text-white tracking-tighter uppercase leading-none mb-4">Suspender Função?</h3>
             <p className="text-slate-400 font-black text-xs uppercase tracking-[0.3em] mb-12 leading-relaxed px-6">
               A patente <strong>"{confirmDesativar.nome.toUpperCase()}"</strong> sera revogada dos registros de autoridade. Esta acao e auditada.
             </p>
@@ -663,7 +663,7 @@ function TabCargos() {
   );
 }
 
-// â”€â”€â”€ Tab: Modulos â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ------------------------------------------------------------
 
 function TabModulos({ usuarioId }: { usuarioId: string }) {
   const [modulos, setModulos] = useState<Record<string, ModuloAcesso>>({});
@@ -737,7 +737,7 @@ function TabModulos({ usuarioId }: { usuarioId: string }) {
       {loading ? (
         <div className="premium-glass border-2 border-dashed border-white/10 rounded-[60px] p-40 text-center animate-pulse shadow-2xl">
           <div className="w-16 h-16 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto mb-8 shadow-[0_0_20px_rgba(168,85,247,0.3)]" />
-          <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.6em] opacity-60">Sincronizando Modulos Centrais...</p>
+          <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.6em] opacity-60">Sincronizando Módulos Centrais...</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-10">
@@ -878,7 +878,7 @@ function TabModulos({ usuarioId }: { usuarioId: string }) {
          </div>
          <div className="relative z-10">
             <p className="text-[12px] font-black text-indigo-400/80 leading-relaxed uppercase tracking-[0.4em]">
-              Protocolo global: alteracoes em modulos sao imediatas. O estado OFFLINE bloqueia acesso ate reativacao manual.
+              Protocolo global: alterações em módulos são imediatas. O estado OFFLINE bloqueia acesso até reativação manual.
             </p>
          </div>
       </div>
@@ -886,7 +886,7 @@ function TabModulos({ usuarioId }: { usuarioId: string }) {
   );
 }
 
-// â”€â”€â”€ Pagina Principal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ------------------------------------------------------------
 
 type TabStatus = 'solicitacoes' | 'cargos' | 'modulos';
 
@@ -1011,10 +1011,11 @@ export function GerenciarAcessos() {
 }
 
 const TABS = [
-  { key: 'solicitacoes', label: 'Solicitacoes', icon: ClipboardList },
+  { key: 'solicitacoes', label: 'Solicitações', icon: ClipboardList },
   { key: 'cargos',       label: 'Cargos',       icon: Briefcase },
-  { key: 'modulos',      label: 'Modulos',      icon: LayoutGrid },
+  { key: 'modulos',      label: 'Módulos',      icon: LayoutGrid },
 ];
+
 
 
 

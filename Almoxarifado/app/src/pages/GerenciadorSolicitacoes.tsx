@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+﻿import { useEffect, useMemo, useRef, useState } from 'react';
 import { Camera, CheckCircle2, Loader2, Play, RefreshCw, RotateCcw, Truck, XCircle } from 'lucide-react';
 import type { Requisicao, StatusRequisicao } from '../domain/entities/Requisicao';
 import { supabase } from '../infrastructure/supabase/client';
@@ -19,9 +19,9 @@ interface ItemGerenciavel {
   descricao: string;
   quantidadeLabel: string;
   choice: EscolhaItem;
-  // photoData = foto de conferÃƒÂªncia do almoxarifado (primeira foto do array, ou a ÃƒÂºnica enviada pelo almox)
+  // photoData = foto de conferência do almoxarifado (primeira foto do array, ou a única enviada pelo almox)
   photoData: string;
-  // Todas as fotos Ã¢â‚¬â€ do Vercel (solicitante) + as do almoxarifado. Em ordem.
+  // Todas as fotos - do Vercel (solicitante) + as do almoxarifado. Em ordem.
   fotosUrls: string[];
   observacaoItem: string;
   tipo: string;
@@ -47,7 +47,7 @@ interface CardSolicitacao {
   devolucao: string;
   devolucaoIso: string | null;
   prioridade: string;
-  prioridadeCalc: number;         // score automÃƒÂ¡tico: 0=normal, +urgente, +atraso, +conflito
+  prioridadeCalc: number;         // score automático: 0=normal, +urgente, +atraso, +conflito
   dataSolicitacao: string;
   criadoEm: string;
   iniciadoEm: string | null;
@@ -81,8 +81,8 @@ interface CardSolicitacao {
 
 const STATUS_LABEL: Record<StatusRequisicao, string> = {
   pendente: 'Aguardando',
-  aprovada: 'Em separaÃƒÂ§ÃƒÂ£o',
-  entregue: 'ConcluÃƒÂ­do',
+  aprovada: 'Em separação',
+  entregue: 'Concluído',
   cancelada: 'Cancelada',
 };
 
@@ -275,24 +275,24 @@ function calcularPrioridadeAutomatica(opts: {
   if (String(opts.prioridadeManual).toLowerCase() === 'urgente') score += 4;
   if (String(opts.prioridadeManual).toLowerCase() === 'baixo') score -= 1;
 
-  // Atraso: se prazo passou e ainda nÃƒÂ£o foi atendido Ã¢â€ â€™ +score por dia
+  // Atraso: se prazo passou e ainda não foi atendido -> +score por dia
   if (opts.prazoIso && (opts.status === 'pendente' || opts.status === 'aprovada')) {
     const prazoMs = new Date(opts.prazoIso).getTime();
     if (!Number.isNaN(prazoMs) && prazoMs < Date.now()) {
       const horasAtraso = (Date.now() - prazoMs) / (1000 * 60 * 60);
-      score += Math.min(5, horasAtraso / 12); // atÃƒÂ© +5 por 60h+
+      score += Math.min(5, horasAtraso / 12); // até +5 por 60h+
     }
   }
 
-  // Pedido de prolongaÃƒÂ§ÃƒÂ£o aguardando resposta tambÃƒÂ©m aumenta prioridade
+  // Pedido de prolongação aguardando resposta também aumenta prioridade
   if (opts.prolongacaoPedida) score += 1;
 
-  // Pedidos acumulando na mesma obra: +0.5 por pedido pendente alÃƒÂ©m do 1Ã‚Âº
+  // Pedidos acumulando na mesma obra: +0.5 por pedido pendente além do 1º
   if (opts.pedidosNaMesmaObra && opts.pedidosNaMesmaObra > 1) {
     score += Math.min(2, (opts.pedidosNaMesmaObra - 1) * 0.5);
   }
 
-  // Conflito de recurso (mesma ferramenta/veÃƒÂ­culo jÃƒÂ¡ reservado por outro)
+  // Conflito de recurso (mesma ferramenta/veículo já reservado por outro)
   if (opts.temConflitoRecurso) score += 2;
 
   return Math.round(score * 10) / 10;
@@ -402,7 +402,7 @@ async function uploadPhoto(file: File, cardId: string, itemId: string): Promise<
     const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
     return data.publicUrl || null;
   } catch (err) {
-    console.warn('[GerenciadorSolicitacoes] upload exception:', err);
+    console.warn('[GerenciadorSolicitacoes] upload exceçãon:', err);
     return null;
   }
 }
@@ -435,13 +435,13 @@ export function GerenciadorSolicitacoes() {
   const [freteTerceiroContato, setFreteTerceiroContato] = useState('');
   const [freteOutroDescricao, setFreteOutroDescricao] = useState('');
 
-  // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Modal "Marcar como entregue" (registra quem entregou + quem recebeu) Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+  // Modal "Marcar como entregue" (registra quem entregou + quem recebeu)
   const [entregaTarget, setEntregaTarget] = useState<CardSolicitacao | null>(null);
   const [entregaQuemEntregou, setEntregaQuemEntregou] = useState('');
   const [entregaQuemRecebeu, setEntregaQuemRecebeu] = useState('');
   const [entregaObservacao, setEntregaObservacao] = useState('');
 
-  // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Modal "Checklist de fechamento" antes de Concluir requisiÃƒÂ§ÃƒÂ£o Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+  // Modal "Checklist de fechamento" antes de concluir requisição
   const [fechamentoTarget, setFechamentoTarget] = useState<CardSolicitacao | null>(null);
   const [chkItensConferidos, setChkItensConferidos] = useState(false);
   const [chkQuantidades, setChkQuantidades] = useState(false);
@@ -458,10 +458,10 @@ export function GerenciadorSolicitacoes() {
     [activeCards]
   );
 
-  // OrdenaÃƒÂ§ÃƒÂ£o + recalculo de prioridade com contexto global:
-  //   - quantos pedidos pendentes na mesma obra Ã¢â€ â€™ +score
-  //   - se algum recurso (item_id) ÃƒÂ© disputado entre cards Ã¢â€ â€™ +score
-  // Cria um mapa de obraÃ¢â€ â€™count e item_idÃ¢â€ â€™count uma vez, depois aplica.
+  // Ordenação + recálculo de prioridade com contexto global:
+  //   - quantos pedidos pendentes na mesma obra -> +score
+  //   - se algum recurso (item_id) é disputado entre cards -> +score
+  // Cria um mapa de obra->count e item_id->count uma vez, depois aplica.
   const orderedCards = useMemo(() => {
     const obraCount: Record<string, number> = {};
     const recursoCount: Record<string, number> = {};
@@ -499,7 +499,7 @@ export function GerenciadorSolicitacoes() {
   }, [activeCards]);
 
   const toolbarSummary = useMemo(() => {
-    if (activeCards.length === 0) return 'Sem solicitaÃƒÂ§ÃƒÂµes ativas';
+    if (activeCards.length === 0) return 'Sem solicitações ativas';
     if (pendingCount === 0) return 'Todos os itens conferidos';
     if (pendingCount === 1) return '1 item precisa de compra';
     return `${pendingCount} itens precisam de compra`;
@@ -535,7 +535,7 @@ export function GerenciadorSolicitacoes() {
       const rows = (data || []) as RequisicaoComJoin[];
       setCards(rows.map(mapRowToCard));
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'NÃƒÂ£o foi possÃƒÂ­vel carregar as solicitaÃƒÂ§ÃƒÂµes.';
+      const msg = err instanceof Error ? err.message : 'Não foi possível carregar as solicitações.';
       showToast(msg);
       setCards([]);
     } finally {
@@ -547,7 +547,7 @@ export function GerenciadorSolicitacoes() {
     void carregarSolicitacoes();
   }, []);
 
-  // Realtime: recarregar quando qualquer requisiÃƒÂ§ÃƒÂ£o mudar
+  // Realtime: recarregar quando qualquer requisição mudar
   useEffect(() => {
     const channel = supabase
       .channel('gerenciador-solicitacoes')
@@ -555,9 +555,9 @@ export function GerenciadorSolicitacoes() {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'requisicoes_almoxarifado' },
         (payload) => {
-          // Toast com tipo da mudanÃƒÂ§a pra alertar o almoxarife em tempo real
+          // Toast com tipo da mudança pra alertar o almoxarife em tempo real
           const tipo = payload.eventType;
-          if (tipo === 'INSERT') showToast('Ã°Å¸â€ â€¢ Novo pedido chegou na fila.');
+          if (tipo === 'INSERT') showToast('Novo pedido chegou na fila.');
           else if (tipo === 'UPDATE') {
             const novo = payload.new as Record<string, unknown> | undefined;
             const antigo = payload.old as Record<string, unknown> | undefined;
@@ -567,25 +567,25 @@ export function GerenciadorSolicitacoes() {
               const statusNovo = String(novo.status || '');
               const statusAntigo = String(antigo.status || '');
 
-              // Eventos derivados de mudanÃƒÂ§a de meta no observacao
+              // Eventos derivados de mudança de meta na observação
               if (obsNovo.includes('prolongacao_pedida:') && !obsAntigo.includes('prolongacao_pedida:')) {
-                showToast('Ã¢ÂÂ° Solicitante pediu prolongaÃƒÂ§ÃƒÂ£o de prazo.');
+                showToast('Solicitante pediu prolongação de prazo.');
               }
               if (obsNovo.includes('cancelado_por:solicitante') && !obsAntigo.includes('cancelado_por:solicitante')) {
-                showToast('Ã¢ÂÅ’ Solicitante cancelou um pedido.');
+                showToast('Solicitante cancelou um pedido.');
               }
               if (obsNovo.includes('repetido_de:') && !obsAntigo.includes('repetido_de:')) {
-                showToast('Ã¢â€ Â» Pedido repetido pelo solicitante.');
+                showToast('Pedido repetido pelo solicitante.');
               }
               if (obsNovo.includes('frete_tipo:') && !obsAntigo.includes('frete_tipo:')) {
-                showToast('Ã°Å¸Å¡Å¡ Solicitante informou tipo de frete.');
+                showToast('Solicitante informou tipo de frete.');
               }
 
-              // Eventos derivados de mudanÃƒÂ§a de status
+              // Eventos derivados de mudança de status
               if (statusNovo !== statusAntigo) {
-                if (statusNovo === 'aprovada') showToast('Ã¢Å“â€¦ Pedido aprovado/em separaÃƒÂ§ÃƒÂ£o.');
-                else if (statusNovo === 'entregue') showToast('Ã°Å¸â€œÂ¦ Pedido finalizado.');
-                else if (statusNovo === 'cancelada') showToast('Ã¢ÂÅ’ Pedido cancelado.');
+                if (statusNovo === 'aprovada') showToast('Pedido aprovado/em separação.');
+                else if (statusNovo === 'entregue') showToast('Pedido finalizado.');
+                else if (statusNovo === 'cancelada') showToast('Pedido cancelado.');
               }
             }
           }
@@ -611,8 +611,8 @@ export function GerenciadorSolicitacoes() {
     if (nextStatus) updates.status = nextStatus;
 
     let { error } = await supabase.from('requisicoes_almoxarifado').update(updates).eq('id', card.id);
-    // Fallback: se a coluna nova (iniciado_em/finalizado_em/separador_id) nÃƒÂ£o existir na base,
-    // remove os campos extras e tenta de novo Ã¢â‚¬â€ assim a baixa funciona mesmo sem a migration rodada.
+    // Fallback: se a coluna nova (iniciado_em/finalizado_em/separador_id) não existir na base,
+    // remove os campos extras e tenta de novo - assim a baixa funciona mesmo sem a migration rodada.
     if (error && /iniciado_em|finalizado_em|separador_id|column/i.test(error.message)) {
       const fallback: Record<string, unknown> = { ...updates, itens: payloadItems };
       delete fallback.iniciado_em;
@@ -622,7 +622,7 @@ export function GerenciadorSolicitacoes() {
       const retry = await supabase.from('requisicoes_almoxarifado').update(fallback).eq('id', card.id);
       error = retry.error;
       if (!error) {
-        console.warn('[GerenciadorSolicitacoes] update via fallback (sem iniciado_em/finalizado_em). Rode a migration 20260423 para habilitar cronÃƒÂ´metro de separaÃƒÂ§ÃƒÂ£o.');
+        console.warn('[GerenciadorSolicitacoes] update via fallback (sem iniciado_em/finalizado_em). Rode a migration 20260423 para habilitar cronômetro de separação.');
       }
     }
     if (error) throw error;
@@ -654,7 +654,7 @@ export function GerenciadorSolicitacoes() {
       if (successMessage) showToast(successMessage);
       return true;
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'NÃƒÂ£o foi possÃƒÂ­vel salvar as alteraÃƒÂ§ÃƒÂµes.';
+      const msg = err instanceof Error ? err.message : 'Não foi possível salvar as alterações.';
       showToast(msg);
       await carregarSolicitacoes();
       return false;
@@ -666,7 +666,7 @@ export function GerenciadorSolicitacoes() {
   async function registrarMovimentacoesSaida(card: CardSolicitacao, nextItems: ItemGerenciavel[]) {
     if (card.isFrota) return;
     if (!usuario?.id) {
-      showToast('RequisiÃƒÂ§ÃƒÂ£o concluÃƒÂ­da, mas usuÃƒÂ¡rio nÃƒÂ£o identificado para movimentaÃƒÂ§ÃƒÂ£o.');
+      showToast('Requisição concluída, mas usuário não identificado para movimentação.');
       return;
     }
 
@@ -677,7 +677,7 @@ export function GerenciadorSolicitacoes() {
         tipo: 'saida',
         quantidade: Number(item.raw.quantidade ?? 0) || 1,
         obra: card.obra,
-        observacao: `SaÃƒÂ­da vinculada ÃƒÂ  requisiÃƒÂ§ÃƒÂ£o ${card.id}`,
+        observacao: `Saída vinculada à requisição ${card.id}`,
         data: new Date().toISOString().slice(0, 10),
         responsavel_id: usuario.id,
       }));
@@ -685,8 +685,8 @@ export function GerenciadorSolicitacoes() {
     if (rows.length === 0) return;
     const { error } = await supabase.from('movimentacoes_almoxarifado').insert(rows);
     if (error) {
-      console.warn('[GerenciadorSolicitacoes] falha ao registrar movimentaÃƒÂ§ÃƒÂµes:', error.message);
-      showToast(`RequisiÃƒÂ§ÃƒÂ£o concluÃƒÂ­da, mas a movimentaÃƒÂ§ÃƒÂ£o nÃƒÂ£o foi registrada: ${error.message}`);
+      console.warn('[GerenciadorSolicitacoes] falha ao registrar movimentações:', error.message);
+      showToast(`Requisição concluída, mas a movimentação não foi registrada: ${error.message}`);
     }
   }
 
@@ -706,13 +706,13 @@ export function GerenciadorSolicitacoes() {
       solicitante_nome: card.solicitante,
       data_inicio: inicio,
       data_fim: fim,
-      descricao: `Frota liberada pela requisiÃƒÂ§ÃƒÂ£o ${card.id}. Obra: ${card.obra}. Uso: ${veiculo.observacaoItem || veiculo.usoFrotaLabel || '-'}`,
+      descricao: `Frota liberada pela requisição ${card.id}. Obra: ${card.obra}. Uso: ${veiculo.observacaoItem || veiculo.usoFrotaLabel || '-'}`,
       status: 'ativo',
     });
 
     if (error) {
       console.warn('[GerenciadorSolicitacoes] falha ao criar agendamento:', error.message);
-      showToast(`VeÃƒÂ­culo liberado, mas o calendÃƒÂ¡rio nÃƒÂ£o foi atualizado: ${error.message}`);
+      showToast(`Veículo liberado, mas o calendário não foi atualizado: ${error.message}`);
     }
   }
 
@@ -752,7 +752,7 @@ export function GerenciadorSolicitacoes() {
 
       void supabase.from('requisicoes_almoxarifado_historico').insert({
         requisicao_id: card.id,
-        acao: 'resposta_correÃƒÂ§ÃƒÂ£o',
+        acao: 'resposta_correção',
         ator_id: usuario?.id ?? null,
         ator_nome: ator,
         solicitante_nome: card.solicitante,
@@ -782,7 +782,7 @@ export function GerenciadorSolicitacoes() {
       return { ...item, choice };
     });
 
-    void salvarAlteracoesLocais(card, nextItems, undefined, 'ConferÃƒÂªncia atualizada.');
+    void salvarAlteracoesLocais(card, nextItems, undefined, 'Conferência atualizada.');
   }
 
   async function handleCameraCapture(file: File) {
@@ -795,7 +795,7 @@ export function GerenciadorSolicitacoes() {
     showToast('Enviando foto...');
     let photoRef = await uploadPhoto(file, target.cardId, target.itemId);
     if (!photoRef) {
-      // fallback: embute base64 (funciona offline, mas Vercel nÃƒÂ£o verÃƒÂ¡)
+      // fallback: embute base64 (funciona offline, mas Vercel não verá)
       try {
         photoRef = await fileToDataUrl(file);
       } catch {
@@ -830,7 +830,7 @@ export function GerenciadorSolicitacoes() {
   }
 
   function handleSaveCard(card: CardSolicitacao) {
-    void salvarAlteracoesLocais(card, card.itens, undefined, 'ConferÃƒÂªncia salva.');
+    void salvarAlteracoesLocais(card, card.itens, undefined, 'Conferência salva.');
   }
 
   function handleIniciarSeparacao(card: CardSolicitacao) {
@@ -844,15 +844,15 @@ export function GerenciadorSolicitacoes() {
       aprovado_em: now,
       decidido_por: usuarioDecisaoLabel(),
     });
-    void salvarAlteracoesLocais(card, nextItems, 'aprovada', 'SeparaÃƒÂ§ÃƒÂ£o iniciada.', {
+    void salvarAlteracoesLocais(card, nextItems, 'aprovada', 'Separação iniciada.', {
       iniciado_em: now,
       observacao,
     });
-    // MovimentaÃƒÂ§ÃƒÂ£o automÃƒÂ¡tica: saÃƒÂ­da de ferramenta/material em separaÃƒÂ§ÃƒÂ£o
+    // Movimentação automática: saída de ferramenta/material em separação
     void registrarMovimentacaoAuto({
       card,
       tipo: card.isFerramenta ? 'saida_ferramenta' : 'saida_material',
-      observacaoExtra: 'Iniciou separaÃƒÂ§ÃƒÂ£o',
+      observacaoExtra: 'Iniciou separação',
     });
   }
 
@@ -863,11 +863,11 @@ export function GerenciadorSolicitacoes() {
     setFreteTerceiroContato('');
   }
 
-  // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ MovimentaÃƒÂ§ÃƒÂ£o automÃƒÂ¡tica: cria linha em movimentacoes_almoxarifado Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
-  // pra rastrear saÃƒÂ­das, devoluÃƒÂ§ÃƒÂµes, manutenÃƒÂ§ÃƒÂµes e bloqueios. Tipo ÃƒÂ© livre (text):
+  // Movimentação automática: cria linha em movimentacoes_almoxarifado.
+  // Pra rastrear saídas, devoluções, manutenções e bloqueios. Tipo é livre (text):
   //   'saida_veiculo' | 'saida_ferramenta' | 'devolucao' | 'cancelamento'
   //   'negativa' | 'manutencao_inicio' | 'manutencao_fim' | 'agenda_bloqueio'
-  // Falha silenciosa Ã¢â‚¬â€ nÃƒÂ£o bloqueia o fluxo principal.
+  // Falha silenciosa - não bloqueia o fluxo principal.
   async function registrarMovimentacaoAuto(opts: {
     card: CardSolicitacao;
     tipo: string;
@@ -883,17 +883,17 @@ export function GerenciadorSolicitacoes() {
           quantidade: Number(it.raw?.quantidade ?? 1) || 1,
           obra: opts.card.obra,
           responsavel_id: usuario.id,
-          observacao: `Pedido ${opts.card.id.slice(0, 8)} Ã¢â‚¬â€ ${opts.observacaoExtra ?? opts.tipo}`,
+          observacao: `Pedido ${opts.card.id.slice(0, 8)} - ${opts.observacaoExtra ?? opts.tipo}`,
         }));
       if (movs.length === 0) return;
       const { error } = await supabase.from('movimentacoes_almoxarifado').insert(movs);
       if (error) console.warn('[movimentacao-auto] falhou:', error.message);
     } catch (err) {
-      console.warn('[movimentacao-auto] exceÃƒÂ§ÃƒÂ£o:', err);
+      console.warn('[movimentacao-auto] exceção:', err);
     }
   }
 
-  // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Marcar como entregue: abre modal pedindo quem entregou/recebeu Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+  // Marcar como entregue: abre modal pedindo quem entregou/recebeu
   function handleMarcarEntregue(card: CardSolicitacao) {
     setEntregaTarget(card);
     setEntregaQuemEntregou(usuario?.nome || '');
@@ -915,7 +915,7 @@ export function GerenciadorSolicitacoes() {
         recebido_em: now,
         ...(entregaObservacao.trim() ? { entrega_observacao: entregaObservacao.trim().replace(/\|/g, '/') } : {}),
       });
-      // AvanÃƒÂ§a rastreio dos itens pra fase 'recebido' (3) Ã¢â‚¬â€ solicitante vÃƒÂª "Entregue"
+      // Avança rastreio dos itens pra fase 'recebido' (3) - solicitante vê "Entregue"
       const nextItems = entregaTarget.itens.map((item) => ({
         ...item,
         faseRastreio: 3 as FaseRastreio,
@@ -930,7 +930,7 @@ export function GerenciadorSolicitacoes() {
     }
   }
 
-  // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Checklist de fechamento: abre modal antes de "Concluir requisiÃƒÂ§ÃƒÂ£o" Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+  // Checklist de fechamento: abre modal antes de "Concluir requisição"
   function handleAbrirChecklistFechamento(card: CardSolicitacao) {
     setFechamentoTarget(card);
     setChkItensConferidos(false);
@@ -945,20 +945,20 @@ export function GerenciadorSolicitacoes() {
       showToast('Marque itens conferidos e quantidades antes de concluir.');
       return;
     }
-    // Delega pra handleDarBaixa (que jÃƒÂ¡ existia) Ã¢â‚¬â€ mas registra movimentaÃƒÂ§ÃƒÂ£o saÃƒÂ­da
+    // Delega pra handleDarBaixa (que já existia), mas registra movimentação saída.
     const card = fechamentoTarget;
     setFechamentoTarget(null);
-    void registrarMovimentacaoAuto({ card, tipo: 'saida_finalizada', observacaoExtra: 'ConcluÃƒÂ­do pelo almoxarifado' });
+    void registrarMovimentacaoAuto({ card, tipo: 'saida_finalizada', observacaoExtra: 'Concluído pelo almoxarifado' });
     handleDarBaixa(card);
   }
 
-  // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ ProlongaÃƒÂ§ÃƒÂ£o: aprova ou nega solicitaÃƒÂ§ÃƒÂ£o do solicitante Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+  // Prolongação: aprova ou nega solicitação do solicitante.
   async function aprovarProlongacao(card: CardSolicitacao) {
     if (!card.prolongacaoPedida) return;
     setSavingId(card.id);
     try {
-      // Se for frota: verifica se a NOVA data nÃƒÂ£o conflita com outro agendamento
-      // do mesmo veÃƒÂ­culo. Pega item_id do veÃƒÂ­culo (todo card de frota tem 1).
+      // Se for frota: verifica se a NOVA data não conflita com outro agendamento
+      // do mesmo veículo. Pega item_id do veículo (todo card de frota tem 1).
       if (card.isFrota) {
         const veiculoId = card.itens.find((it) => it.tipo === 'carro')?.raw?.item_id as string | undefined;
         const inicio = card.prazoIso || card.criadoEm;
@@ -972,10 +972,10 @@ export function GerenciadorSolicitacoes() {
             .eq('status', 'ativo')
             .lte('data_inicio', fim)
             .gte('data_fim', inicio)
-            .not('descricao', 'ilike', `%${card.id}%`); // exclui o prÃƒÂ³prio agendamento
+            .not('descricao', 'ilike', `%${card.id}%`); // exclui o próprio agendamento
           if (conflitos && conflitos.length > 0) {
             const c = conflitos[0];
-            showToast(`Conflito: veÃƒÂ­culo jÃƒÂ¡ reservado por ${c.solicitante_nome ?? 'outro'} atÃƒÂ© ${new Date(c.data_fim).toLocaleString('pt-BR')}. Nega ou negocia.`);
+            showToast(`Conflito: veículo já reservado por ${c.solicitante_nome ?? 'outro'} até ${new Date(c.data_fim).toLocaleString('pt-BR')}. Nega ou negocia.`);
             setSavingId(null);
             return;
           }
@@ -1008,7 +1008,7 @@ export function GerenciadorSolicitacoes() {
         }
       }
 
-      showToast('ProlongaÃƒÂ§ÃƒÂ£o aprovada e prazo atualizado.');
+      showToast('Prolongação aprovada e prazo atualizado.');
       await carregarSolicitacoes();
     } catch (err: any) {
       showToast(`Erro ao aprovar: ${err?.message || err}`);
@@ -1031,7 +1031,7 @@ export function GerenciadorSolicitacoes() {
         .update({ observacao })
         .eq('id', card.id);
       if (error) throw error;
-      showToast('ProlongaÃƒÂ§ÃƒÂ£o negada.');
+      showToast('Prolongação negada.');
       await carregarSolicitacoes();
     } catch (err: any) {
       showToast(`Erro ao negar: ${err?.message || err}`);
@@ -1071,15 +1071,15 @@ export function GerenciadorSolicitacoes() {
 
     setFreteTarget(null);
     void (async () => {
-      const ok = await salvarAlteracoesLocais(card, nextItems, 'aprovada', 'VeÃƒÂ­culo liberado.', {
+      const ok = await salvarAlteracoesLocais(card, nextItems, 'aprovada', 'Veículo liberado.', {
         iniciado_em: now,
         observacao,
       });
       if (ok) {
         await criarAgendamentoFrota(card);
-        // MovimentaÃƒÂ§ÃƒÂ£o automÃƒÂ¡tica + bloqueio de agenda registrado
-        void registrarMovimentacaoAuto({ card, tipo: 'saida_veiculo', observacaoExtra: `Liberado Ã¢â‚¬â€ frete ${freteTipo}` });
-        void registrarMovimentacaoAuto({ card, tipo: 'agenda_bloqueio', observacaoExtra: 'VeÃƒÂ­culo bloqueado no calendÃƒÂ¡rio' });
+        // Movimentação automática + bloqueio de agenda registrado
+        void registrarMovimentacaoAuto({ card, tipo: 'saida_veiculo', observacaoExtra: `Liberado - frete ${freteTipo}` });
+        void registrarMovimentacaoAuto({ card, tipo: 'agenda_bloqueio', observacaoExtra: 'Veículo bloqueado no calendário' });
       }
     })();
   }
@@ -1100,7 +1100,7 @@ export function GerenciadorSolicitacoes() {
       faseRastreio: 3 as FaseRastreio,
     }));
     void (async () => {
-      const ok = await salvarAlteracoesLocais(card, nextItems, 'entregue', 'RequisiÃƒÂ§ÃƒÂ£o concluÃƒÂ­da.', {
+      const ok = await salvarAlteracoesLocais(card, nextItems, 'entregue', 'Requisição concluída.', {
         finalizado_em: new Date().toISOString(),
       });
       if (ok) await registrarMovimentacoesSaida(card, nextItems);
@@ -1112,10 +1112,10 @@ export function GerenciadorSolicitacoes() {
       ...item,
       faseRastreio: 0 as FaseRastreio,
     }));
-    void salvarAlteracoesLocais(card, nextItems, 'pendente', 'SeparaÃƒÂ§ÃƒÂ£o cancelada.', {
+    void salvarAlteracoesLocais(card, nextItems, 'pendente', 'Separação cancelada.', {
       iniciado_em: null,
     });
-    void registrarMovimentacaoAuto({ card, tipo: 'cancelamento_separacao', observacaoExtra: 'SeparaÃƒÂ§ÃƒÂ£o cancelada' });
+    void registrarMovimentacaoAuto({ card, tipo: 'cancelamento_separacao', observacaoExtra: 'Separação cancelada' });
   }
 
   function abrirNegativa(card: CardSolicitacao) {
@@ -1131,7 +1131,7 @@ export function GerenciadorSolicitacoes() {
       showToast('Informe o motivo da negativa.');
       return;
     }
-    // MovimentaÃƒÂ§ÃƒÂ£o automÃƒÂ¡tica: registra negativa
+    // Movimentação automática: registra negativa
     void registrarMovimentacaoAuto({ card, tipo: 'negativa', observacaoExtra: `Negada: ${motivo}` });
 
     const now = new Date().toISOString();
@@ -1148,7 +1148,7 @@ export function GerenciadorSolicitacoes() {
 
     setDenyTarget(null);
     setDenyMotivo('');
-    void salvarAlteracoesLocais(card, card.itens, 'cancelada', 'SolicitaÃƒÂ§ÃƒÂ£o negada.', {
+    void salvarAlteracoesLocais(card, card.itens, 'cancelada', 'Solicitação negada.', {
       finalizado_em: now,
       observacao,
     });
@@ -1159,7 +1159,7 @@ export function GerenciadorSolicitacoes() {
       <div className="mx-auto w-full max-w-[1240px]">
         <section className="rounded-[24px] border border-[rgba(113,154,255,0.26)] bg-[rgba(17,47,115,0.85)] p-5 md:p-6 shadow-[0_18px_40px_rgba(0,0,0,0.28)]">
           <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-            <h1 className="m-0 text-2xl md:text-3xl font-black tracking-tight">Gerenciar SolicitaÃƒÂ§ÃƒÂµes</h1>
+            <h1 className="m-0 text-2xl md:text-3xl font-black tracking-tight">Gerenciar Solicitações</h1>
             <button
               type="button"
               onClick={() => {
@@ -1174,7 +1174,7 @@ export function GerenciadorSolicitacoes() {
 
           <div className="flex flex-wrap gap-2.5 mb-5">
             <span className="rounded-full border border-[rgba(113,154,255,0.3)] bg-[rgba(10,30,77,0.45)] px-3 py-1.5 text-xs font-extrabold uppercase">
-              Fila: {activeCards.length} solicitaÃƒÂ§ÃƒÂµes
+              Fila: {activeCards.length} solicitações
             </span>
             <span className="rounded-full border border-[rgba(113,154,255,0.3)] bg-[rgba(10,30,77,0.45)] px-3 py-1.5 text-xs font-extrabold uppercase">
               Itens para compra: {pendingCount}
@@ -1188,12 +1188,12 @@ export function GerenciadorSolicitacoes() {
             <div className="rounded-2xl border border-[rgba(113,154,255,0.25)] bg-[rgba(10,30,77,0.35)] p-8 text-center text-[#b8c5eb]">
               <span className="inline-flex items-center gap-2">
                 <Loader2 size={16} className="animate-spin" />
-                Carregando solicitaÃƒÂ§ÃƒÂµes...
+                Carregando solicitações...
               </span>
             </div>
           ) : orderedCards.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-[rgba(113,154,255,0.28)] bg-[rgba(10,30,77,0.25)] p-8 text-center text-[#b8c5eb]">
-              Nenhuma solicitaÃƒÂ§ÃƒÂ£o ativa.
+              Nenhuma solicitação ativa.
             </div>
           ) : (
             <div className="space-y-4">
@@ -1222,10 +1222,10 @@ export function GerenciadorSolicitacoes() {
                           </span>
                           {isUrgente && (
                             <span className="rounded-full border border-[rgba(255,107,107,0.7)] bg-[rgba(255,107,107,0.18)] px-2.5 py-1 text-[0.7rem] font-extrabold text-[#ffb4b4] uppercase tracking-wider">
-                              Ã°Å¸Å¡Â¨ URGENTE
+                              URGENTE
                             </span>
                           )}
-                          {/* Badge "Ã¢â€ Â» Repetido": aparece se a meta repetido_de:<id> tÃƒÂ¡ no obs */}
+                          {/* Badge "Repetido": aparece se a meta repetido_de:<id> esta no obs */}
                           {card.repetidoDe && (
                             <span className="rounded-full border border-[rgba(113,154,255,0.45)] bg-[rgba(113,154,255,0.12)] px-2.5 py-1 text-[0.7rem] font-extrabold text-[#cad8ff] uppercase tracking-wider"
                               title={`Repetido a partir do pedido ${card.repetidoDe}`}>
@@ -1233,7 +1233,7 @@ export function GerenciadorSolicitacoes() {
                               Repetido de #{card.repetidoDe.slice(0, 6)}
                             </span>
                           )}
-                          {/* Badge de prioridade calculada Ã¢â‚¬â€ combina urgÃƒÂªncia + atraso + prolongaÃƒÂ§ÃƒÂ£o */}
+                          {/* Badge de prioridade calculada - combina urgencia + atraso + prolongacao */}
                           {card.prioridadeCalc >= 3 && (
                             <span
                               className={`rounded-full border px-2.5 py-1 text-[0.7rem] font-extrabold uppercase tracking-wider ${
@@ -1241,14 +1241,14 @@ export function GerenciadorSolicitacoes() {
                                   ? 'border-[rgba(255,107,107,0.55)] bg-[rgba(255,107,107,0.14)] text-[#ffb4b4]'
                                   : 'border-[rgba(255,202,87,0.55)] bg-[rgba(255,202,87,0.14)] text-[#ffd97a]'
                               }`}
-                              title={`Score: urgÃƒÂªncia + atraso + prolongaÃƒÂ§ÃƒÂ£o`}
+                              title={`Score: urgência + atraso + prolongação`}
                             >
-                              Ã¢Å¡Â¡ Prioridade {card.prioridadeCalc.toFixed(1)}
+                              Prioridade {card.prioridadeCalc.toFixed(1)}
                             </span>
                           )}
                           <span
                             className="rounded-full border border-[rgba(92,155,255,0.45)] bg-[rgba(92,155,255,0.12)] px-2.5 py-1 text-[0.7rem] font-extrabold text-[#cfe0ff] uppercase tracking-wider"
-                            title={card.origemContexto || card.origemModulo || 'Origem da solicitaÃ§Ã£o'}
+                            title={card.origemContexto || card.origemModulo || 'Origem da solicitação'}
                           >
                             Origem: {card.origemArea}
                           </span>                        </div>
@@ -1256,7 +1256,7 @@ export function GerenciadorSolicitacoes() {
                         <p className="m-0 mt-1 text-[#d4e0ff] text-sm md:text-base">{card.resumo}</p>
                         <p className="m-0 mt-2 text-[#9db2e7] text-xs md:text-sm">
                           Solicitante: {card.solicitante} | Cargo: {card.cargo} | Data: {card.dataSolicitacao} | Prazo: {card.prazo}
-                          {card.isFrota && card.devolucao !== '-' ? ` | DevoluÃƒÂ§ÃƒÂ£o: ${card.devolucao}` : ''}
+                          {card.isFrota && card.devolucao !== '-' ? ` | Devolução: ${card.devolucao}` : ''}
                         </p>
                       </div>
 
@@ -1270,8 +1270,8 @@ export function GerenciadorSolicitacoes() {
                     {card.isFrota && (
                       <div className="mb-3 rounded-2xl border border-[rgba(92,155,255,0.28)] bg-[rgba(92,155,255,0.10)] px-4 py-3 text-sm text-[#d4e0ff]">
                         {card.frotaStatus === 'liberada'
-                          ? 'VeÃƒÂ­culo liberado e enviado ao calendÃƒÂ¡rio.'
-                          : 'Aguardando resposta do almoxarifado para liberaÃƒÂ§ÃƒÂ£o do veÃƒÂ­culo.'}
+                          ? 'Veículo liberado e enviado ao calendário.'
+                          : 'Aguardando resposta do almoxarifado para liberação do veículo.'}
                       </div>
                     )}
 
@@ -1284,28 +1284,28 @@ export function GerenciadorSolicitacoes() {
                         </div>
                       </div>
                     )}
-                    {/* Frete (registrado na liberaÃƒÂ§ÃƒÂ£o da frota OU informado pelo solicitante no /req) */}
+                    {/* Frete (registrado na liberação da frota OU informado pelo solicitante no /req) */}
                     {card.freteTipo && (
                       <div className="mb-3 rounded-2xl border border-[rgba(54,196,133,0.28)] bg-[rgba(54,196,133,0.08)] px-4 py-2.5 text-sm text-[#d4f5e2]">
                         <strong>Frete:</strong>{' '}
                         {card.freteTipo === 'terceiro'
-                          ? `Terceirizado${card.freteTerceiroNome ? ` Ã¢â‚¬â€ ${card.freteTerceiroNome}` : ''}${card.freteTerceiroContato ? ` (${card.freteTerceiroContato})` : ''}`
+                          ? `Terceirizado${card.freteTerceiroNome ? ` - ${card.freteTerceiroNome}` : ''}${card.freteTerceiroContato ? ` (${card.freteTerceiroContato})` : ''}`
                           : card.freteTipo === 'proprio'
-                          ? 'Ã°Å¸â€˜Â¤ Solicitante vai retirar pessoalmente'
+                          ? 'ðŸ‘¤ Solicitante vai retirar pessoalmente'
                           : card.freteTipo === 'outro'
-                          ? `Outro${card.freteOutroDescricao ? ` Ã¢â‚¬â€ ${card.freteOutroDescricao}` : ''}`
-                          : 'Ã°Å¸Å¡â€º Biasi Engenharia (frota interna)'}
+                          ? `Outro${card.freteOutroDescricao ? ` - ${card.freteOutroDescricao}` : ''}`
+                          : 'Biasi Engenharia (frota interna)'}
                       </div>
                     )}
 
-                    {/* SolicitaÃƒÂ§ÃƒÂ£o de prolongaÃƒÂ§ÃƒÂ£o aguardando decisÃƒÂ£o */}
+                    {/* Solicitação de prolongação aguardando decisão */}
                     {card.prolongacaoPedida && !card.prolongacaoAprovada && (
                       <div className="mb-3 rounded-2xl border border-[rgba(255,202,87,0.45)] bg-[rgba(255,202,87,0.10)] px-4 py-3 text-sm text-[#ffe9b8]">
                         <div className="flex items-start justify-between gap-3 flex-wrap">
                           <div className="min-w-0 flex-1">
-                            <strong>Ã¢ÂÂ° ProlongaÃƒÂ§ÃƒÂ£o solicitada</strong>
+                            <strong>{'Prolonga\u00e7\u00e3o solicitada'}</strong>
                             <p className="mt-1 text-xs text-[#ffd9a3]">
-                              Nova devoluÃƒÂ§ÃƒÂ£o prevista: <strong>{formatarData(card.prolongacaoPedida)}</strong>
+                              Nova devolução prevista: <strong>{formatarData(card.prolongacaoPedida)}</strong>
                             </p>
                             {card.prolongacaoMotivo && (
                               <p className="mt-1 text-xs italic text-[#ffe9b8]">&ldquo;{card.prolongacaoMotivo}&rdquo;</p>
@@ -1435,7 +1435,7 @@ export function GerenciadorSolicitacoes() {
                                   onChange={() => handleChoiceChange(card, item.id, 'no')}
                                   className="h-4 w-4 accent-[#7ab2ff]"
                                 />
-                                NÃƒÂ£o
+                                Não
                               </label>
 
                               <div className={`inline-flex items-center text-sm font-bold ${statusClass}`}>{statusItem}</div>
@@ -1483,7 +1483,7 @@ export function GerenciadorSolicitacoes() {
                                 )}
                                 {item.fotosUrls.length > 0 && (
                                   <div className="text-[10px] text-[#9db2e7]">
-                                    {item.fotosUrls.length} foto(s){item.photoData ? ' Ã¢â‚¬Â¢ Ã¢Å“â€œ almox' : ''}
+                                    {item.fotosUrls.length} foto(s){item.photoData ? ' - almox' : ''}
                                   </div>
                                 )}
                               </div>
@@ -1495,12 +1495,12 @@ export function GerenciadorSolicitacoes() {
                       <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-t border-[rgba(113,154,255,0.18)] bg-[rgba(255,255,255,0.03)]">
                         <span className="text-sm text-[#cad8ff]">
                           {card.isFrota
-                            ? 'Pedido de frota: liberaÃƒÂ§ÃƒÂ£o/negativa define o prÃƒÂ³ximo passo.'
+                            ? 'Pedido de frota: liberação/negativa define o próximo passo.'
                             : requestNeedsPhotos(card).length === 0
-                            ? 'Sem foto obrigatÃƒÂ³ria (todos os itens marcados como NÃƒÂ£o).'
+                            ? 'Sem foto obrigatória (todos os itens marcados como Não).'
                             : photosComplete
-                            ? 'Fotos obrigatÃƒÂ³rias completas.'
-                            : `Fotos obrigatÃƒÂ³rias pendentes (${ready}/${requestNeedsPhotos(card).length}).`}
+                            ? 'Fotos obrigatórias completas.'
+                            : `Fotos obrigatórias pendentes (${ready}/${requestNeedsPhotos(card).length}).`}
                         </span>
                         <span
                           className={`rounded-full border px-3 py-1 text-[0.72rem] font-extrabold uppercase ${
@@ -1523,7 +1523,7 @@ export function GerenciadorSolicitacoes() {
                           className="inline-flex items-center gap-1.5 rounded-xl border border-[rgba(92,155,255,0.5)] bg-[rgba(92,155,255,0.18)] px-4 py-2 text-sm font-bold text-[#b8d3ff] disabled:opacity-50"
                         >
                           {card.isFrota ? <CheckCircle2 size={14} /> : <Play size={14} />}
-                          {card.isFrota ? 'Liberar veÃƒÂ­culo' : 'Iniciar separaÃƒÂ§ÃƒÂ£o'}
+                          {card.isFrota ? 'Liberar veículo' : 'Iniciar separação'}
                         </button>
                       )}
                       {card.status === 'pendente' && (
@@ -1534,7 +1534,7 @@ export function GerenciadorSolicitacoes() {
                           className="inline-flex items-center gap-1.5 rounded-xl border border-[rgba(255,122,157,0.45)] bg-[rgba(255,122,157,0.12)] px-4 py-2 text-sm font-bold text-[#ffd9e3] disabled:opacity-50"
                         >
                           <XCircle size={14} />
-                          Negar solicitaÃƒÂ§ÃƒÂ£o
+                          Negar solicitação
                         </button>
                       )}
                       <button
@@ -1543,7 +1543,7 @@ export function GerenciadorSolicitacoes() {
                         onClick={() => handleSaveCard(card)}
                         className="inline-flex items-center rounded-xl border border-[rgba(113,154,255,0.35)] bg-[rgba(24,59,141,0.65)] px-4 py-2 text-sm font-bold disabled:opacity-50"
                       >
-                        Salvar conferÃƒÂªncia
+                        Salvar conferência
                       </button>
                       <button
                         type="button"
@@ -1571,7 +1571,7 @@ export function GerenciadorSolicitacoes() {
                           onClick={() => handleAbrirChecklistFechamento(card)}
                           className="inline-flex items-center rounded-xl border border-[rgba(54,196,133,0.35)] bg-[rgba(54,196,133,0.15)] px-4 py-2 text-sm font-bold text-[#8dffca] disabled:opacity-50"
                         >
-                          Concluir requisiÃƒÂ§ÃƒÂ£o
+                          Concluir requisição
                         </button>
                       )}
                       {card.status === 'aprovada' && (
@@ -1581,7 +1581,7 @@ export function GerenciadorSolicitacoes() {
                           onClick={() => handleCancelarBaixa(card)}
                           className="inline-flex items-center rounded-xl border border-[rgba(255,122,157,0.4)] bg-[rgba(255,122,157,0.12)] px-4 py-2 text-sm font-bold text-[#ffd9e3] disabled:opacity-50"
                         >
-                          Cancelar separaÃƒÂ§ÃƒÂ£o
+                          Cancelar separação
                         </button>
                       )}
 
@@ -1609,22 +1609,22 @@ export function GerenciadorSolicitacoes() {
         />
       )}
 
-      {/* Modal: Resposta/correÃ§Ã£o para o solicitante */}
+      {/* Modal: Resposta/correção para o solicitante */}
       {respostaTarget && (
         <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/65 p-4">
           <div className="w-full max-w-xl rounded-2xl border border-[rgba(255,202,87,0.45)] bg-[linear-gradient(180deg,rgba(24,55,120,0.98),rgba(13,31,76,0.98))] p-5 shadow-2xl">
-            <h3 className="m-0 text-xl font-black">Responder/corrigir solicitaÃ§Ã£o</h3>
+            <h3 className="m-0 text-xl font-black">Responder/corrigir solicitação</h3>
             <p className="mt-2 text-sm text-[#cbd6ff]">
-              A resposta fica registrada no histÃ³rico e aparece para o solicitante em "Ver meus pedidos".
+              A resposta fica registrada no histórico e aparece para o solicitante em "Ver meus pedidos".
             </p>
             <div className="mt-3 rounded-xl border border-[rgba(113,154,255,0.28)] bg-[rgba(10,30,77,0.35)] p-3 text-xs text-[#dce6ff]">
               Origem registrada: <strong>{respostaTarget.origemArea}</strong>
-              {respostaTarget.origemContexto ? ` â€” ${respostaTarget.origemContexto}` : ''}
+              {respostaTarget.origemContexto ? ` - ${respostaTarget.origemContexto}` : ''}
             </div>
             <textarea
               rows={5}
               className="mt-4 w-full rounded-xl border border-[rgba(113,154,255,0.35)] bg-[rgba(10,30,77,0.55)] px-3 py-2.5 text-sm text-white outline-none placeholder:text-[#9db2e7] resize-none"
-              placeholder="Ex.: Essa solicitaÃ§Ã£o foi feita no mÃ³dulo incorreto. Para solicitar veÃ­culo, utilize o mÃ³dulo Frota."
+              placeholder="Ex.: Essa solicitação foi feita no módulo incorreto. Para solicitar veículo, utilize o módulo Frota."
               value={respostaTexto}
               onChange={(e) => setRespostaTexto(e.target.value)}
               autoFocus
@@ -1647,7 +1647,7 @@ export function GerenciadorSolicitacoes() {
           <div className="w-full max-w-lg rounded-2xl border border-[rgba(92,155,255,0.45)] bg-[linear-gradient(180deg,rgba(24,55,120,0.98),rgba(13,31,76,0.98))] p-5 shadow-2xl">
             <h3 className="m-0 text-xl font-black">Marcar como entregue</h3>
             <p className="mt-2 text-sm text-[#cbd6ff]">
-              Registra quem entregou e quem recebeu, com horÃƒÂ¡rio. O solicitante vÃƒÂª isso no rastreio.
+              Registra quem entregou e quem recebeu, com horário. O solicitante vê isso no rastreio.
             </p>
             <div className="mt-4 grid gap-3">
               <div className="flex flex-col gap-1.5">
@@ -1670,7 +1670,7 @@ export function GerenciadorSolicitacoes() {
                 />
               </div>
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-bold uppercase tracking-[0.18em] text-[#9db2e7]">ObservaÃƒÂ§ÃƒÂ£o</label>
+                <label className="text-xs font-bold uppercase tracking-[0.18em] text-[#9db2e7]">Observação</label>
                 <textarea
                   rows={2}
                   className="rounded-xl border border-[rgba(113,154,255,0.35)] bg-[rgba(10,30,77,0.55)] px-3 py-2.5 text-sm text-white outline-none placeholder:text-[#9db2e7] resize-none"
@@ -1705,7 +1705,7 @@ export function GerenciadorSolicitacoes() {
                 { check: chkItensConferidos, set: setChkItensConferidos, label: 'Itens conferidos fisicamente', req: true },
                 { check: chkQuantidades,    set: setChkQuantidades,    label: 'Quantidades batem com o pedido', req: true },
                 { check: chkAnexos,         set: setChkAnexos,         label: 'Anexos do solicitante revisados', req: false },
-                { check: chkMovimentacao,   set: setChkMovimentacao,   label: 'MovimentaÃƒÂ§ÃƒÂ£o registrada (auto)',  req: false },
+                { check: chkMovimentacao,   set: setChkMovimentacao,   label: 'Movimentação registrada (auto)',  req: false },
               ].map((it, idx) => (
                 <label key={idx} className="flex items-start gap-3 cursor-pointer hover:bg-white/5 rounded-lg p-2 transition">
                   <input
@@ -1730,7 +1730,7 @@ export function GerenciadorSolicitacoes() {
                 disabled={!chkItensConferidos || !chkQuantidades}
                 className="rounded-xl border border-[rgba(54,196,133,0.45)] bg-[rgba(54,196,133,0.18)] px-4 py-2 text-sm font-bold text-[#abf5d1] disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Concluir requisiÃƒÂ§ÃƒÂ£o
+                Concluir requisição
               </button>
             </div>
           </div>
@@ -1740,9 +1740,9 @@ export function GerenciadorSolicitacoes() {
       {denyTarget && (
         <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/65 p-4">
           <div className="w-full max-w-lg rounded-2xl border border-[rgba(255,122,157,0.35)] bg-[linear-gradient(180deg,rgba(24,55,120,0.98),rgba(13,31,76,0.98))] p-5 shadow-2xl">
-            <h3 className="m-0 text-xl font-black">Negar solicitaÃƒÂ§ÃƒÂ£o</h3>
+            <h3 className="m-0 text-xl font-black">Negar solicitação</h3>
             <p className="mt-2 text-sm text-[#cbd6ff]">
-              Informe o motivo. Esse texto aparecerÃƒÂ¡ para o solicitante na fila.
+              Informe o motivo. Esse texto aparecerá para o solicitante na fila.
             </p>
             <textarea
               className="mt-4 min-h-[120px] w-full rounded-2xl border border-[rgba(255,122,157,0.35)] bg-[rgba(10,30,77,0.55)] px-4 py-3 text-sm text-white outline-none placeholder:text-[#9db2e7]"
@@ -1777,19 +1777,19 @@ export function GerenciadorSolicitacoes() {
       {freteTarget && (
         <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/65 p-4">
           <div className="w-full max-w-lg rounded-2xl border border-[rgba(113,210,255,0.35)] bg-[linear-gradient(180deg,rgba(24,55,120,0.98),rgba(13,31,76,0.98))] p-5 shadow-2xl">
-            <h3 className="m-0 text-xl font-black">Liberar veÃƒÂ­culo</h3>
+            <h3 className="m-0 text-xl font-black">Liberar veículo</h3>
             <p className="mt-2 text-sm text-[#cbd6ff]">
-              Informe quem farÃƒÂ¡ o transporte. O solicitante verÃƒÂ¡ esses dados no rastreio.
+              Informe quem fará o transporte. O solicitante verá esses dados no rastreio.
             </p>
 
             <div className="mt-4 flex flex-col gap-2">
               <label className="text-xs font-bold uppercase tracking-[0.18em] text-[#9db2e7]">Tipo de frete</label>
               <div className="grid grid-cols-2 gap-2">
                 {([
-                  { id: 'biasi',    label: 'Ã°Å¸Å¡â€º Frota Biasi' },
-                  { id: 'terceiro', label: 'Ã°Å¸ÂÂ¢ Terceirizado' },
-                  { id: 'proprio',  label: 'Ã°Å¸â€˜Â¤ Solicitante retira' },
-                  { id: 'outro',    label: 'Ã¢Å¾â€¢ Outro' },
+                  { id: 'biasi',    label: 'Frota Biasi' },
+                  { id: 'terceiro', label: 'Terceirizado' },
+                  { id: 'proprio',  label: 'Solicitante retira' },
+                  { id: 'outro',    label: 'Outro' },
                 ] as const).map((opt) => (
                   <button
                     key={opt.id}
@@ -1835,7 +1835,7 @@ export function GerenciadorSolicitacoes() {
 
             {freteTipo === 'outro' && (
               <div className="mt-4 flex flex-col gap-1.5">
-                <label className="text-xs font-bold uppercase tracking-[0.18em] text-[#9db2e7]">DescriÃƒÂ§ÃƒÂ£o *</label>
+                <label className="text-xs font-bold uppercase tracking-[0.18em] text-[#9db2e7]">Descrição *</label>
                 <input
                   type="text"
                   className="rounded-xl border border-[rgba(113,154,255,0.35)] bg-[rgba(10,30,77,0.55)] px-3 py-2.5 text-sm text-white outline-none placeholder:text-[#9db2e7]"
@@ -1849,7 +1849,7 @@ export function GerenciadorSolicitacoes() {
 
             {freteTipo === 'proprio' && (
               <div className="mt-4 rounded-xl bg-[rgba(54,196,133,0.10)] border border-[rgba(54,196,133,0.35)] px-4 py-3 text-sm text-[#abf5d1]">
-                Solicitante vai retirar pessoalmente Ã¢â‚¬â€ nÃƒÂ£o precisa enviar.
+                Solicitante vai retirar pessoalmente - não precisa enviar.
               </div>
             )}
 
@@ -1870,7 +1870,7 @@ export function GerenciadorSolicitacoes() {
                 onClick={confirmarLiberarFrota}
                 className="rounded-xl border border-[rgba(113,210,255,0.45)] bg-[rgba(113,210,255,0.18)] px-4 py-2 text-sm font-bold text-white"
               >
-                Confirmar liberaÃƒÂ§ÃƒÂ£o
+                Confirmar liberação
               </button>
             </div>
           </div>
@@ -1885,5 +1885,6 @@ export function GerenciadorSolicitacoes() {
     </div>
   );
 }
+
 
 

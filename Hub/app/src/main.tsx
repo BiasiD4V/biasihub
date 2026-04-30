@@ -1,11 +1,13 @@
 import { StrictMode, Suspense, lazy } from 'react'
 import { createRoot } from 'react-dom/client'
 import './styles/index.css'
-import { purgeMobileWebCaches } from './utils/runtime'
+import { supabase } from './infrastructure/supabase/client'
+import { installConnectionRecovery, purgeMobileWebCaches } from './utils/runtime'
 
 const App = lazy(() => import('./App'))
 
 void purgeMobileWebCaches()
+installConnectionRecovery(supabase)
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

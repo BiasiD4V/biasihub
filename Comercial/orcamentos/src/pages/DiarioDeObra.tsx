@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { fetchAutenticado } from '../utils/fetchAutenticado';
+import { isCapacitorRuntime } from '../utils/runtime';
 
 // Types
 interface ObraRDO {
@@ -70,7 +71,15 @@ interface RelatorioDetalhe {
 }
 
 // API helper
-const API_BASE = import.meta.env.DEV ? 'http://localhost:3001' : '';
+const COMERCIAL_API_ORIGIN = 'https://biasihub-comercial.vercel.app';
+
+function getApiBase() {
+  if (import.meta.env.DEV) return 'http://localhost:3001';
+  if (isCapacitorRuntime()) return COMERCIAL_API_ORIGIN;
+  return '';
+}
+
+const API_BASE = getApiBase();
 
 async function rdoFetch<T>(path: string, params?: Record<string, string>): Promise<T> {
   const qs = new URLSearchParams({ path, ...params }).toString();

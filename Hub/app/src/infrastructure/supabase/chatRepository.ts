@@ -38,12 +38,12 @@ export interface Mensagem {
   lido_por: string[];
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ------------------------------------------------------------
 // Canais
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ------------------------------------------------------------
 
 async function listarCanaisDoUsuario(usuarioId: string): Promise<Canal[]> {
-  // Busca canais onde o usuÃ¡rio Ã© membro
+// Busca canais onde o usuario e membro
   const { data: membros, error } = await supabase
     .from('chat_membros')
     .select('canal_id, ultimo_lido_em, chat_canais(id, nome, tipo, descricao, icone, criado_por)')
@@ -72,7 +72,7 @@ async function criarGrupo(
 ): Promise<Canal> {
   const { data: canal, error } = await supabase
     .from('chat_canais')
-    .insert({ nome, tipo: 'grupo', descricao, icone: icone || 'ðŸ‘¥', criado_por })
+    .insert({ nome, tipo: 'grupo', descricao, icone: icone || '👥', criado_por })
     .select()
     .single();
 
@@ -104,7 +104,7 @@ async function criarGrupo(
 }
 
 async function criarDM(usuarioAId: string, usuarioBId: string): Promise<Canal> {
-  // Verifica se jÃ¡ existe DM entre os dois
+// Verifica se ja existe DM entre os dois
   const { data: existente } = await supabase
     .from('chat_canais')
     .select('id, nome, tipo')
@@ -157,15 +157,15 @@ async function listarMembros(canalId: string): Promise<MembroCanal[]> {
 
   return (data ?? []).map((m: any) => ({
     usuario_id: m.usuario_id,
-    nome: m.usuarios?.nome ?? 'UsuÃ¡rio',
+    nome: m.usuarios?.nome ?? 'Usuario',
     papel: m.papel,
     ultimo_lido_em: m.ultimo_lido_em,
   }));
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ------------------------------------------------------------
 // Mensagens
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ------------------------------------------------------------
 
 async function listarMensagens(canalId: string, limite = 60): Promise<Mensagem[]> {
   const { data, error } = await supabase
@@ -198,7 +198,7 @@ async function enviarMensagem(
     .from('chat_mensagens')
     .insert({
       canal_id: canalId,
-      canal: 'chat_v2', // marca como nova versÃ£o
+    canal: 'chat_v2', // marca como nova versao
       remetente_id: remetenteId,
       remetente_nome: remetenteNome,
       conteudo,

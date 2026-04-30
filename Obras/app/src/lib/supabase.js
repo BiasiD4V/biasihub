@@ -80,9 +80,36 @@ import { createClient } from '@supabase/supabase-js'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+const SUPABASE_TIMEOUT_MS = 12000
 
 if (!supabaseUrl || !supabaseAnonKey) {
   console.error('⚠️ Variáveis VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY não configuradas.')
+}
+
+async function fetchWithTimeout(input, init = {}) {
+  const controller = new AbortController()
+  const timeout = globalThis.setTimeout(() => controller.abort(), SUPABASE_TIMEOUT_MS)
+  const onAbort = () => controller.abort()
+
+  if (init.signal) {
+    if (init.signal.aborted) {
+      controller.abort()
+    } else {
+      init.signal.addEventListener('abort', onAbort, { once: true })
+    }
+  }
+
+  try {
+    return await fetch(input, {
+      ...init,
+      signal: controller.signal,
+    })
+  } finally {
+    globalThis.clearTimeout(timeout)
+    if (init.signal) {
+      init.signal.removeEventListener('abort', onAbort)
+    }
+  }
 }
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
@@ -92,7 +119,10 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     detectSessionInUrl: true,
     flowType: 'implicit',   // Hub passa access_token via URL hash → precisa de implicit
     storage: globalThis.localStorage,
-  }
+  },
+  global: {
+    fetch: fetchWithTimeout,
+  },
 })
 
 // ─── PAGINAÇÃO AUTOMÁTICA ─────────────────────────────────────

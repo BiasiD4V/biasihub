@@ -1,4 +1,10 @@
-import type { OrcamentoSupabase } from '../../infrastructure/supabase/orcamentosRepository';
+export interface OrcamentoGamificacao {
+  responsavel?: string | null;
+  responsavel_comercial?: string | null;
+  status?: string | null;
+  resultado_comercial?: string | null;
+  [key: string]: unknown;
+}
 
 // ── Temperatura ──────────────────────────────────────────────────────────────
 
@@ -149,20 +155,37 @@ export function calcularScore(stats: Omit<VendedorStats, 'score'>): number {
   );
 }
 
+function normalizarStatus(texto?: string | null) {
+  return String(texto || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase();
+}
+
+function orcamentoFechado(orc: OrcamentoGamificacao) {
+  const status = normalizarStatus(`${orc.status || ''} ${orc.resultado_comercial || ''}`);
+  return status.includes('FECHAD') || status.includes('GANH') || status.includes('APROV') || status.includes('CONTRAT');
+}
+
+function orcamentoEncerrado(orc: OrcamentoGamificacao) {
+  const status = normalizarStatus(`${orc.status || ''} ${orc.resultado_comercial || ''}`);
+  return orcamentoFechado(orc) || status.includes('NAO FECHAD') || status.includes('PERDID') || status.includes('CANCEL') || status.includes('DECLIN');
+}
+
 export function calcularVendedorStats(
   vendedor: string,
-  orcamentos: OrcamentoSupabase[],
+  orcamentos: OrcamentoGamificacao[],
   energia: number
 ): VendedorStats {
   const vendedorBase = vendedor.toUpperCase().split(' ')[0];
   const meus = orcamentos.filter(o => {
-    const rNome = (o.responsavel || '').toUpperCase();
+    const rNome = String(o.responsavel_comercial || o.responsavel || '').toUpperCase();
     return rNome === vendedor.toUpperCase() || rNome.startsWith(vendedorBase) || vendedorBase.startsWith(rNome.split(' ')[0]);
   });
-  const fechadas = meus.filter(o => o.status === 'FECHADO').length;
+  const fechadas = meus.filter(orcamentoFechado).length;
 
   const tempers = meus
-    .filter(o => !['FECHADO', 'NÃO FECHADO', 'CANCELADO', 'DECLINADO'].includes(o.status || ''))
+    .filter(o => !orcamentoEncerrado(o))
     .map(o => calcularTemperatura(o).temp);
 
   const quentes   = tempers.filter(t => t === 'quente').length;

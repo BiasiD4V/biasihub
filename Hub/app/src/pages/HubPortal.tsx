@@ -31,17 +31,17 @@ const IS_DEV = import.meta.env.DEV;
 // automaticamente. Precisa do caminho explícito pro arquivo.
 const URLS = {
   comercial: IS_ELECTRON
-    ? 'app://comercial.local'
+    ? 'app://comercial.local/'
     : IS_CAPACITOR
       ? '/comercial/index.html'
       : 'https://biasihub-comercial.vercel.app',
   almoxarifado: IS_ELECTRON
-    ? 'app://almoxarifado.local'
+    ? 'app://almoxarifado.local/'
     : IS_CAPACITOR
       ? '/almox/index.html#/dashboard'
       : 'https://biasihub-almoxarifado-weld.vercel.app',
   obras: IS_ELECTRON
-    ? 'app://obras.local'
+    ? 'app://obras.local/'
     : IS_CAPACITOR
       ? '/obras/index.html'
       : 'https://erp-gestaodeobras.vercel.app',

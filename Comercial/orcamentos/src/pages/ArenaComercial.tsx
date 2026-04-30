@@ -4,8 +4,7 @@ import {
   RefreshCw, Users, Target, Clock,
 } from 'lucide-react';
 import { supabase } from '../infrastructure/supabase/client';
-import { orcamentosRepository } from '../infrastructure/supabase/orcamentosRepository';
-import type { OrcamentoSupabase } from '../infrastructure/supabase/orcamentosRepository';
+import { propostasRepository } from '../infrastructure/supabase/propostasRepository';
 import {
   calcularTemperatura, calcularVidaUtil, calcularEnergia,
   calcularVendedorStats, TEMPERATURA_CONFIG,
@@ -16,6 +15,39 @@ import {
 
 import { biraRepository } from '../infrastructure/supabase/biraRepository';
 // Repository import moved to component
+
+type ArenaOrcamento = Awaited<ReturnType<typeof propostasRepository.buscarTodosParaClientes>>[number];
+
+function normalizarStatusArena(texto?: string | null) {
+  return String(texto || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase();
+}
+
+function responsavelOrcamento(orc: ArenaOrcamento) {
+  return orc.responsavel_comercial || orc.responsavel || 'Sem responsável';
+}
+
+function tituloOrcamento(orc: ArenaOrcamento) {
+  return orc.obra || orc.objeto || orc.numero_composto || 'Orçamento sem obra';
+}
+
+function clienteOrcamento(orc: ArenaOrcamento) {
+  return orc.cliente || 'Cliente não informado';
+}
+
+function orcamentoEncerrado(orc: ArenaOrcamento) {
+  const status = normalizarStatusArena(`${orc.status || ''} ${orc.resultado_comercial || ''}`);
+  return (
+    status.includes('FECHAD') ||
+    status.includes('GANH') ||
+    status.includes('NAO FECHAD') ||
+    status.includes('PERDID') ||
+    status.includes('CANCEL') ||
+    status.includes('DECLIN')
+  );
+}
 
 // ── Mini-components ──────────────────────────────────────────────────────────
 
@@ -58,7 +90,7 @@ function SectionHeader({ icon: Icon, title, sub, cor }: { icon: React.ElementTyp
 
 // ── 1. Card de Temperatura ───────────────────────────────────────────────────
 
-function CardTemperatura({ orc }: { orc: OrcamentoSupabase }) {
+function CardTemperatura({ orc }: { orc: ArenaOrcamento }) {
   const { temp, diasSemContato, pct } = calcularTemperatura(orc);
   const cfg = TEMPERATURA_CONFIG[temp];
 
@@ -66,9 +98,9 @@ function CardTemperatura({ orc }: { orc: OrcamentoSupabase }) {
     <div className={`rounded-3xl border-2 ${cfg.borda} ${cfg.bgCard} p-5 shadow-lg ${cfg.glowCls} transition-all hover:scale-[1.01] hover:shadow-xl`}>
       <div className="flex items-start justify-between mb-3">
         <div className="flex-1 min-w-0">
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 truncate">{orc.responsavel || 'Sem responsável'}</p>
-          <p className="font-bold text-sm text-slate-800 leading-tight line-clamp-2">{orc.nome_obra || orc.objeto || '—'}</p>
-          {orc.clientes?.nome && <p className="text-xs text-slate-500 mt-1 truncate font-medium">{orc.clientes.nome}</p>}
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 truncate">{responsavelOrcamento(orc)}</p>
+          <p className="font-bold text-sm text-slate-800 leading-tight line-clamp-2">{tituloOrcamento(orc)}</p>
+          <p className="text-xs text-slate-500 mt-1 truncate font-medium">{clienteOrcamento(orc)}</p>
         </div>
         <span className="text-3xl ml-2 flex-shrink-0 drop-shadow">{cfg.emoji}</span>
       </div>
@@ -152,7 +184,7 @@ function CardEnergia({
 
 // ── 3. Card de Vida Útil ────────────────────────────────────────────────────
 
-function CardVidaUtil({ orc }: { orc: OrcamentoSupabase }) {
+function CardVidaUtil({ orc }: { orc: ArenaOrcamento }) {
   const { pctRestante, diasRestantes, critico } = calcularVidaUtil(orc);
   const vcor = vidaUtilCor(pctRestante);
 
@@ -160,8 +192,8 @@ function CardVidaUtil({ orc }: { orc: OrcamentoSupabase }) {
     <div className={`rounded-3xl border-2 p-5 shadow-lg transition-all hover:scale-[1.01] ${critico ? 'border-red-300 bg-red-50/80 shadow-red-200' : 'border-slate-200 bg-white/80'}`}>
       <div className="flex items-start justify-between mb-1">
         <div className="flex-1 min-w-0 pr-3">
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest truncate">{orc.responsavel || '—'}</p>
-          <p className="font-bold text-sm text-slate-800 mt-0.5 line-clamp-2 leading-tight">{orc.nome_obra || orc.objeto || '—'}</p>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest truncate">{responsavelOrcamento(orc)}</p>
+          <p className="font-bold text-sm text-slate-800 mt-0.5 line-clamp-2 leading-tight">{tituloOrcamento(orc)}</p>
         </div>
         <div className={`text-right flex-shrink-0`}>
           <p className={`text-2xl font-black leading-none ${pctRestante > 60 ? 'text-emerald-600' : pctRestante > 30 ? 'text-amber-500' : 'text-red-600'}`}>
@@ -323,7 +355,7 @@ function ModalAtividade({ vendedor, onClose, onSalvar }: {
 
 export function ArenaComercial() {
   const [vendedores, setVendedores] = useState<string[]>([]);
-  const [orcamentos, setOrcamentos] = useState<OrcamentoSupabase[]>([]);
+  const [orcamentos, setOrcamentos] = useState<ArenaOrcamento[]>([]);
   const [atividades, setAtividades] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [aba, setAba] = useState<'temperatura' | 'energia' | 'vidautil' | 'ranking'>('temperatura');
@@ -343,15 +375,20 @@ export function ArenaComercial() {
     if (!silencioso) setLoading(true);
     try {
       const [members, orcs, ativs] = await Promise.all([
-        biraRepository.listarMembrosComercial(),
-        orcamentosRepository.listarTodos(),
-        supabase.from('vendedor_atividades')
-          .select('*')
-          .gte('criado_em', new Date().toISOString().slice(0, 10))
-          .order('criado_em', { ascending: true })
-          .then(r => r.data || []),
+        biraRepository.listarMembrosComercial().catch(() => [] as Array<{ nome: string }>),
+        propostasRepository.buscarTodosParaClientes().catch(() => [] as ArenaOrcamento[]),
+        (async (): Promise<any[]> => {
+          const { data, error } = await supabase.from('vendedor_atividades')
+            .select('*')
+            .gte('criado_em', new Date().toISOString().slice(0, 10))
+            .order('criado_em', { ascending: true });
+          if (error) return [];
+          return data || [];
+        })(),
       ]);
-      setVendedores(members.map(m => m.nome.toUpperCase()));
+      const nomesMembros = members.map((m) => m.nome.toUpperCase());
+      const nomesOrcamentos = orcs.map((orc) => responsavelOrcamento(orc).toUpperCase()).filter((nome) => nome !== 'SEM RESPONSÁVEL');
+      setVendedores([...new Set([...nomesMembros, ...nomesOrcamentos])].sort());
       setOrcamentos(orcs);
       setAtividades(ativs);
     } catch (err) {
@@ -370,7 +407,13 @@ export function ArenaComercial() {
         console.log('[Arena] Nova atividade detectada! Atualizando...');
         carregar(true); // Atualização silenciosa
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orcamentos' }, () => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'propostas' }, () => {
+        carregar(true);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'follow_ups' }, () => {
+        carregar(true);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'mudancas_etapa' }, () => {
         carregar(true);
       })
       .subscribe();
@@ -379,10 +422,7 @@ export function ArenaComercial() {
   }, [carregar]);
 
   const ativos = useMemo(() =>
-    orcamentos.filter(o => {
-      const s = (o.status || '').toUpperCase();
-      return !['FECHADO', 'NÃO FECHADO', 'CANCELADO', 'DECLINADO'].includes(s);
-    }), [orcamentos]);
+    orcamentos.filter((orc) => !orcamentoEncerrado(orc)), [orcamentos]);
 
   const porTemperatura = useMemo(() => {
     return {

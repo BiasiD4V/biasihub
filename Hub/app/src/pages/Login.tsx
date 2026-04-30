@@ -42,7 +42,7 @@ export function Login() {
       return;
     }
 
-    setErro(resultado.erro ?? 'Credenciais invalidas.');
+    setErro(resultado.erro ?? 'Credenciais inválidas.');
   }
 
   async function handleSolicitarAcesso(e: FormEvent) {
@@ -58,7 +58,7 @@ export function Login() {
       return;
     }
 
-    setErroSolicitacao(resultado.erro ?? 'Erro ao enviar solicitacao.');
+    setErroSolicitacao(resultado.erro ?? 'Erro ao enviar solicitação.');
   }
 
   return (
@@ -80,9 +80,9 @@ export function Login() {
             <div className="mt-12 inline-flex items-center rounded-full border border-[#FFD76E]/40 bg-[#FFC82D]/10 px-4 py-1.5">
               <span className="text-[#FFD76E] text-[10px] font-black uppercase tracking-[0.24em]">Portal corporativo</span>
             </div>
-            <h1 className="mt-6 text-white text-5xl leading-[1.05] font-black max-w-md">Engenharia e instalacoes com controle total.</h1>
+            <h1 className="mt-6 text-white text-5xl leading-[1.05] font-black max-w-md">Engenharia e instalações com controle total.</h1>
             <p className="mt-6 text-[#D9E4FF] text-base max-w-md leading-relaxed">
-              Acesse o ecossistema BiasiHub para operar Comercial, Almoxarifado e Obras com seguranca e performance.
+              Acesse o ecossistema BiasiHub para operar Comercial, Almoxarifado e Obras com segurança e performance.
             </p>
           </div>
 
@@ -158,7 +158,7 @@ export function Login() {
             </form>
 
             <p className="mt-8 text-sm text-[#4B5D89] text-center">
-              Nao tem conta?{' '}
+              Não tem conta?{' '}
               <button
                 onClick={() => {
                   setModalCriar(true);
@@ -196,14 +196,14 @@ export function Login() {
               </button>
 
               <h3 className="text-2xl font-black text-[#233772]">Solicitar acesso</h3>
-              <p className="mt-2 text-sm text-[#4B5D89]">Seu cadastro fica pendente ate aprovacao do admin.</p>
+              <p className="mt-2 text-sm text-[#4B5D89]">Seu cadastro fica pendente até aprovação do admin.</p>
 
               {solicitacaoEnviada ? (
                 <div className="py-8 text-center">
                   <div className="w-12 h-12 rounded-2xl bg-[#233772] text-[#FFC82D] mx-auto flex items-center justify-center mb-4">
                     <ShieldCheck size={22} />
                   </div>
-                  <p className="text-[#233772] font-semibold">Solicitacao enviada com sucesso.</p>
+                  <p className="text-[#233772] font-semibold">Solicitação enviada com sucesso.</p>
                   <button onClick={() => setModalCriar(false)} className="mt-6 w-full h-11 rounded-xl bg-[#233772] text-[#FFC82D] font-black uppercase tracking-[0.15em]">
                     Fechar
                   </button>
@@ -239,7 +239,7 @@ export function Login() {
                     disabled={enviandoSolicitacao}
                     className="w-full h-11 rounded-xl bg-[#233772] text-[#FFC82D] font-black uppercase tracking-[0.16em] disabled:opacity-60"
                   >
-                    {enviandoSolicitacao ? 'Enviando...' : 'Enviar solicitacao'}
+                    {enviandoSolicitacao ? 'Enviando...' : 'Enviar solicitação'}
                   </button>
                 </form>
               )}

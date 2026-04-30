@@ -23,6 +23,13 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
+async function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return await Promise.race([
+    promise,
+    new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms)),
+  ]);
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [usuario, setUsuario] = useState<Usuario | null>(null);
   const [loading, setLoading] = useState(true);
@@ -71,28 +78,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const { data } = supabase.auth.onAuthStateChange(async (_event, session) => {
           if (inicializado.current && _event === 'INITIAL_SESSION') return;
 
-          clearTimeout(timeout);
-
           if (_event === 'INITIAL_SESSION') {
+            let erroInicial: string | null = null;
             if (session?.user) {
-              await loadUserProfile(session.user.id);
+              const ok = await withTimeout(loadUserProfile(session.user.id), 8000, false);
+              if (!ok) {
+                setUsuario(null);
+                erroInicial = 'Não foi possível carregar o perfil no tempo esperado.';
+              }
             } else {
-              const remembered = await validateRememberedSession();
+              const remembered = await withTimeout(
+                validateRememberedSession(),
+                8000,
+                { valid: false as const }
+              );
               if (remembered.valid && remembered.userId) {
-                await loadUserProfile(remembered.userId);
+                const ok = await withTimeout(loadUserProfile(remembered.userId), 8000, false);
+                if (!ok) {
+                  setUsuario(null);
+                  erroInicial = 'Não foi possível recuperar a sessão salva neste dispositivo.';
+                }
               } else {
                 setUsuario(null);
               }
             }
             setLoading(false);
             inicializado.current = true;
-            setErroConexao(null);
+            setErroConexao(erroInicial);
+            clearTimeout(timeout);
           } else if (_event === 'SIGNED_IN') {
             setErroConexao(null);
           } else if (_event === 'SIGNED_OUT') {
             setUsuario(null);
             clearRememberedSession();
             setLoading(false);
+            clearTimeout(timeout);
           }
         });
 
@@ -101,7 +121,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         clearTimeout(timeout);
         inicializado.current = true;
         console.error('Erro ao conectar com Supabase Auth:', err);
-        setErroConexao('Nao foi possivel conectar ao servidor de autenticacao.');
+        setErroConexao('Não foi possível conectar ao servidor de autenticação.');
         setLoading(false);
       }
     }
@@ -142,7 +162,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       return false;
     } catch (error) {
-      console.error('Erro ao carregar perfil do usuario:', error);
+      console.error('Erro ao carregar perfil do usuário:', error);
       return false;
     }
   };
@@ -174,7 +194,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const ok = await loadUserProfile(data.user.id);
         if (!ok) {
           await supabase.auth.signOut();
-          return { sucesso: false, erro: 'Perfil de usuario nao encontrado. Contate o administrador.' };
+          return { sucesso: false, erro: 'Perfil de usuário não encontrado. Contate o administrador.' };
         }
 
         if (rememberMe) {
@@ -186,7 +206,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       return { sucesso: false, erro: 'Erro inesperado no login.' };
     } catch {
-      return { sucesso: false, erro: 'Erro de conexao. Verifique sua internet e tente novamente.' };
+      return { sucesso: false, erro: 'Erro de conexão. Verifique sua internet e tente novamente.' };
     }
   }
 
@@ -195,7 +215,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email: email.trim().toLowerCase(),
       options: { shouldCreateUser: false },
     });
-    if (error) return { sucesso: false, erro: 'E-mail nao encontrado ou erro ao enviar codigo.' };
+    if (error) return { sucesso: false, erro: 'E-mail não encontrado ou erro ao enviar código.' };
     return { sucesso: true };
   }
 
@@ -205,10 +225,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       token,
       type: 'email',
     });
-    if (error) return { sucesso: false, erro: 'Codigo invalido ou expirado.' };
+    if (error) return { sucesso: false, erro: 'Código inválido ou expirado.' };
     if (data.user) {
       const ok = await loadUserProfile(data.user.id);
-      if (!ok) return { sucesso: false, erro: 'Perfil nao encontrado. Contate o administrador.' };
+      if (!ok) return { sucesso: false, erro: 'Perfil não encontrado. Contate o administrador.' };
     }
     return { sucesso: true };
   }

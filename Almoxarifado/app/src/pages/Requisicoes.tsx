@@ -494,7 +494,7 @@ function ItemRow({
           <input
             type="text"
             className={styles.inputCompact}
-            placeholder="Observação do item (se não enviar foto)"
+            placeholder="Observação do item (opcional se buscar ou tirar foto)"
             value={linha.observacao}
             onChange={(e) => onChange({ observacao: e.target.value })}
           />
@@ -512,7 +512,7 @@ function ItemRow({
             {linha.fotosUrls.length > 0 ? `Adicionar foto (${linha.fotosUrls.length})` : 'Foto do item'}
           </button>
           <p className="m-0 text-[0.75rem] text-[#89a2e2]">
-            Preencha a observação ou envie uma foto. Pode mandar os dois.
+            Preencha pelo menos um: busca, observação ou foto.
           </p>
           {linha.fotosUrls.length > 0 && (
             <div className="flex items-center gap-2 flex-wrap">
@@ -929,19 +929,25 @@ export function Requisicoes() {
     if (!cargo) return setErro('Selecione o cargo.');
     if (itens.length === 0) return setErro('Adicione ao menos um item.');
 
-    // Item válido: tem itemId e quantidade. Para "__OUTRO__", a descrição pode
-    // ficar vazia porque a identificação será feita pela foto.
+    // Item válido:
+    // - Frota: precisa selecionar o veículo.
+    // - Material/ferramenta: quantidade > 0 e pelo menos 1 dos 3 campos:
+    //   item selecionado, observação ou foto.
     const itensValidos = itens.filter((l) => {
-      if (!l.itemId || Number(l.quantidade) <= 0) return false;
-      if (l.itemId === '__OUTRO__') return true;
-      return l.descricao.trim().length > 0;
+      const qtd = Number(l.quantidade);
+      if (!Number.isFinite(qtd) || qtd <= 0) return false;
+      if (categoria === 'frota') return !!l.itemId;
+      const temItem = !!l.itemId && (l.itemId === '__OUTRO__' || l.descricao.trim().length > 0);
+      const temObservacao = l.observacao.trim().length > 0;
+      const temFoto = (l.fotos?.length ?? 0) > 0 || (l.fotosUrls?.length ?? 0) > 0;
+      return temItem || temObservacao || temFoto;
     });
     if (itensValidos.length === 0) {
       return setErro(
         categoria === 'insumos'
-          ? 'Selecione ao menos um item do estoque com quantidade valida.'
+          ? 'Informe ao menos um item: selecione no campo de busca, escreva uma observação ou envie uma foto.'
           : categoria === 'ferramentas'
-          ? 'Selecione ao menos uma ferramenta do cadastro com quantidade válida.'
+          ? 'Informe ao menos uma ferramenta: selecione no campo de busca, escreva uma observação ou envie uma foto.'
           : 'Selecione ao menos um veículo da frota.'
       );
     }
@@ -952,12 +958,13 @@ export function Requisicoes() {
     const itensSemResposta = categoria === 'frota'
       ? []
       : itensValidos.filter((l) => {
+          const temItem = !!l.itemId && (l.itemId === '__OUTRO__' || l.descricao.trim().length > 0);
           const temFoto = (l.fotos?.length ?? 0) > 0 || (l.fotosUrls?.length ?? 0) > 0;
           const temObservacao = l.observacao.trim().length > 0;
-          return !temFoto && !temObservacao;
+          return !temItem && !temFoto && !temObservacao;
         });
     if (itensSemResposta.length > 0) {
-      return setErro('Preencha a observação do item ou envie uma foto. Se não souber o nome, descreva o que precisa ou mande foto.');
+      return setErro('Preencha pelo menos um campo do item: busca, observação ou foto.');
     }
 
     if (categoria === 'ferramentas') {
@@ -1044,9 +1051,9 @@ export function Requisicoes() {
                 ? 'Visitar obra'
                 : l.observacao || null
               : l.observacao || null;
-          const ehItemLivre = l.itemId === '__OUTRO__';
+          const ehItemLivre = l.itemId === '__OUTRO__' || !l.itemId;
           const descrFinal = ehItemLivre
-            ? (l.descricao.trim() || '(sem nome — identificar pela foto)')
+            ? (l.observacao.trim() || l.descricao.trim() || 'Item sem nome informado - identificar pela foto')
             : l.descricao;
           const itemIdFinal = ehItemLivre ? null : l.itemId;
 

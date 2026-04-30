@@ -1,9 +1,10 @@
-﻿import { useEffect, useState } from 'react';
+﻿import { useEffect, useRef, useState } from 'react';
 import { Users, Shield, ShieldCheck, ShieldAlert, HardHat, Briefcase, Wrench, Circle, Pencil, Eye, EyeOff, KeyRound, X, Copy, Check, Wifi, Clock, UserX, UserCheck, ChevronDown, ChevronRight, Crown, Building2, AlertTriangle, Package } from 'lucide-react';
 import { supabase } from '../infrastructure/supabase/client';
 import { useAuth } from '../context/AuthContext';
 import { Navigate } from 'react-router-dom';
 import { acessoRepository, type Cargo } from '../infrastructure/supabase/acessoRepository';
+import { createPortal } from 'react-dom';
 
 interface Presenca {
   user_id: string;
@@ -92,6 +93,7 @@ export function Membros() {
   const [novoSenha, setNovoSenha] = useState('');
   const [criandoMembro, setCriandoMembro] = useState(false);
   const [erroNovo, setErroNovo] = useState('');
+  const modalConteudoRef = useRef<HTMLDivElement | null>(null);
 
   const meuPapel = usuario?.papel || '';
   const isSuper = meuPapel === 'admin' || meuPapel === 'dono';
@@ -124,6 +126,20 @@ export function Membros() {
   }
 
   function fecharModal() { setEditando(null); setMensagem(null); }
+
+  useEffect(() => {
+    if (!editando) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    requestAnimationFrame(() => {
+      if (modalConteudoRef.current) modalConteudoRef.current.scrollTop = 0;
+    });
+
+    return () => {
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [editando?.id]);
 
   function abrirNovoMembro(dept: string) {
     setNovoMembroDepto(dept);
@@ -295,7 +311,7 @@ export function Membros() {
             ? { ...m, papel: (body.papel as string) || m.papel, departamento: body.departamento !== undefined ? (body.departamento as string | null) : m.departamento }
             : m
         ));
-        setMensagem({ tipo: 'sucesso', texto: 'Alteracoes salvas com sucesso.' });
+        setMensagem({ tipo: 'sucesso', texto: 'Alterações salvas com sucesso.' });
       }
     } catch {
       setMensagem({ tipo: 'erro', texto: 'Erro de conexao' });
@@ -440,6 +456,11 @@ export function Membros() {
     return AVATAR_COLORS[Math.abs(h) % AVATAR_COLORS.length];
   }
 
+  function renderModal(node: React.ReactNode) {
+    if (typeof document === 'undefined') return null;
+    return createPortal(node, document.body);
+  }
+
   return (
     <div className="p-6 lg:p-12 max-w-7xl mx-auto min-h-screen space-y-12 font-black animate-in fade-in slide-in-from-bottom-8 duration-700 relative z-10">
       {/* Header Estilo Singularity */}
@@ -451,7 +472,7 @@ export function Membros() {
              </div>
              <div>
                 <h1 className="text-4xl font-black text-white tracking-tighter uppercase leading-none">Diretorio de Elite</h1>
-                <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] mt-2 opacity-60">Sincronizacao de Pessoal Ativa</p>
+                <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] mt-2 opacity-60">Sincronização de Pessoal Ativa</p>
              </div>
           </div>
         </div>
@@ -667,7 +688,7 @@ export function Membros() {
       )}
 
       {/* Reconfiguracao dos Modais para Estilo Singularity */}
-      {confirmDesativar && (
+      {confirmDesativar && renderModal(
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-xl z-[999] flex items-center justify-center p-6 animate-in fade-in duration-500" onClick={() => setConfirmDesativar(null)}>
           <div className="premium-glass bg-slate-900 border-2 border-rose-500/30 p-10 w-full max-w-md text-center shadow-[0_40px_100px_rgba(0,0,0,0.6)] relative overflow-hidden rounded-[48px]" onClick={e => e.stopPropagation()}>
             <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-rose-500 to-transparent" />
@@ -686,13 +707,13 @@ export function Membros() {
               >
                 {desativando ? 'Processando Protocolo...' : 'Confirmar Revogacao'}
               </button>
-              <button onClick={() => setConfirmDesativar(null)} className="w-full h-12 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 hover:text-white transition-colors">Abortar Operacao</button>
+              <button onClick={() => setConfirmDesativar(null)} className="w-full h-12 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 hover:text-white transition-colors">Abortar Operação</button>
             </div>
           </div>
         </div>
       )}
 
-      {novoMembroDepto && (
+      {novoMembroDepto && renderModal(
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-xl z-[999] flex items-center justify-center p-6" onClick={() => setNovoMembroDepto(null)}>
           <div className="premium-glass bg-slate-900 border-2 border-emerald-500/30 p-10 w-full max-w-md rounded-[48px] shadow-2xl" onClick={e => e.stopPropagation()}>
             <h3 className="text-2xl font-black text-white uppercase tracking-tight mb-2">Novo Membro</h3>
@@ -743,12 +764,13 @@ export function Membros() {
         </div>
       )}
 
-      {editando && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-xl z-[998] flex items-center justify-center p-6 animate-in fade-in duration-500 overflow-y-auto pt-20 pb-20" onClick={fecharModal}>
-           <div className="premium-glass bg-slate-900 border-2 border-white/10 w-full max-w-2xl rounded-[60px] shadow-[0_60px_120px_rgba(0,0,0,0.8)] overflow-hidden flex flex-col relative" onClick={e => e.stopPropagation()}>
+      {editando && renderModal(
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-xl z-[998] flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-500 overflow-hidden" onClick={fecharModal}>
+           <div className="premium-glass bg-slate-900 border-2 border-white/10 w-full max-w-2xl rounded-[40px] shadow-[0_60px_120px_rgba(0,0,0,0.8)] flex flex-col relative max-h-[92vh] overflow-hidden" onClick={e => e.stopPropagation()}>
               <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-sky-400 to-transparent" />
               
-              <div className="p-10 lg:p-12 space-y-12">
+              <div ref={modalConteudoRef} className="flex-1 overflow-y-auto overflow-x-hidden">
+                <div className="p-10 lg:p-12 space-y-12">
                  <div className="flex flex-col lg:flex-row items-center lg:items-end justify-between gap-8">
                     <div className="flex items-center gap-8">
                        <div className={`bg-gradient-to-tr ${getAvatarColor(editando.nome)} rounded-[32px] w-20 h-20 flex items-center justify-center shadow-2xl border-4 border-white/20 rotate-3`}>
@@ -770,7 +792,7 @@ export function Membros() {
                     <div className="space-y-6">
                        <div className="flex items-center gap-4">
                           <Building2 size={16} className="text-slate-500" />
-                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em]">Sincronizacao de Unidade</label>
+                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em]">Sincronização de Unidade</label>
                        </div>
                        <div className="grid grid-cols-2 gap-4">
                          {DEPARTAMENTOS.map(d => (
@@ -849,9 +871,10 @@ export function Membros() {
                    </div>
                  )}
               </div>
+              </div>
 
               <div className="p-10 lg:p-12 bg-white/5 border-t-2 border-white/5 flex flex-col sm:flex-row items-center justify-between gap-6">
-                 <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.4em] text-center sm:text-left">Atencao: Acoes de sistema sao auditadas pelo protocolo Singularity.</p>
+                 <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.4em] text-center sm:text-left">Atencao: Ações de sistema são auditadas pelo protocolo Singularity.</p>
                  <div className="flex items-center gap-6 w-full sm:w-auto">
                     <button onClick={fecharModal} className="flex-1 sm:flex-none h-16 px-8 text-[11px] font-black uppercase tracking-[0.3em] text-slate-500 hover:text-white transition-colors">Cancelar</button>
                     <button 
@@ -869,6 +892,8 @@ export function Membros() {
     </div>
   );
 }
+
+
 
 
 

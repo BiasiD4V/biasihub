@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+const SUPABASE_TIMEOUT_MS = 12000
 
 if (!supabaseUrl || !supabaseAnonKey) {
   // Loga em vermelho pra ficar visível no DevTools (Vercel/Capacitor).
@@ -12,6 +13,32 @@ if (!supabaseUrl || !supabaseAnonKey) {
     '%c[Supabase] VITE_SUPABASE_URL ou VITE_SUPABASE_ANON_KEY ausentes — login vai falhar.',
     'color:#fff;background:#c0392b;padding:4px 8px;font-weight:bold'
   );
+}
+
+async function fetchWithTimeout(input: RequestInfo | URL, init?: RequestInit) {
+  const controller = new AbortController()
+  const timeout = window.setTimeout(() => controller.abort(), SUPABASE_TIMEOUT_MS)
+  const onAbort = () => controller.abort()
+
+  if (init?.signal) {
+    if (init.signal.aborted) {
+      controller.abort()
+    } else {
+      init.signal.addEventListener('abort', onAbort, { once: true })
+    }
+  }
+
+  try {
+    return await fetch(input, {
+      ...init,
+      signal: controller.signal,
+    })
+  } finally {
+    window.clearTimeout(timeout)
+    if (init?.signal) {
+      init.signal.removeEventListener('abort', onAbort)
+    }
+  }
 }
 
 export const supabase = createClient(
@@ -27,6 +54,9 @@ export const supabase = createClient(
       storage: typeof window !== 'undefined' ? window.localStorage : undefined,
       // NÃO mexer em storageKey — usa default do Supabase pra manter sessão
       // compartilhada entre Hub e Almoxarifado.
+    },
+    global: {
+      fetch: fetchWithTimeout,
     },
   }
 )

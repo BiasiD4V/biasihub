@@ -1,6 +1,6 @@
 ﻿import { useState, useEffect, useRef } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutGrid, Users, LogOut, Menu, X, Laptop, ShieldCheck, MessageCircle, BarChart3 } from 'lucide-react';
+import { LayoutGrid, Users, LogOut, Menu, X, Laptop, ShieldCheck, MessageCircle, BarChart3, Bot } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { acessoRepository } from '../../infrastructure/supabase/acessoRepository';
 import { supabase } from '../../infrastructure/supabase/client';
@@ -13,6 +13,7 @@ interface SidebarProps {
 
 const NAV_ITEMS_BASE = [
   { to: '/', icon: LayoutGrid, label: 'Portal', end: true, adminOnly: false },
+  { to: '/agentes', icon: Bot, label: 'Agentes', end: false, adminOnly: false },
   { to: '/membros', icon: Users, label: 'Membros', end: false, adminOnly: false },
   { to: '/meus-dispositivos', icon: Laptop, label: 'Dispositivos', end: false, adminOnly: false },
   { to: '/gerenciar-acessos', icon: ShieldCheck, label: 'Acessos', end: false, adminOnly: true },
@@ -118,7 +119,7 @@ export function Sidebar({ chatAberto, onAbrirChat }: SidebarProps) {
   }
 
   const initials = usuario?.nome
-    ? usuario.nome.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase()
+        ? usuario.nome.split(' ').slice(0, 2).map((n: string) => n[0]).join('').toUpperCase()
     : '?';
 
   const SidebarContent = () => (
