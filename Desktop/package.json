@@ -1,6 +1,6 @@
 {
   "name": "biasihub-desktop",
-  "version": "1.0.48",
+  "version": "1.0.49",
   "description": "BiasíHub ERP - Plataforma Corporativa Biasi Engenharia",
   "main": "electron/main.js",
   "author": "Biasi Engenharia",
@@ -11,10 +11,11 @@
     "dev:comercial": "npm run dev --prefix ../Comercial/orcamentos",
     "dev:obras": "npm run dev --prefix ../Obras/app",
     "dev": "concurrently -n \"HUB,ALM,COM,OBR,APP\" -c \"blue,green,yellow,magenta,cyan\" \"npm run dev:hub\" \"npm run dev:almoxarifado\" \"npm run dev:comercial\" \"npm run dev:obras\" \"electron .\"",
-    "package": "electron-builder --win && powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\cleanup-dist.ps1 -KeepCount 2",
-    "package:dir": "electron-builder --win --dir",
+    "build:apps": "node scripts/build-apps.mjs",
+    "package": "npm run build:apps && electron-builder --win && powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\cleanup-dist.ps1 -KeepCount 2",
+    "package:dir": "npm run build:apps && electron-builder --win --dir",
     "cleanup:dist": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\cleanup-dist.ps1 -KeepCount 2",
-    "publish": "electron-builder --win --publish always"
+    "publish": "npm run build:apps && electron-builder --win --publish always"
   },
   "dependencies": {
     "electron-store": "^10.0.0",

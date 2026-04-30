@@ -1,6 +1,6 @@
 {
   "name": "biasihub-mobile",
-  "version": "1.0.48",
+  "version": "1.0.49",
   "description": "BiasíHub Mobile (Android APK via Capacitor)",
   "private": true,
   "type": "module",

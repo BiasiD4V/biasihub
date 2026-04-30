@@ -12,16 +12,47 @@ interface UpdateStatus {
 
 type Phase = 'idle' | 'downloading' | 'ready' | 'error';
 
+const MOBILE_UPDATE_DISMISS_PREFIX = 'biasihub-mobile-update-dismissed:';
+
+function normalizeVersionTag(tag?: string | null) {
+  return String(tag || '').trim().replace(/^v/i, '');
+}
+
 function isNewerVersion(latestTag: string, currentTag: string) {
-  if (!latestTag) return false;
-  if (!currentTag || currentTag === 'dev') return true;
-  const latest = latestTag.replace(/^v/, '').split('.').map((n) => Number(n) || 0);
-  const current = currentTag.replace(/^v/, '').split('.').map((n) => Number(n) || 0);
+  const normalizedLatest = normalizeVersionTag(latestTag);
+  const normalizedCurrent = normalizeVersionTag(currentTag);
+  if (!normalizedLatest) return false;
+  if (!normalizedCurrent || normalizedCurrent === 'dev') return false;
+  const latest = normalizedLatest.split('.').map((n) => Number(n) || 0);
+  const current = normalizedCurrent.split('.').map((n) => Number(n) || 0);
   for (let i = 0; i < Math.max(latest.length, current.length); i++) {
     if ((latest[i] || 0) > (current[i] || 0)) return true;
     if ((latest[i] || 0) < (current[i] || 0)) return false;
   }
   return false;
+}
+
+function getMobileDismissKey(version?: string | null) {
+  const normalized = normalizeVersionTag(version);
+  return normalized ? `${MOBILE_UPDATE_DISMISS_PREFIX}${normalized}` : '';
+}
+
+function wasMobileUpdateDismissed(version?: string | null) {
+  try {
+    const key = getMobileDismissKey(version);
+    return Boolean(key && window.localStorage.getItem(key) === '1');
+  } catch {
+    return false;
+  }
+}
+
+function rememberMobileUpdateDismissed(version?: string | null) {
+  try {
+    const key = getMobileDismissKey(version);
+    if (key) window.localStorage.setItem(key, '1');
+  } catch {
+    // Ignora ambientes sem localStorage persistente.
+  }
 }
 
 export function UpdateChecker() {
@@ -34,7 +65,7 @@ export function UpdateChecker() {
 
   const bridge = (window as any).electronBridge;
   const isCapacitor = isCapacitorRuntime();
-  const mobileCurrentVersion = (import.meta.env.VITE_MOBILE_RELEASE_TAG || 'dev').replace(/^v/, '');
+  const mobileCurrentVersion = normalizeVersionTag(import.meta.env.VITE_MOBILE_RELEASE_TAG || '');
 
   useEffect(() => {
     if (isCapacitor) {
@@ -45,11 +76,12 @@ export function UpdateChecker() {
           const res = await fetch('https://api.github.com/repos/BiasiD4V/biasihub/releases/latest', { cache: 'no-store' });
           if (!res.ok || cancelado) return;
           const release = await res.json();
-          const latestTag = String(release.tag_name || '').replace(/^v/, '');
+          const latestTag = normalizeVersionTag(release.tag_name);
           const apkAsset = (release.assets || []).find((asset: any) =>
             String(asset.name || '').toLowerCase().endsWith('.apk')
           );
           if (latestTag && apkAsset?.browser_download_url && isNewerVersion(latestTag, mobileCurrentVersion)) {
+            if (wasMobileUpdateDismissed(latestTag)) return;
             setUpdateStatus({
               hasUpdate: true,
               version: latestTag,
@@ -105,6 +137,9 @@ export function UpdateChecker() {
 
   async function handleStartDownload() {
     if (isCapacitor && updateStatus?.downloadUrl) {
+      rememberMobileUpdateDismissed(updateStatus.version);
+      setShowNotification(false);
+      setDismissed(true);
       try {
         const browser = (window as any).Capacitor?.Plugins?.Browser;
         if (browser?.open) {
@@ -138,6 +173,9 @@ export function UpdateChecker() {
   }
 
   function handleDismiss() {
+    if (isCapacitor && updateStatus?.version) {
+      rememberMobileUpdateDismissed(updateStatus.version);
+    }
     setShowNotification(false);
     setDismissed(true);
   }

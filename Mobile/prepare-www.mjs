@@ -13,13 +13,15 @@
 // Hub detecta Capacitor (via window.Capacitor) e linka pros subpaths locais.
 
 import { execSync } from 'child_process';
-import { copyFileSync, existsSync, mkdirSync, readdirSync, rmSync, statSync } from 'fs';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync } from 'fs';
 import { join, resolve } from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const ROOT = resolve(__dirname, '..');
 const WWW = join(__dirname, 'www');
+const mobilePackage = JSON.parse(readFileSync(join(__dirname, 'package.json'), 'utf8'));
+const MOBILE_RELEASE_TAG = process.env.VITE_MOBILE_RELEASE_TAG || (mobilePackage.version ? `v${mobilePackage.version}` : 'dev');
 
 // (path do módulo, base path no Mobile, destino dentro de www/)
 const MODULES = [
@@ -55,6 +57,7 @@ function build(mod) {
   execSync(`npx vite build --base=${mod.base}`, {
     cwd: mod.dir,
     stdio: 'inherit',
+    env: { ...process.env, VITE_MOBILE_RELEASE_TAG: MOBILE_RELEASE_TAG },
   });
 }
 
@@ -75,7 +78,7 @@ function copyDist(mod) {
 
 function main() {
   // 1. Limpa www/ inteiro
-  log('Limpando www/...');
+  log(`Limpando www/... release=${MOBILE_RELEASE_TAG}`);
   if (existsSync(WWW)) rmSync(WWW, { recursive: true, force: true });
   mkdirSync(WWW, { recursive: true });
 
