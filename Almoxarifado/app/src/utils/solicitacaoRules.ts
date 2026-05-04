@@ -3,7 +3,7 @@ export type CategoriaSolicitacao = 'insumos' | 'ferramentas' | 'frota';
 export const SOLICITACAO_HORA_INICIO = '07:00';
 export const SOLICITACAO_HORA_FIM = '16:00';
 export const SOLICITACAO_FORA_HORARIO_MSG =
-  'Solicitação fora do horário permitido. As solicitações só podem ser feitas entre 07:00 e 16:00. Procure o almoxarifado em caso de dúvida.';
+  'Solicitacao fora do horario permitido. As solicitacoes so podem ser feitas entre 07:00 e 16:00. Procure o almoxarifado em caso de duvida.';
 
 const ORIGEM_LABEL: Record<CategoriaSolicitacao, string> = {
   insumos: 'Itens/Materiais',
@@ -18,7 +18,7 @@ const ORIGEM_MODULO: Record<CategoriaSolicitacao, string> = {
 };
 
 export function origemLabel(categoria: CategoriaSolicitacao): string {
-  return ORIGEM_LABEL[categoria] ?? 'Outro módulo do Hub';
+  return ORIGEM_LABEL[categoria] ?? 'Outro modulo do Hub';
 }
 
 export function origemModulo(categoria: CategoriaSolicitacao): string {
@@ -26,7 +26,15 @@ export function origemModulo(categoria: CategoriaSolicitacao): string {
 }
 
 export function minutosDoDia(date = new Date()): number {
-  return date.getHours() * 60 + date.getMinutes();
+  const parts = new Intl.DateTimeFormat('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(date);
+  const hour = Number(parts.find((part) => part.type === 'hour')?.value ?? date.getHours());
+  const minute = Number(parts.find((part) => part.type === 'minute')?.value ?? date.getMinutes());
+  return hour * 60 + minute;
 }
 
 export function horarioSolicitacaoPermitido(date = new Date()): boolean {
@@ -47,12 +55,11 @@ export function ferramentaEstaBloqueada(item: FerramentaBloqueio | null | undefi
 export function motivoBloqueioFerramenta(item: FerramentaBloqueio | null | undefined): string {
   const motivo = String(item?.bloqueio_motivo || '').trim();
   const detalhe = String(item?.bloqueio_observacao || '').trim();
-  if (motivo && detalhe) return `${motivo} — ${detalhe}`;
+  if (motivo && detalhe) return `${motivo} - ${detalhe}`;
   if (motivo) return motivo;
-  return 'Ferramenta indisponível para solicitação';
+  return 'Ferramenta indisponivel para solicitacao';
 }
 
 export function mensagemFerramentaBloqueada(item: FerramentaBloqueio | null | undefined): string {
-  return `Essa ferramenta está indisponível: ${motivoBloqueioFerramenta(item)}. Procure o almoxarifado em caso de dúvida.`;
+  return `Essa ferramenta esta indisponivel: ${motivoBloqueioFerramenta(item)}. Procure o almoxarifado em caso de duvida.`;
 }
-
