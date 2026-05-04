@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
 import { Camera, Loader2, RefreshCw } from 'lucide-react';
 import type { Requisicao, StatusRequisicao } from '../domain/entities/Requisicao';
 import { supabase } from '../infrastructure/supabase/client';
@@ -45,6 +45,7 @@ interface PedidoEntrega {
   status: StatusRequisicao;
   criadoEm: string;
   observacao: string;
+  observacaoOriginal: string;
   responsavelSeparacao: string;
   motorista: string;
   recebedor: string;
@@ -67,7 +68,8 @@ interface PedidoEntrega {
 const STORAGE_BUCKET = 'requisicoes';
 const FASES_SEM_ENTREGA = ['Separando', 'Separado', 'Finalizado', 'Recebido'] as const;
 const FASES_COM_ENTREGA = ['Separando', 'Separado', 'A caminho', 'Recebido'] as const;
-const FASE_INDICES: FaseRastreio[] = [0, 1, 2, 3];
+// Apenas fase 1 (Separado) exige foto — as demais são opcionais
+const FASE_INDICES: FaseRastreio[] = [1];
 
 function normalizeDisplayText(value: string | null | undefined): string {
   const raw = (value ?? '').trim();
@@ -95,6 +97,24 @@ function parseObsMeta(observacao: string | null): Record<string, string> {
       if (key) meta[key] = value;
     });
   return meta;
+}
+
+function upsertObsMeta(rawObservacao: string, updates: Record<string, string>): string {
+  const parts = String(rawObservacao || '')
+    .split('|')
+    .map((part) => part.trim())
+    .filter(Boolean);
+  const nextParts = parts.filter((part) => {
+    const key = part.slice(0, part.indexOf(':')).trim().toLowerCase();
+    return !Object.prototype.hasOwnProperty.call(updates, key);
+  });
+
+  for (const [key, value] of Object.entries(updates)) {
+    const cleanValue = String(value || '').trim();
+    if (cleanValue) nextParts.push(`${key}:${cleanValue}`);
+  }
+
+  return nextParts.join(' | ');
 }
 
 function metaSim(value: string | undefined): boolean {
@@ -289,6 +309,7 @@ function mapRowToPedido(row: RequisicaoComJoin & { telefone?: string | null; sol
     status,
     criadoEm: row.criado_em,
     observacao: normalizeDisplayText(meta.obs || '-'),
+    observacaoOriginal: row.observacao || '',
     responsavelSeparacao: normalizeDisplayText(meta.responsavel || '-'),
     motorista: normalizeDisplayText(meta.motorista || '-'),
     recebedor: normalizeDisplayText(meta.recebedor || '-'),
@@ -332,6 +353,12 @@ export function RastreioEntregaMateriais() {
   const [toast, setToast] = useState('');
   const [camTarget, setCamTarget] = useState<{ pedidoId: string; itemId: string; fase: FaseRastreio } | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Modal de assinatura digital
+  const [assinaturaPedido, setAssinaturaPedido] = useState<PedidoEntrega | null>(null);
+  const [assinaturaRecebedor, setAssinaturaRecebedor] = useState('');
+  const [assinaturaFeita, setAssinaturaFeita] = useState(false);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const desenhando = useRef(false);
 
   const resumo = useMemo(() => {
     return {
@@ -449,7 +476,8 @@ export function RastreioEntregaMateriais() {
 
   function avancarFase(pedido: PedidoEntrega) {
     if (pedido.fase >= 3) return;
-    if (!todasFotosDaFase(pedido, pedido.fase)) {
+    const exigeFotoNestaFase = FASE_INDICES.includes(pedido.fase);
+    if (exigeFotoNestaFase && !todasFotosDaFase(pedido, pedido.fase)) {
       showToast(`Faltam fotos da fase "${nomeFase(pedido, pedido.fase)}". Tire uma foto para cada item antes de avançar.`);
       return;
     }
@@ -463,14 +491,34 @@ export function RastreioEntregaMateriais() {
     void atualizarFase(pedido, next, 'Fase regredida.');
   }
 
-  async function concluirBaixa(pedido: PedidoEntrega) {
+  async function concluirBaixa(pedido: PedidoEntrega, recebedorNome?: string, assinaturaDataUrl?: string) {
     setSavingId(pedido.id);
 
     try {
       const itensPayload = pedido.itens.map((item) => applyItemMeta(item, 3));
+      // Upload assinatura se disponível
+      let assinaturaUrl = '';
+      if (assinaturaDataUrl && assinaturaDataUrl.startsWith('data:image')) {
+        try {
+          const res = await fetch(assinaturaDataUrl);
+          const blob = await res.blob();
+          const path = `assinaturas/${pedido.id}_${Date.now()}.png`;
+          const { data: up } = await supabase.storage.from(STORAGE_BUCKET).upload(path, blob, { contentType: 'image/png', upsert: true });
+          if (up) {
+            const { data: pub } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
+            assinaturaUrl = pub.publicUrl;
+          }
+        } catch { /* ignora erro de upload de assinatura */ }
+      }
+      const obsAtualizada = upsertObsMeta(pedido.observacaoOriginal || `obs:${pedido.observacao}`, {
+        recebedor: recebedorNome || '',
+        recebido_por_nome: recebedorNome || '',
+        recebido_em: new Date().toISOString(),
+        assinatura_url: assinaturaUrl,
+      });
       const { error } = await supabase
         .from('requisicoes_almoxarifado')
-        .update({ itens: itensPayload, status: 'entregue' })
+        .update({ itens: itensPayload, status: 'entregue', observacao: obsAtualizada })
         .eq('id', pedido.id);
 
       if (error) throw error;
@@ -553,15 +601,86 @@ export function RastreioEntregaMateriais() {
   function darBaixa(pedido: PedidoEntrega) {
     if (pedido.fase !== 3) return;
     if (!todasFotosCompletas(pedido)) {
-      showToast('Faltam fotos de alguma fase. São 4 fotos por item (uma em cada etapa).');
+      showToast('Faltam fotos da fase "Separado". Tire uma foto de cada item antes de concluir.');
       return;
     }
-    if (!pedido.confirmandoBaixa) {
-      updatePedidoState(pedido.id, (current) => ({ ...current, confirmandoBaixa: true }));
-      showToast('Clique novamente para confirmar a baixa.');
+    // Abre modal de assinatura digital
+    setAssinaturaRecebedor('');
+    setAssinaturaFeita(false);
+    setAssinaturaPedido(pedido);
+    setTimeout(() => {
+      if (canvasRef.current) {
+        const ctx = canvasRef.current.getContext('2d');
+        if (ctx) {
+          ctx.fillStyle = '#0d2050';
+          ctx.fillRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+        }
+      }
+    }, 100);
+  }
+
+  function limparCanvas() {
+    if (!canvasRef.current) return;
+    const ctx = canvasRef.current.getContext('2d');
+    if (!ctx) return;
+    ctx.fillStyle = '#0d2050';
+    ctx.fillRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+    setAssinaturaFeita(false);
+  }
+
+  function pontoCanvas(event: PointerEvent<HTMLCanvasElement>) {
+    const canvas = canvasRef.current;
+    if (!canvas) return null;
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: ((event.clientX - rect.left) / rect.width) * canvas.width,
+      y: ((event.clientY - rect.top) / rect.height) * canvas.height,
+    };
+  }
+
+  function iniciarAssinatura(event: PointerEvent<HTMLCanvasElement>) {
+    const canvas = canvasRef.current;
+    const ponto = pontoCanvas(event);
+    if (!canvas || !ponto) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    canvas.setPointerCapture(event.pointerId);
+    desenhando.current = true;
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 4;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(ponto.x, ponto.y);
+  }
+
+  function moverAssinatura(event: PointerEvent<HTMLCanvasElement>) {
+    if (!desenhando.current) return;
+    const ponto = pontoCanvas(event);
+    const ctx = canvasRef.current?.getContext('2d');
+    if (!ponto || !ctx) return;
+    ctx.lineTo(ponto.x, ponto.y);
+    ctx.stroke();
+    setAssinaturaFeita(true);
+  }
+
+  function pararAssinatura() {
+    desenhando.current = false;
+  }
+
+  function confirmarAssinatura() {
+    if (!assinaturaPedido) return;
+    if (!assinaturaRecebedor.trim()) {
+      showToast('Informe o nome de quem recebeu.');
       return;
     }
-    void concluirBaixa(pedido);
+    if (!assinaturaFeita) {
+      showToast('Colete a assinatura digital antes de finalizar.');
+      return;
+    }
+    const assinaturaDataUrl = canvasRef.current ? canvasRef.current.toDataURL('image/png') : '';
+    setAssinaturaPedido(null);
+    void concluirBaixa(assinaturaPedido, assinaturaRecebedor, assinaturaDataUrl);
   }
 
   return (
@@ -616,6 +735,13 @@ export function RastreioEntregaMateriais() {
         .rt-item-card { margin-bottom:10px; border:1px solid rgba(120,160,255,0.2); border-radius:12px; padding:10px 12px; background: rgba(10,30,77,0.28); }
         .rt-empty, .rt-loading { border: 1px dashed rgba(120,160,255,0.28); border-radius:18px; padding:24px; text-align:center; color:#b8c8f7; background: rgba(255,255,255,0.03); }
         .rt-toast { position:fixed; right:18px; bottom:18px; border:1px solid rgba(120,160,255,0.35); background: rgba(10,31,78,0.95); border-radius:12px; padding:10px 14px; font-weight:700; z-index:120; }
+        .rt-modal-backdrop { position: fixed; inset: 0; z-index: 110; display: flex; align-items: center; justify-content: center; padding: 18px; background: rgba(0,0,0,0.68); }
+        .rt-modal { width: min(720px, 100%); border: 1px solid rgba(255,200,45,0.38); border-radius: 22px; background: #102f73; box-shadow: 0 24px 70px rgba(0,0,0,0.45); padding: 18px; }
+        .rt-modal h3 { margin: 0 0 6px; font-size: 22px; }
+        .rt-modal p { margin: 0 0 14px; color: #cbd8ff; font-size: 14px; }
+        .rt-assinatura-input { width: 100%; min-height: 46px; border-radius: 14px; border: 1px solid rgba(120,160,255,0.35); background: #0d2050; color: #fff; padding: 0 14px; outline: none; margin-bottom: 12px; }
+        .rt-assinatura-canvas { width: 100%; height: 220px; border-radius: 16px; border: 1px dashed rgba(255,200,45,0.45); background: #0d2050; touch-action: none; display: block; }
+        .rt-modal-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; margin-top: 14px; }
         @media (max-width: 768px) {
           .rt-page { padding: 16px; }
           .rt-pedido-topo { flex-direction: column; }
@@ -629,7 +755,7 @@ export function RastreioEntregaMateriais() {
         <div className="rt-topo">
           <div>
             <h1>Rastreio de entrega de materiais</h1>
-            <p>Tire uma foto em cada uma das 4 fases. Com entrega: Separando → Separado → A caminho → Recebido.</p>
+            <p>Tire a foto na fase <strong>Separado</strong>. Na entrega, colete a assinatura digital do recebedor.</p>
           </div>
           <button type="button" className="rt-refresh" onClick={() => void carregarPedidos()}>
             <RefreshCw size={15} /> Atualizar
@@ -659,9 +785,12 @@ export function RastreioEntregaMateriais() {
               const naFrente = pedido.fase === 3 ? 0 : filaIndex ?? 0;
               const posicao = pedido.fase === 3 ? 'Concluído' : naFrente + 1;
               const itensObrig = itensQueExigemFoto(pedido);
-              const faseCompleta = todasFotosDaFase(pedido, pedido.fase);
+              const exigeFotoNestaFase = FASE_INDICES.includes(pedido.fase);
+              const faseCompleta = !exigeFotoNestaFase || todasFotosDaFase(pedido, pedido.fase);
               const tudoCompleto = todasFotosCompletas(pedido);
-              const textoBotaoBaixa = pedido.fase !== 3 ? 'Baixa indisponível' : pedido.confirmandoBaixa ? 'Confirmar baixa' : 'Dar baixa final';
+              const fotosRegistradas = itensObrig.reduce((acc, it) => acc + FASE_INDICES.filter((f) => Boolean(it.fotosFase[String(f)])).length, 0);
+              const fotosObrigatorias = itensObrig.length * FASE_INDICES.length;
+              const textoBotaoBaixa = pedido.fase !== 3 ? 'Baixa indisponível' : 'Assinar e dar baixa';
 
               return (
                 <div className="rt-pedido" key={pedido.id}>
@@ -686,7 +815,7 @@ export function RastreioEntregaMateriais() {
                     <div className="rt-fila-box"><strong>Nº Pedido:</strong> #{pedido.numero}</div>
                     <div className="rt-fila-box"><strong>Pedidos na frente:</strong> {naFrente}</div>
                     <div className="rt-fila-box"><strong>Sua posição:</strong> {posicao}</div>
-                    <div className="rt-fila-box"><strong>Fotos totais:</strong> {itensObrig.length === 0 ? 'não obrigatórias' : `${itensObrig.reduce((acc, it) => acc + Object.values(it.fotosFase).filter(Boolean).length, 0)}/${itensObrig.length * 4}`}</div>
+                    <div className="rt-fila-box"><strong>Fotos obrigatórias:</strong> {itensObrig.length === 0 ? 'não obrigatórias' : `${fotosRegistradas}/${fotosObrigatorias}`}</div>
                   </div>
 
                   <div className="rt-tracker">
@@ -828,7 +957,7 @@ export function RastreioEntregaMateriais() {
                       onClick={() => avancarFase(pedido)}
                       disabled={savingId === pedido.id || pedido.fase >= 3 || !faseCompleta}
                       type="button"
-                      title={!faseCompleta ? `Tire a foto de "${nomeFase(pedido, pedido.fase)}" de todos os itens antes de avançar` : undefined}
+                      title={!faseCompleta ? 'Tire a foto da fase "Separado" de todos os itens antes de avançar' : undefined}
                     >
                       Avançar fase
                     </button>
@@ -906,6 +1035,39 @@ export function RastreioEntregaMateriais() {
           }}
           onClose={() => setCamTarget(null)}
         />
+      )}
+
+      {assinaturaPedido && (
+        <div className="rt-modal-backdrop">
+          <div className="rt-modal">
+            <h3>Assinatura digital da entrega</h3>
+            <p>Informe quem recebeu e peça a assinatura antes de concluir a baixa do pedido #{assinaturaPedido.numero}.</p>
+            <input
+              className="rt-assinatura-input"
+              value={assinaturaRecebedor}
+              onChange={(event) => setAssinaturaRecebedor(event.target.value)}
+              placeholder="Nome de quem recebeu"
+            />
+            <canvas
+              ref={canvasRef}
+              width={900}
+              height={320}
+              className="rt-assinatura-canvas"
+              onPointerDown={iniciarAssinatura}
+              onPointerMove={moverAssinatura}
+              onPointerUp={pararAssinatura}
+              onPointerCancel={pararAssinatura}
+              onPointerLeave={pararAssinatura}
+            />
+            <div className="rt-modal-actions">
+              <button type="button" className="rt-btn" onClick={limparCanvas}>Limpar assinatura</button>
+              <button type="button" className="rt-btn" onClick={() => setAssinaturaPedido(null)}>Cancelar</button>
+              <button type="button" className="rt-btn" onClick={confirmarAssinatura} disabled={savingId === assinaturaPedido.id}>
+                Concluir baixa
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {toast && <div className="rt-toast">{toast}</div>}

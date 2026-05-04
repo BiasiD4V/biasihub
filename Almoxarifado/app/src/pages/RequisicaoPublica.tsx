@@ -442,12 +442,18 @@ function ItemRow({
                   <img src={url} alt={`foto-${idx}`} className="w-12 h-12 object-cover rounded-[10px] border border-[rgba(113,154,255,0.4)]" />
                   <button
                     type="button"
-                    onClick={() =>
+                    onClick={() => {
+                      const urlRemovida = linha.fotosUrls[idx] || '';
+                      const blobIndex = linha.fotosUrls
+                        .slice(0, idx + 1)
+                        .filter((url) => url.startsWith('blob:')).length - 1;
                       onChange({
-                        fotos: linha.fotos.filter((_, i) => i !== idx),
+                        fotos: urlRemovida.startsWith('blob:')
+                          ? linha.fotos.filter((_, i) => i !== blobIndex)
+                          : linha.fotos,
                         fotosUrls: linha.fotosUrls.filter((_, i) => i !== idx),
                       })
-                    }
+                    }}
                     className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-[#ff6b6b] text-white text-[0.7rem] grid place-items-center border border-white/30 leading-none"
                     title="Remover foto"
                   >
@@ -479,12 +485,23 @@ function TipoCard({ active, onClick, pill, icon, titulo, descricao }: {
     <button
       type="button"
       onClick={onClick}
+      style={active ? {
+        borderColor: '#FFC82D',
+        outline: '4px solid rgba(255,200,45,0.95)',
+        outlineOffset: '2px',
+        boxShadow: '0 0 0 7px rgba(255,200,45,0.20), 0 20px 42px rgba(0,0,0,0.28)',
+      } : undefined}
       className={`text-left relative p-7 min-h-[210px] rounded-[24px] cursor-pointer transition-all border ${
         active
-          ? 'border-[rgba(92,137,255,0.65)] bg-[linear-gradient(180deg,rgba(25,57,130,0.98),rgba(20,47,110,0.92))] shadow-[0_0_0_2px_rgba(92,137,255,0.35)]'
+          ? 'border-[#FFC82D] bg-[linear-gradient(180deg,rgba(35,67,143,0.98),rgba(20,47,110,0.92))]'
           : 'border-[rgba(113,154,255,0.28)] bg-[linear-gradient(180deg,rgba(18,45,109,0.94),rgba(20,47,110,0.84))] hover:-translate-y-[2px] hover:border-[#3560b8]'
       }`}
     >
+      {active && (
+        <span className="absolute right-4 top-4 rounded-full bg-[#FFC82D] px-3 py-1 text-[0.68rem] font-black uppercase tracking-[0.14em] text-[#10225a]">
+          Selecionado
+        </span>
+      )}
       <div className={styles.pill + ' mb-5 text-white'}>{pill}</div>
       <div className="w-[62px] h-[62px] rounded-2xl grid place-items-center border border-[#3560b8] bg-[rgba(12,29,77,0.35)] mb-4 text-[1.9rem]">
         {icon}
@@ -597,8 +614,8 @@ export function RequisicaoPublica() {
 
   /* ---------- Repetir pedido (vindo de /fila) ----------
        FilaPublica grava { obra, observacao, itens } no localStorage e
-       redireciona pra /req?repetir=1. Aqui populamos o form. Fotos NÃO
-       são reaproveitadas (precisam ser tiradas de novo) — alerta o user. */
+       redireciona pra /req?repetir=1. Aqui populamos o form e reaproveitamos
+       URLs de fotos já salvas, quando existirem. */
   useEffect(() => {
     if (params.get('repetir') !== '1') return;
     try {
@@ -608,7 +625,19 @@ export function RequisicaoPublica() {
         origem_id?: string;
         obra?: string;
         observacao?: string | null;
-        itens?: Array<{ tipo?: string; descricao?: string; nome?: string; quantidade?: number; unidade?: string; observacao?: string | null; placa?: string | null; modelo?: string | null }>;
+        itens?: Array<{
+          item_id?: string | null;
+          tipo?: string;
+          descricao?: string;
+          nome?: string;
+          quantidade?: number;
+          unidade?: string;
+          observacao?: string | null;
+          placa?: string | null;
+          modelo?: string | null;
+          foto_material?: string | null;
+          fotos_urls?: string[];
+        }>;
       };
       // Detecta categoria pelo primeiro item
       const primeiroTipo = dados.itens?.[0]?.tipo;
@@ -629,19 +658,24 @@ export function RequisicaoPublica() {
         if (obsLimpo) setObservacao(obsLimpo);
       }
 
-      // Hidrata itens — sem fotos, user precisa tirar de novo
-      const itensIniciais = (dados.itens || []).map(it => ({
+      const itensIniciais = (dados.itens || []).map(it => {
+        const urlsExistentes = [
+          ...(Array.isArray(it.fotos_urls) ? it.fotos_urls : []),
+          it.foto_material || '',
+        ].filter((url, idx, arr): url is string => !!url && arr.indexOf(url) === idx);
+        return {
         uid: uid(),
-        itemId: null as string | null, // não tenta resolver pelo nome — user reseleciona
+        itemId: it.item_id || null,
         codigo: null,
         descricao: it.descricao || it.nome || '',
         quantidade: String(it.quantidade ?? 1),
         unidade: it.unidade || (cat === 'frota' ? 'uso' : 'un'),
         observacao: it.observacao || '',
         fotos: [] as File[],
-        fotosUrls: [] as string[],
+        fotosUrls: urlsExistentes,
         usoFrota: null as string | null,
-      }));
+        };
+      });
       if (itensIniciais.length > 0) setItens(itensIniciais);
 
       // Limpa o localStorage e a query string pra não repetir em refresh
@@ -651,8 +685,7 @@ export function RequisicaoPublica() {
       const novaUrl = `${window.location.pathname}${novosParams.toString() ? '?' + novosParams.toString() : ''}`;
       window.history.replaceState({}, '', novaUrl);
 
-      // Avisa o solicitante que precisa reanexar fotos
-      setErro('Pedido repetido — você precisa selecionar os itens no catálogo e tirar fotos novamente.');
+      setErro('Pedido carregado para edição. Corrija as informações e envie novamente.');
       setTimeout(() => setErro(''), 6000);
     } catch (err) {
       console.warn('[RequisicaoPublica] erro ao hidratar pedido repetido:', err);
@@ -830,21 +863,31 @@ export function RequisicaoPublica() {
     // - Frota: precisa selecionar o veículo.
     // - Material/ferramenta: quantidade > 0 e pelo menos 1 dos 3 campos:
     //   item selecionado, observação ou foto.
-    const itensValidos = itens.filter((l) => {
+    const itensPreenchidos = itens.filter((l) => {
       const qtd = Number(l.quantidade);
       if (!Number.isFinite(qtd) || qtd <= 0) return false;
       if (categoria === 'frota') return !!l.itemId;
-      const temItem = !!l.itemId && (l.itemId === '__OUTRO__' || l.descricao.trim().length > 0);
+      const temItem = !!l.itemId || l.descricao.trim().length > 0;
       const temObservacao = l.observacao.trim().length > 0;
       const temFoto = (l.fotos?.length ?? 0) > 0 || (l.fotosUrls?.length ?? 0) > 0;
       return temItem || temObservacao || temFoto;
     });
+    const temRegistroGeral = categoria !== 'frota' && (anexos.length > 0 || observacao.trim().length > 0);
+    const itensValidos = itensPreenchidos.length > 0
+      ? itensPreenchidos
+      : temRegistroGeral
+        ? [{
+            ...itens[0],
+            descricao: observacao.trim() || 'Registro em anexo',
+            observacao: observacao.trim() || 'Ver anexos e registros enviados',
+          }]
+        : [];
     if (itensValidos.length === 0) {
       return setErro(
         categoria === 'insumos'
-          ? 'Informe ao menos um item: selecione no campo de busca, escreva uma observação ou envie uma foto.'
+          ? 'Informe ao menos um item: selecione no campo de busca, escreva uma observação, envie uma foto ou anexe um registro.'
           : categoria === 'ferramentas'
-          ? 'Informe ao menos uma ferramenta: selecione no campo de busca, escreva uma observação ou envie uma foto.'
+          ? 'Informe ao menos uma ferramenta: selecione no campo de busca, escreva uma observação, envie uma foto ou anexe um registro.'
           : 'Selecione ao menos um veículo da frota.'
       );
     }
@@ -853,7 +896,7 @@ export function RequisicaoPublica() {
     const itensSemResposta = categoria === 'frota'
       ? []
       : itensValidos.filter((l) => {
-          const temItem = !!l.itemId && (l.itemId === '__OUTRO__' || l.descricao.trim().length > 0);
+          const temItem = !!l.itemId || l.descricao.trim().length > 0;
           const temFoto = (l.fotos?.length ?? 0) > 0 || (l.fotosUrls?.length ?? 0) > 0;
           const temObservacao = l.observacao.trim().length > 0;
           return !temItem && !temFoto && !temObservacao;
@@ -942,6 +985,8 @@ export function RequisicaoPublica() {
           if (categoria !== 'frota' && (l.fotos || []).length > 0 && urls.length !== (l.fotos || []).length) {
             throw new Error('Não foi possível enviar todas as fotos do item. Confira a conexão e tente novamente.');
           }
+          const urlsExistentes = (l.fotosUrls || []).filter((url) => /^https?:\/\//i.test(url));
+          const todasUrls = [...new Set([...urlsExistentes, ...urls])];
           const usoFrotaLabel =
             l.usoFrota === 'visitar_obra' ? 'Visitar obra' : l.usoFrota === 'outros' ? 'Outros' : null;
           const observacaoItem =
@@ -981,8 +1026,8 @@ export function RequisicaoPublica() {
             urgente: prioridade === 'urgente' ? 'sim' : 'não',
             justificativa_urgencia: prioridade === 'urgente' ? justificativaUrgencia : '',
             choice_estoque: 'ok',
-            foto_material: urls[0] || null,
-            fotos_urls: urls,
+            foto_material: todasUrls[0] || null,
+            fotos_urls: todasUrls,
             fase_rastreio: 0,
           };
         })

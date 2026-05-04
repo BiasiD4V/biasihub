@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { CheckCircle2, Clock, Package, RefreshCw, RotateCcw, Truck, XCircle } from 'lucide-react';
+import { CheckCircle2, Clock, Package, Pencil, RefreshCw, RotateCcw, Truck, XCircle } from 'lucide-react';
 import { supabase } from '../infrastructure/supabase/client';
 
 interface RequisicaoItem {
@@ -13,6 +13,8 @@ interface RequisicaoItem {
   placa?: string | null;
   modelo?: string | null;
   observacao?: string | null;
+  foto_material?: string | null;
+  fotos_urls?: string[];
   uso_frota?: string | null;
   uso_frota_label?: string | null;
   fase_rastreio?: number | string | null;
@@ -250,6 +252,43 @@ export function FilaPublica() {
   const [prolongData, setProlongData] = useState('');
   const [prolongMotivo, setProlongMotivo] = useState('');
   const [prolongando, setProlongando] = useState(false);
+
+  /** Abre o formulário de requisição pré-preenchido com os dados do pedido.
+      Útil quando o almoxarifado negou e o solicitante quer corrigir e reenviar. */
+  function editarPedido(p: Requisicao) {
+    const obsLimpo = String(p.observacao || '')
+      .split('|')
+      .map(s => s.trim())
+      .filter(s => s.startsWith('obs:'))
+      .map(s => s.slice(4).trim())
+      .join(' ');
+    const dados = {
+      origem_id: p.id,
+      obra: p.obra,
+      observacao: obsLimpo,
+      itens: (p.itens || []).map(it => ({
+        item_id: it.item_id || null,
+        descricao: it.descricao || it.nome || '',
+        quantidade: it.quantidade ?? 1,
+        unidade: it.unidade || 'un',
+        observacao: it.observacao || '',
+        foto_material: it.foto_material || null,
+        fotos_urls: Array.isArray((it as { fotos_urls?: string[] }).fotos_urls) ? (it as { fotos_urls?: string[] }).fotos_urls : [],
+        tipo: it.tipo || 'insumo',
+        placa: it.placa || null,
+        modelo: it.modelo || null,
+        uso_frota: it.uso_frota || null,
+        uso_frota_label: it.uso_frota_label || null,
+      })),
+    };
+    localStorage.setItem('biasi_repetir_v1', JSON.stringify(dados));
+    const qs = new URLSearchParams();
+    if (p.obra) qs.set('obra', p.obra);
+    if (nome) qs.set('nome', nome);
+    if (tel) qs.set('tel', tel);
+    qs.set('repetir', '1');
+    window.location.href = `/req?${qs.toString()}`;
+  }
 
   /** Repete o pedido criando direto uma nova requisição (sem passar pelo form).
       Clona obra + itens + observação humana. Mantém as URLs das fotos do
@@ -807,6 +846,18 @@ export function FilaPublica() {
                     >
                       <Clock size={13} />
                       Prolongar
+                    </button>
+                  )}
+
+                  {/* Editar pedido: abre o form pré-preenchido — útil quando negado */}
+                  {statusPublico === 'cancelado' && meta.motivoNegativa && !meta.canceladoPor && (
+                    <button
+                      type="button"
+                      onClick={() => editarPedido(p)}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-[rgba(255,200,45,0.5)] bg-[rgba(255,200,45,0.12)] px-3 py-1.5 text-[0.75rem] font-bold text-[#ffe08a] hover:bg-[rgba(255,200,45,0.22)] transition"
+                    >
+                      <Pencil size={13} />
+                      Editar e reenviar
                     </button>
                   )}
 

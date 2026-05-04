@@ -72,6 +72,9 @@ interface CardSolicitacao {
   repetidoDe: string;            // ID curto do pedido original (ou string vazia)
   entreguePor: string;
   entregueEm: string;
+  recebidoPor: string;
+  recebidoEm: string;
+  assinaturaUrl: string;
   prolongacaoPedida: string;       // ISO da nova data
   prolongacaoMotivo: string;
   prolongacaoAprovada: string;     // 'sim' | 'nao' | ''
@@ -359,6 +362,9 @@ function mapRowToCard(row: RequisicaoComJoin): CardSolicitacao {
     repetidoDe: normalizeDisplayText(meta.repetido_de || ''),
     entreguePor: normalizeDisplayText(meta.entregue_por || ''),
     entregueEm: normalizeDisplayText(meta.entregue_em || ''),
+    recebidoPor: normalizeDisplayText(meta.recebedor || meta.recebido_por_nome || ''),
+    recebidoEm: normalizeDisplayText(meta.recebido_em || ''),
+    assinaturaUrl: normalizeDisplayText(meta.assinatura_url || ''),
     prolongacaoPedida: prolongPedida,
     prolongacaoMotivo: normalizeDisplayText(meta.prolongacao_motivo || ''),
     prolongacaoAprovada: normalizeDisplayText(meta.prolongacao_aprovada || ''),
@@ -445,6 +451,8 @@ export function GerenciadorSolicitacoes() {
   const [fechamentoTarget, setFechamentoTarget] = useState<CardSolicitacao | null>(null);
   const [chkItensConferidos, setChkItensConferidos] = useState(false);
   const [chkQuantidades, setChkQuantidades] = useState(false);
+  const [chkQuantidadesDivergentes, setChkQuantidadesDivergentes] = useState(false);
+  const [motivoDivergenciaQuantidade, setMotivoDivergenciaQuantidade] = useState('');
   const [chkAnexos, setChkAnexos] = useState(false);
   const [chkMovimentacao, setChkMovimentacao] = useState(false);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -457,6 +465,8 @@ export function GerenciadorSolicitacoes() {
     () => activeCards.flatMap((card) => card.itens).filter((item) => item.choice === 'no').length,
     [activeCards]
   );
+  const fechamentoQuantidadesOk =
+    chkQuantidades || (chkQuantidadesDivergentes && motivoDivergenciaQuantidade.trim().length > 0);
 
   // Ordenação + recálculo de prioridade com contexto global:
   //   - quantos pedidos pendentes na mesma obra -> +score
@@ -527,7 +537,7 @@ export function GerenciadorSolicitacoes() {
       const { data, error } = await supabase
         .from('requisicoes_almoxarifado')
         .select('*, solicitante_nome, telefone, solicitante:usuarios!requisicoes_almoxarifado_solicitante_id_fkey(nome)')
-        .or('status.is.null,status.in.(pendente,aprovada)')
+        .or('status.is.null,status.in.(pendente,aprovada,entregue)')
         .order('criado_em', { ascending: true });
 
       if (error) throw error;
@@ -935,21 +945,42 @@ export function GerenciadorSolicitacoes() {
     setFechamentoTarget(card);
     setChkItensConferidos(false);
     setChkQuantidades(false);
+    setChkQuantidadesDivergentes(false);
+    setMotivoDivergenciaQuantidade('');
     setChkAnexos(false);
     setChkMovimentacao(false);
   }
 
   async function confirmarFechamento() {
     if (!fechamentoTarget) return;
-    if (!chkItensConferidos || !chkQuantidades) {
-      showToast('Marque itens conferidos e quantidades antes de concluir.');
+    if (!chkItensConferidos) {
+      showToast('Marque os itens como conferidos antes de concluir.');
+      return;
+    }
+    if (!chkQuantidades && !chkQuantidadesDivergentes) {
+      showToast('Confirme as quantidades ou registre uma divergência justificada.');
+      return;
+    }
+    const motivo = motivoDivergenciaQuantidade.trim();
+    if (chkQuantidadesDivergentes && !motivo) {
+      showToast('Informe o motivo da divergência de quantidade.');
       return;
     }
     // Delega pra handleDarBaixa (que já existia), mas registra movimentação saída.
     const card = fechamentoTarget;
+    const temDivergencia = chkQuantidadesDivergentes && !chkQuantidades;
+    const observacao = upsertObsMeta(card.observacaoGeral, {
+      fechamento_quantidades: temDivergencia ? 'divergente' : 'ok',
+      fechamento_quantidades_motivo: temDivergencia ? motivo : '',
+      fechamento_quantidades_por: usuarioDecisaoLabel(),
+      fechamento_quantidades_em: new Date().toISOString(),
+    });
+    const observacaoExtra = temDivergencia
+      ? `Concluído pelo almoxarifado com divergência de quantidade: ${motivo}`
+      : 'Concluído pelo almoxarifado';
     setFechamentoTarget(null);
-    void registrarMovimentacaoAuto({ card, tipo: 'saida_finalizada', observacaoExtra: 'Concluído pelo almoxarifado' });
-    handleDarBaixa(card);
+    void registrarMovimentacaoAuto({ card, tipo: 'saida_finalizada', observacaoExtra });
+    handleDarBaixa(card, { observacao });
   }
 
   // Prolongação: aprova ou nega solicitação do solicitante.
@@ -1084,7 +1115,7 @@ export function GerenciadorSolicitacoes() {
     })();
   }
 
-  function handleDarBaixa(card: CardSolicitacao) {
+  function handleDarBaixa(card: CardSolicitacao, extraUpdates?: Record<string, unknown>) {
     if (!requestHasRequiredPhotos(card)) {
       const confirmarSemFoto = window.confirm(
         'Existem itens marcados como "Sim" sem foto. Deseja continuar mesmo assim?'
@@ -1101,6 +1132,7 @@ export function GerenciadorSolicitacoes() {
     }));
     void (async () => {
       const ok = await salvarAlteracoesLocais(card, nextItems, 'entregue', 'Requisição concluída.', {
+        ...extraUpdates,
         finalizado_em: new Date().toISOString(),
       });
       if (ok) await registrarMovimentacoesSaida(card, nextItems);
@@ -1336,10 +1368,29 @@ export function GerenciadorSolicitacoes() {
                     )}
 
                     {/* Quem entregou */}
-                    {card.entreguePor && (
-                      <div className="mb-3 rounded-2xl border border-[rgba(92,155,255,0.28)] bg-[rgba(92,155,255,0.10)] px-4 py-2.5 text-sm text-[#d4e0ff]">
-                        <strong>Entregue por:</strong> {card.entreguePor}
-                        {card.entregueEm ? ` em ${card.entregueEm}` : ''}
+                    {(card.entreguePor || card.recebidoPor || card.assinaturaUrl || card.status === 'entregue') && (
+                      <div className="mb-3 rounded-2xl border border-[rgba(54,196,133,0.35)] bg-[rgba(54,196,133,0.10)] px-4 py-3 text-sm text-[#d4f5e2]">
+                        <div>
+                          <strong>Concluído no gerenciar:</strong>{' '}
+                          {card.entreguePor ? `entregue por ${card.entreguePor}` : 'pedido finalizado'}
+                          {card.entregueEm ? ` em ${formatarData(card.entregueEm)}` : ''}
+                        </div>
+                        {card.recebidoPor && (
+                          <div className="mt-1">
+                            <strong>Recebido por:</strong> {card.recebidoPor}
+                            {card.recebidoEm ? ` em ${formatarData(card.recebidoEm)}` : ''}
+                          </div>
+                        )}
+                        {card.assinaturaUrl && (
+                          <a
+                            href={card.assinaturaUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="mt-2 inline-flex items-center rounded-xl border border-[rgba(255,200,45,0.45)] bg-[rgba(255,200,45,0.14)] px-3 py-1.5 text-xs font-black text-[#ffe08a] hover:bg-[rgba(255,200,45,0.22)]"
+                          >
+                            Ver assinatura digital
+                          </a>
+                        )}
                       </div>
                     )}
 
@@ -1701,11 +1752,64 @@ export function GerenciadorSolicitacoes() {
               Confirme os pontos abaixo antes de concluir o pedido.
             </p>
             <div className="mt-4 space-y-3">
+              <label className="flex items-start gap-3 cursor-pointer hover:bg-white/5 rounded-lg p-2 transition">
+                <input
+                  type="checkbox"
+                  checked={chkItensConferidos}
+                  onChange={(e) => setChkItensConferidos(e.target.checked)}
+                  className="mt-0.5 h-5 w-5 accent-[#54c485] flex-shrink-0"
+                />
+                <span className={`text-sm ${chkItensConferidos ? 'text-[#abf5d1]' : 'text-[#cbd6ff]'}`}>
+                  Itens conferidos fisicamente
+                  <span className="text-[#ff7a9d] ml-1">*</span>
+                </span>
+              </label>
+
+              <div className="rounded-xl border border-[rgba(113,154,255,0.18)] bg-[rgba(10,30,77,0.22)] p-2">
+                <label className="flex items-start gap-3 cursor-pointer hover:bg-white/5 rounded-lg p-2 transition">
+                  <input
+                    type="checkbox"
+                    checked={chkQuantidades}
+                    onChange={(e) => {
+                      setChkQuantidades(e.target.checked);
+                      if (e.target.checked) {
+                        setChkQuantidadesDivergentes(false);
+                        setMotivoDivergenciaQuantidade('');
+                      }
+                    }}
+                    className="mt-0.5 h-5 w-5 accent-[#54c485] flex-shrink-0"
+                  />
+                  <span className={`text-sm ${chkQuantidades ? 'text-[#abf5d1]' : 'text-[#cbd6ff]'}`}>
+                    Quantidades batem com o pedido
+                  </span>
+                </label>
+                <label className="flex items-start gap-3 cursor-pointer hover:bg-white/5 rounded-lg p-2 transition">
+                  <input
+                    type="checkbox"
+                    checked={chkQuantidadesDivergentes}
+                    onChange={(e) => {
+                      setChkQuantidadesDivergentes(e.target.checked);
+                      if (e.target.checked) setChkQuantidades(false);
+                    }}
+                    className="mt-0.5 h-5 w-5 accent-[#ffc82d] flex-shrink-0"
+                  />
+                  <span className={`text-sm ${chkQuantidadesDivergentes ? 'text-[#ffe08a]' : 'text-[#cbd6ff]'}`}>
+                    Quantidade divergente, liberar mesmo assim
+                  </span>
+                </label>
+                {chkQuantidadesDivergentes && (
+                  <textarea
+                    value={motivoDivergenciaQuantidade}
+                    onChange={(e) => setMotivoDivergenciaQuantidade(e.target.value)}
+                    placeholder="Explique a divergência. Ex: pedido 10 un, entregue 8 un por estoque parcial."
+                    className="mt-2 min-h-[82px] w-full rounded-xl border border-[rgba(255,200,45,0.38)] bg-[rgba(10,30,77,0.55)] px-3 py-2 text-sm text-white outline-none placeholder:text-[#9fb0db]"
+                  />
+                )}
+              </div>
+
               {[
-                { check: chkItensConferidos, set: setChkItensConferidos, label: 'Itens conferidos fisicamente', req: true },
-                { check: chkQuantidades,    set: setChkQuantidades,    label: 'Quantidades batem com o pedido', req: true },
-                { check: chkAnexos,         set: setChkAnexos,         label: 'Anexos do solicitante revisados', req: false },
-                { check: chkMovimentacao,   set: setChkMovimentacao,   label: 'Movimentação registrada (auto)',  req: false },
+                { check: chkAnexos, set: setChkAnexos, label: 'Anexos do solicitante revisados' },
+                { check: chkMovimentacao, set: setChkMovimentacao, label: 'Movimentação registrada (auto)' },
               ].map((it, idx) => (
                 <label key={idx} className="flex items-start gap-3 cursor-pointer hover:bg-white/5 rounded-lg p-2 transition">
                   <input
@@ -1716,7 +1820,6 @@ export function GerenciadorSolicitacoes() {
                   />
                   <span className={`text-sm ${it.check ? 'text-[#abf5d1]' : 'text-[#cbd6ff]'}`}>
                     {it.label}
-                    {it.req && <span className="text-[#ff7a9d] ml-1">*</span>}
                   </span>
                 </label>
               ))}
@@ -1727,7 +1830,7 @@ export function GerenciadorSolicitacoes() {
               </button>
               <button
                 onClick={confirmarFechamento}
-                disabled={!chkItensConferidos || !chkQuantidades}
+                disabled={!chkItensConferidos || !fechamentoQuantidadesOk}
                 className="rounded-xl border border-[rgba(54,196,133,0.45)] bg-[rgba(54,196,133,0.18)] px-4 py-2 text-sm font-bold text-[#abf5d1] disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Concluir requisição
