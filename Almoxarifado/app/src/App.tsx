@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react';
 import { BrowserRouter, HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { LayoutAutenticado } from './components/layout/LayoutAutenticado';
 import { AuthProvider } from './context/AuthContext';
+import { ThemeProvider } from './context/ThemeContext';
 import { ChunkErrorBoundary } from './components/ChunkErrorBoundary';
 import { SuspenseFallback } from './components/SuspenseFallback';
 import { Login } from './pages/Login';
@@ -27,6 +28,7 @@ const Reunioes = lazy(() => import('./pages/Reunioes').then(m => ({ default: m.R
 const Membros = lazy(() => import('./pages/Membros').then(m => ({ default: m.Membros })));
 const Obras = lazy(() => import('./pages/Obras').then(m => ({ default: m.Obras })));
 const Agentes = lazy(() => import('./pages/Agentes').then(m => ({ default: m.Agentes })));
+const Aparencia = lazy(() => import('./pages/Aparencia').then(m => ({ default: m.Aparencia })));
 
 const IS_ELECTRON = navigator.userAgent.includes('Electron');
 const IS_CAPACITOR = isCapacitorRuntime();
@@ -42,6 +44,7 @@ export default function App() {
   return (
     <ChunkErrorBoundary>
       <AuthProvider>
+        <ThemeProvider>
         <Router>
           <Suspense fallback={<SuspenseFallback />}>
             <Routes>
@@ -86,11 +89,13 @@ export default function App() {
               <Route path="/reunioes" element={<Reunioes />} />
               <Route path="/membros" element={<Membros />} />
               <Route path="/agentes" element={<Agentes />} />
+              <Route path="/aparencia" element={<Aparencia />} />
             </Route>
             <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>
           </Suspense>
         </Router>
+        </ThemeProvider>
       </AuthProvider>
     </ChunkErrorBoundary>
   );

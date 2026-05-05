@@ -19,6 +19,7 @@ import {
   Wrench,
   Users,
   Building2,
+  Palette,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../infrastructure/supabase/client';
@@ -74,6 +75,7 @@ const NAV_SECTIONS = [
     label: 'Sistema',
     items: [
       { to: '/agentes', icon: Bot, label: 'Agentes' },
+      { to: '/aparencia', icon: Palette, label: 'Aparência' },
       { to: '/meus-dispositivos', icon: Laptop, label: 'Meus dispositivos' },
     ],
   },

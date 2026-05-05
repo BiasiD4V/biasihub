@@ -319,6 +319,57 @@
   }
 }
 
+/* ─────────────────────────────────────────────────────────────────────────
+   Modo Minimalista — ativado via classe `biasi-minimal` no <html>.
+   Reduz sombras, suaviza bordas, aumenta espaçamento e tira ruído visual.
+   ───────────────────────────────────────────────────────────────────────── */
+@layer components {
+  html.biasi-minimal {
+    --biasi-radius-soft: 14px;
+  }
+
+  /* Remove blurs e glows decorativos do shell */
+  html.biasi-minimal .biasi-shell-bg {
+    background: linear-gradient(160deg, var(--biasi-bg-900) 0%, var(--biasi-bg-800) 100%) !important;
+  }
+  html.biasi-minimal .biasi-theme [class*='blur-3xl'],
+  html.biasi-minimal .biasi-theme [class*='blur-[110px]'],
+  html.biasi-minimal .biasi-theme [class*='blur-[120px]'],
+  html.biasi-minimal .biasi-theme [class*='blur-xl'] {
+    display: none !important;
+  }
+
+  /* Suaviza sombras pesadas */
+  html.biasi-minimal .biasi-theme [class*='shadow-2xl'],
+  html.biasi-minimal .biasi-theme [class*='shadow-xl'],
+  html.biasi-minimal .biasi-theme [class*='shadow-lg'] {
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08) !important;
+  }
+
+  /* Bordas mais suaves */
+  html.biasi-minimal .biasi-theme [class*='border-2'] {
+    border-width: 1px !important;
+  }
+
+  /* Botões discretos */
+  html.biasi-minimal .biasi-theme button:not(.biasi-keep-style) {
+    box-shadow: none !important;
+  }
+
+  /* Cards mais limpos */
+  html.biasi-minimal .biasi-card {
+    background: rgba(255, 255, 255, 0.04) !important;
+    border-color: rgba(255, 255, 255, 0.08) !important;
+    box-shadow: none !important;
+  }
+
+  /* Espaçamento maior nos containers principais */
+  html.biasi-minimal .biasi-theme main {
+    letter-spacing: 0.01em;
+  }
+}
+
+
 
 
 
