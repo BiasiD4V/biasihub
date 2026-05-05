@@ -80,24 +80,24 @@ jobs:
           echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > Mobile/biasihub-release.keystore
           echo "Keystore: $(wc -c < Mobile/biasihub-release.keystore) bytes"
 
-      - name: Patch Android permissions + signing config
+      - name: Patch Android permissions (camera/microfone + FileProvider + instalador APK)
         working-directory: Mobile
-        env:
-          ANDROID_KEYSTORE_PATH: ${{ github.workspace }}/Mobile/biasihub-release.keystore
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-          ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
         run: npm run patch:android
 
       - name: Capacitor sync (copia www/ pro Android)
         working-directory: Mobile
         run: npx cap sync android
 
-      - name: Build APK release (assinado com chave fixa)
+      - name: Build APK release (assinado com chave fixa via -P)
         working-directory: Mobile/android
         run: |
           chmod +x ./gradlew
-          ./gradlew assembleRelease --no-daemon
+          ./gradlew assembleRelease --no-daemon \
+            -Pandroid.injected.signing.store.file="${{ github.workspace }}/Mobile/biasihub-release.keystore" \
+            -Pandroid.injected.signing.store.password="${{ secrets.ANDROID_STORE_PASSWORD }}" \
+            -Pandroid.injected.signing.key.alias="${{ secrets.ANDROID_KEY_ALIAS }}" \
+            -Pandroid.injected.signing.key.password="${{ secrets.ANDROID_KEY_PASSWORD }}" \
+            -Pandroid.injected.signing.store.type=PKCS12
 
       - name: Renomeia o APK pra incluir versão
         id: rename
