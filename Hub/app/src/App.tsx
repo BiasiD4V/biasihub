@@ -1,5 +1,6 @@
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { ThemeProvider } from './context/ThemeContext';
 import { LayoutAutenticado } from './components/layout/LayoutAutenticado';
 import { Login } from './pages/Login';
 import { HubPortal } from './pages/HubPortal';
@@ -7,6 +8,7 @@ import { Membros } from './pages/Membros';
 import { MeusDispositivos } from './pages/MeusDispositivos';
 import { GerenciarAcessos } from './pages/GerenciarAcessos';
 import { Agentes } from './pages/Agentes';
+import { Aparencia } from './pages/Aparencia';
 import { DefinirSenha } from './pages/DefinirSenha';
 import { UpdateChecker } from './components/UpdateChecker';
 import { LandingPublica } from './pages/LandingPublica';
@@ -34,6 +36,7 @@ function AppRoutes() {
         <Route path="/membros" element={<Membros />} />
         <Route path="/meus-dispositivos" element={<MeusDispositivos />} />
         <Route path="/gerenciar-acessos" element={<GerenciarAcessos />} />
+        <Route path="/aparencia" element={<Aparencia />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
@@ -44,8 +47,10 @@ export default function App() {
   return (
     <HashRouter>
       <AuthProvider>
-        <AppRoutes />
-        <UpdateChecker />
+        <ThemeProvider>
+          <AppRoutes />
+          <UpdateChecker />
+        </ThemeProvider>
       </AuthProvider>
     </HashRouter>
   );

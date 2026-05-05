@@ -1,6 +1,6 @@
 ﻿import { useState, useEffect, useRef } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutGrid, Users, LogOut, Menu, X, Laptop, ShieldCheck, MessageCircle, BarChart3, Bot } from 'lucide-react';
+import { LayoutGrid, Users, LogOut, Menu, X, Laptop, ShieldCheck, MessageCircle, BarChart3, Bot, Palette } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { acessoRepository } from '../../infrastructure/supabase/acessoRepository';
 import { supabase } from '../../infrastructure/supabase/client';
@@ -16,6 +16,7 @@ const NAV_ITEMS_BASE = [
   { to: '/agentes', icon: Bot, label: 'Agentes', end: false, adminOnly: false },
   { to: '/membros', icon: Users, label: 'Membros', end: false, adminOnly: false },
   { to: '/meus-dispositivos', icon: Laptop, label: 'Dispositivos', end: false, adminOnly: false },
+  { to: '/aparencia', icon: Palette, label: 'Aparência', end: false, adminOnly: false },
   { to: '/gerenciar-acessos', icon: ShieldCheck, label: 'Acessos', end: false, adminOnly: true },
 ];
 
