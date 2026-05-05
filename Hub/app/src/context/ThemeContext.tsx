@@ -5,7 +5,7 @@ import { createContext, useContext, useEffect, useMemo, useState, ReactNode } fr
  * O `accent` substitui o amarelo Biasi (#FFC82D) como cor de destaque.
  * O `bgFrom`/`bgTo` ajustam os gradientes do shell.
  */
-export type PaletaId = 'azul' | 'verde' | 'bege' | 'vinho';
+export type PaletaId = 'azul' | 'verde' | 'bege' | 'vinho' | 'mono';
 
 export interface Paleta {
   id: PaletaId;
@@ -22,32 +22,32 @@ export const PALETAS: Paleta[] = [
   {
     id: 'azul',
     nome: 'Biasi (Padrão)',
-    descricao: 'Azul profundo + amarelo de destaque',
-    amostras: ['#060f2a', '#233772', '#2E63D5', '#FFC82D'],
-    accent: '#FFC82D',
-    accentDark: '#E0AE00',
-    bgFrom: '#060f2a',
-    bgTo: '#0d1f4a',
+    descricao: 'Azul Coolors com destaque marinho',
+    amostras: ['#13293D', '#006494', '#247BA0', '#1B98E0', '#E8F1F2'],
+    accent: '#1B98E0',
+    accentDark: '#006494',
+    bgFrom: '#13293D',
+    bgTo: '#0A1A2A',
   },
   {
     id: 'verde',
-    nome: 'Verde Floresta',
-    descricao: 'Tons sóbrios e naturais',
-    amostras: ['#0F1F1A', '#1F3D33', '#3F7A5A', '#A6D49F'],
-    accent: '#A6D49F',
-    accentDark: '#6FA968',
-    bgFrom: '#0F1F1A',
-    bgTo: '#1F3D33',
+    nome: 'Verde Oliva',
+    descricao: 'Tons orgânicos e equilibrados',
+    amostras: ['#1F3D2A', '#3D5C2A', '#7A9D3D', '#B8C76A', '#E8E9A8'],
+    accent: '#B8C76A',
+    accentDark: '#7A9D3D',
+    bgFrom: '#1F3D2A',
+    bgTo: '#0F2218',
   },
   {
     id: 'bege',
-    nome: 'Bege Premium',
-    descricao: 'Suave, claro e profissional',
+    nome: 'Rosa Suave',
+    descricao: 'Suave, claro e premium',
     amostras: ['#7D5A5A', '#F1D1D1', '#F3E1E1', '#FAF2F2'],
     accent: '#C29B7B',
-    accentDark: '#9C7558',
-    bgFrom: '#1A1414',
-    bgTo: '#2A2020',
+    accentDark: '#7D5A5A',
+    bgFrom: '#2A1F1F',
+    bgTo: '#1A1212',
   },
   {
     id: 'vinho',
@@ -58,6 +58,16 @@ export const PALETAS: Paleta[] = [
     accentDark: '#C72C41',
     bgFrom: '#2D132C',
     bgTo: '#1A0E1A',
+  },
+  {
+    id: 'mono',
+    nome: 'Preto & Branco',
+    descricao: 'Monocromático, sóbrio e atemporal',
+    amostras: ['#0A0A0A', '#3A3A3A', '#8A8A8A', '#D4D4D4', '#FFFFFF'],
+    accent: '#FFFFFF',
+    accentDark: '#A3A3A3',
+    bgFrom: '#0A0A0A',
+    bgTo: '#1F1F1F',
   },
 ];
 
