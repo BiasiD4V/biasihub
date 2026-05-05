@@ -175,7 +175,7 @@ export function SidebarAutenticada({
   );
 
   const isGestao = useMemo(
-    () => usuario?.papel === 'gestor' || usuario?.papel === 'admin' || usuario?.papel === 'dono',
+    () => usuario?.papel === 'gestor' || usuario?.papel === 'admin' || usuario?.papel === 'dono' || usuario?.papel === 'comercial',
     [usuario?.papel]
   );
   const isAdmin = useMemo(
