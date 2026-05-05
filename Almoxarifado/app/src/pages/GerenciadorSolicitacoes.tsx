@@ -1434,6 +1434,8 @@ export function GerenciadorSolicitacoes() {
                     )}
 
                     <div className="rounded-2xl border border-[rgba(113,154,255,0.23)] overflow-hidden">
+                      <div className="overflow-x-auto">
+                      <div className="min-w-[760px]">
                       <div className="hidden md:grid grid-cols-[2fr,110px,120px,120px,130px,260px] gap-2 bg-[rgba(255,255,255,0.05)] px-4 py-3 text-[0.72rem] font-extrabold uppercase tracking-wider text-[#dce6ff]">
                         <div>Item</div>
                         <div>Qtd.</div>
@@ -1542,6 +1544,8 @@ export function GerenciadorSolicitacoes() {
                           );
                         })}
                       </div>
+                      </div>{/* min-w */}
+                      </div>{/* overflow-x-auto */}
 
                       <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-t border-[rgba(113,154,255,0.18)] bg-[rgba(255,255,255,0.03)]">
                         <span className="text-sm text-[#cad8ff]">
