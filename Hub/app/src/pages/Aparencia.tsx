@@ -9,7 +9,7 @@ export function Aparencia() {
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-2xl lg:text-3xl font-black text-white flex items-center gap-3 tracking-tight">
-          <Palette className="text-[var(--biasi-accent)]" size={28} />
+          <Palette style={{ color: 'var(--biasi-accent)' }} size={28} />
           Aparência
         </h1>
         <p className="text-sm text-[#9DB2E7] mt-1.5">
@@ -57,8 +57,11 @@ export function Aparencia() {
         </h2>
 
         <div className="biasi-card flex items-start gap-4 p-5 rounded-2xl border border-white/10 bg-white/5">
-          <div className="w-10 h-10 rounded-xl bg-[var(--biasi-accent)]/15 border border-[var(--biasi-accent)]/30 flex items-center justify-center flex-shrink-0">
-            <Sparkles className="text-[var(--biasi-accent)]" size={18} />
+          <div
+            style={{ background: 'color-mix(in srgb, var(--biasi-accent) 15%, transparent)', borderColor: 'color-mix(in srgb, var(--biasi-accent) 30%, transparent)' }}
+            className="w-10 h-10 rounded-xl border flex items-center justify-center flex-shrink-0"
+          >
+            <Sparkles style={{ color: 'var(--biasi-accent)' }} size={18} />
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-bold text-white">Interface limpa e premium</p>
@@ -140,10 +143,9 @@ function PaletaCard({ nome, descricao, amostras, ativo, onSelect }: PaletaCardPr
   return (
     <button
       onClick={onSelect}
+      style={ativo ? { borderColor: 'var(--biasi-accent)', boxShadow: '0 0 24px -6px var(--biasi-accent)' } : undefined}
       className={`group relative biasi-card text-left rounded-2xl border-2 p-3 transition-all ${
-        ativo
-          ? 'border-[var(--biasi-accent)] bg-white/10 shadow-[0_0_24px_-8px_var(--biasi-accent)]'
-          : 'border-white/10 bg-white/5 hover:border-white/25 hover:bg-white/10'
+        ativo ? 'bg-white/10' : 'border-white/10 bg-white/5 hover:border-white/25 hover:bg-white/10'
       }`}
     >
       <div className="flex h-16 w-full overflow-hidden rounded-xl mb-3">
@@ -158,7 +160,10 @@ function PaletaCard({ nome, descricao, amostras, ativo, onSelect }: PaletaCardPr
           <p className="text-[10px] text-[#9DB2E7] mt-0.5 leading-tight line-clamp-2">{descricao}</p>
         </div>
         {ativo && (
-          <div className="w-5 h-5 rounded-full bg-[var(--biasi-accent)] flex items-center justify-center flex-shrink-0">
+          <div
+            style={{ background: 'var(--biasi-accent)' }}
+            className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0"
+          >
             <Check size={12} className="text-slate-900" strokeWidth={3} />
           </div>
         )}
@@ -178,12 +183,13 @@ function Switch({ ativo, onChange }: SwitchProps) {
       onClick={() => onChange(!ativo)}
       role="switch"
       aria-checked={ativo}
-      className={`relative h-7 w-12 rounded-full transition-colors flex-shrink-0 ${
-        ativo ? 'bg-[var(--biasi-accent)]' : 'bg-white/15'
+      style={ativo ? { background: 'var(--biasi-accent)' } : undefined}
+      className={`relative h-7 w-12 rounded-full transition-colors flex-shrink-0 border border-white/20 ${
+        ativo ? '' : 'bg-white/15'
       }`}
     >
       <span
-        className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition-transform ${
+        className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow-lg transition-transform ${
           ativo ? 'translate-x-[22px]' : 'translate-x-0.5'
         }`}
       />

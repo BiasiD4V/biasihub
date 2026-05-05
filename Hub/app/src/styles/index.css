@@ -253,14 +253,150 @@
 
 
 /* ─────────────────────────────────────────────────────────────────────────
-   Modo Minimalista — ativado via classe `biasi-minimal` no <html>.
-   Reduz sombras, suaviza bordas e tira ruído visual.
+   APARÊNCIA — Paletas e Modo Minimalista (controlado via ThemeContext)
    ───────────────────────────────────────────────────────────────────────── */
+
+/* Defaults (paleta azul Biasi) */
+:root {
+  --biasi-accent: #FFC82D;
+  --biasi-accent-dark: #E0AE00;
+  --biasi-bg-900: #060f2a;
+  --biasi-bg-800: #0d1f4a;
+  --biasi-glow-1: rgba(99, 102, 241, 0.10); /* indigo-600/10 */
+  --biasi-glow-2: rgba(2, 132, 199, 0.10);  /* sky-600/10 */
+}
+
+/* === Mapeamento por paleta — sobrescreve cores hardcoded em todo o app === */
+
+/* AZUL Coolors — ajusta apenas glows do shell */
+html[data-paleta='azul'] {
+  --biasi-glow-1: rgba(0, 100, 148, 0.18);
+  --biasi-glow-2: rgba(27, 152, 224, 0.14);
+}
+
+/* VERDE OLIVA */
+html[data-paleta='verde'] {
+  --biasi-glow-1: rgba(122, 157, 61, 0.16);
+  --biasi-glow-2: rgba(184, 199, 106, 0.12);
+}
+
+/* ROSA SUAVE — base mais quente */
+html[data-paleta='bege'] {
+  --biasi-glow-1: rgba(194, 155, 123, 0.18);
+  --biasi-glow-2: rgba(241, 209, 209, 0.12);
+}
+
+/* VINHO INTENSO */
+html[data-paleta='vinho'] {
+  --biasi-glow-1: rgba(199, 44, 65, 0.18);
+  --biasi-glow-2: rgba(238, 69, 64, 0.14);
+}
+
+/* PRETO & BRANCO */
+html[data-paleta='mono'] {
+  --biasi-glow-1: rgba(255, 255, 255, 0.06);
+  --biasi-glow-2: rgba(212, 212, 212, 0.05);
+}
+
+/* === Substitui o amarelo Biasi (#FFC82D) pelo accent da paleta atual === */
+/* Também substitui shadow yellow e bordas amarelas. */
+
+/* texto */
+html:not([data-paleta='azul']) .text-\[\#FFC82D\] {
+  color: var(--biasi-accent) !important;
+}
+
+/* Para todas as paletas (inclusive azul para reaproveitar a var) */
+.text-\[\#FFC82D\] { color: var(--biasi-accent); }
+
+/* fundo sólido amarelo */
+.bg-\[\#FFC82D\] { background-color: var(--biasi-accent) !important; }
+
+/* fundo amarelo com opacidades comuns */
+.bg-\[\#FFC82D\]\/10,
+.bg-\[\#FFC82D\]\/12,
+.bg-\[\#FFC82D\]\/15,
+.bg-\[\#FFC82D\]\/20 {
+  background-color: color-mix(in srgb, var(--biasi-accent) 15%, transparent) !important;
+}
+
+/* hover amarelo */
+.hover\:bg-\[\#FFC82D\]:hover { background-color: var(--biasi-accent) !important; }
+
+/* bordas amarelas */
+.border-\[\#FFC82D\] { border-color: var(--biasi-accent) !important; }
+.border-\[\#FFC82D\]\/30,
+.border-\[\#FFC82D\]\/35,
+.border-\[\#FFC82D\]\/40 {
+  border-color: color-mix(in srgb, var(--biasi-accent) 35%, transparent) !important;
+}
+
+/* shadow yellow */
+.shadow-\[0_0_15px_rgba\(255\,200\,45\,0\.3\)\],
+.shadow-\[0_0_12px_rgba\(255\,200\,45\,0\.9\)\],
+.shadow-\[#FFC82D\]\/20 {
+  box-shadow: 0 0 15px color-mix(in srgb, var(--biasi-accent) 30%, transparent) !important;
+}
+
+/* group-hover do amarelo (icones do menu) */
+.group:hover .group-hover\:text-\[\#FFC82D\] {
+  color: var(--biasi-accent) !important;
+}
+
+/* group-hover bg amarelo (logo) */
+.group:hover .group-hover\:bg-\[\#FFC82D\] {
+  background-color: var(--biasi-accent) !important;
+}
+
+/* === Background do shell por paleta — substitui slate-950/slate-900 === */
+
+html[data-paleta='verde'] body,
+html[data-paleta='verde'] .bg-slate-950,
+html[data-paleta='verde'] .bg-slate-900 {
+  background-color: var(--biasi-bg-900) !important;
+}
+
+html[data-paleta='bege'] body,
+html[data-paleta='bege'] .bg-slate-950,
+html[data-paleta='bege'] .bg-slate-900 {
+  background-color: var(--biasi-bg-900) !important;
+}
+
+html[data-paleta='vinho'] body,
+html[data-paleta='vinho'] .bg-slate-950,
+html[data-paleta='vinho'] .bg-slate-900 {
+  background-color: var(--biasi-bg-900) !important;
+}
+
+html[data-paleta='mono'] body,
+html[data-paleta='mono'] .bg-slate-950,
+html[data-paleta='mono'] .bg-slate-900 {
+  background-color: var(--biasi-bg-900) !important;
+}
+
+/* Sidebar bg-slate-900/40 — ajusta tinta de fundo */
+html[data-paleta='verde'] .bg-slate-900\/40 { background-color: rgba(31, 61, 42, 0.55) !important; }
+html[data-paleta='bege']  .bg-slate-900\/40 { background-color: rgba(42, 31, 31, 0.55) !important; }
+html[data-paleta='vinho'] .bg-slate-900\/40 { background-color: rgba(45, 19, 44, 0.55) !important; }
+html[data-paleta='mono']  .bg-slate-900\/40 { background-color: rgba(20, 20, 20, 0.65) !important; }
+
+/* Atmosfera global (indigo + sky blurs) — substitui por glows da paleta */
+html:not([data-paleta='azul']) .bg-indigo-600\/10,
+html:not([data-paleta='azul']) .bg-indigo-500\/10 {
+  background-color: var(--biasi-glow-1) !important;
+}
+html:not([data-paleta='azul']) .bg-sky-600\/10,
+html:not([data-paleta='azul']) .bg-sky-500\/10 {
+  background-color: var(--biasi-glow-2) !important;
+}
+
+/* === MODO MINIMALISTA === */
 @layer components {
   /* Remove blurs decorativos do shell */
   html.biasi-minimal [class*='blur-3xl'],
   html.biasi-minimal [class*='blur-[110px]'],
   html.biasi-minimal [class*='blur-[120px]'],
+  html.biasi-minimal [class*='blur-[150px]'],
   html.biasi-minimal [class*='blur-xl'] {
     display: none !important;
   }
@@ -288,4 +424,12 @@
     border-color: rgba(255, 255, 255, 0.08) !important;
     box-shadow: none !important;
   }
+
+  /* Tira animações pulse decorativas */
+  html.biasi-minimal .animate-pulse {
+    animation: none !important;
+  }
+
+  /* Mais espaçamento em pages */
+  html.biasi-minimal main { padding-top: 4px; }
 }
