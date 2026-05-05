@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../infrastructure/supabase/client';
 import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { isCapacitorRuntime } from '../utils/runtime';
@@ -182,58 +183,185 @@ export function Relatorios() {
     }
   }
 
-  // ── Excel Profissional ─────────────────────────────────────────────────────
+  // ── Excel Profissional (ExcelJS) ───────────────────────────────────────────
   const baixarExcel = useCallback(async () => {
     const dados = dadosExportar;
     if (!dados.length) return;
+
     const relLabel = RELATORIOS.find(r => r.id === tipo)?.label || 'Relatório';
-    const agora = new Date().toLocaleString('pt-BR');
     const cols = Object.keys(dados[0]);
+    const agora = new Date().toLocaleString('pt-BR');
 
-    // Cabeçalho: empresa, relatório, data, período
-    const linhasInfo: string[][] = [
-      [EMPRESA],
-      [`Relatório: ${relLabel}`],
-      [`Gerado em: ${agora}`],
-    ];
-    if (tipo !== 'estoque') {
-      linhasInfo.push([`Período: ${formatData(dataInicio)} a ${formatData(dataFim)}`]);
-      if (filtroObra) linhasInfo.push([`Obra: ${filtroObra}`]);
-      if (filtroStatus) linhasInfo.push([`Status: ${filtroStatus}`]);
-    }
-    if (totalSelecionados > 0) linhasInfo.push([`Registros exportados: ${dados.length} de ${totalRegistros}`]);
-    linhasInfo.push([]); // linha em branco
+    // Cores padrão Biasi
+    const AZUL_BIASI  = '0F3484';
+    const AZUL_CLARO  = 'EBF1FF';
+    const AZUL_LINHA  = 'D6E4FF';
+    const BRANCO      = 'FFFFFF';
+    const CINZA_LINHA = 'F8FAFC';
+    const LARANJA     = 'D97706';
+    const VERDE       = '059669';
+    const VERMELHO    = 'DC2626';
 
-    const aoa: unknown[][] = [
-      ...linhasInfo,
-      cols, // cabeçalho das colunas
-      ...dados.map(row => cols.map(c => row[c] ?? '-')),
-    ];
+    const wb = new ExcelJS.Workbook();
+    wb.creator = EMPRESA;
+    wb.created = new Date();
 
-    const ws = XLSX.utils.aoa_to_sheet(aoa);
-
-    // Larguras automáticas (mínimo 10, máximo 50 chars)
-    const colWidths = cols.map(col => {
-      const maxLen = Math.max(
-        col.length,
-        ...dados.map(row => String(row[col] ?? '').length)
-      );
-      return { wch: Math.min(Math.max(maxLen + 2, 10), 50) };
+    const ws = wb.addWorksheet(relLabel.slice(0, 31), {
+      views: [{ state: 'frozen', ySplit: 6 }], // congela após linha 6
     });
-    ws['!cols'] = colWidths;
 
-    // Mescla da célula de empresa (linha 0, todas as colunas)
-    ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: cols.length - 1 } }];
+    // ── Linha 1: Empresa (fundo azul, texto branco grande) ─────────────────
+    ws.mergeCells(1, 1, 1, cols.length);
+    const celEmpresa = ws.getCell('A1');
+    celEmpresa.value = EMPRESA;
+    celEmpresa.font = { name: 'Calibri', size: 18, bold: true, color: { argb: BRANCO } };
+    celEmpresa.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: AZUL_BIASI } };
+    celEmpresa.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
+    ws.getRow(1).height = 32;
 
-    // Congela após as linhas de info + cabeçalho das colunas
-    const freezeRow = linhasInfo.length + 1;
-    ws['!freeze'] = { xSplit: 0, ySplit: freezeRow };
+    // ── Linha 2: Nome do relatório ─────────────────────────────────────────
+    ws.mergeCells(2, 1, 2, cols.length);
+    const celRel = ws.getCell('A2');
+    celRel.value = `Relatório de ${relLabel} — Almoxarifado`;
+    celRel.font = { name: 'Calibri', size: 12, bold: true, color: { argb: AZUL_BIASI } };
+    celRel.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: AZUL_CLARO } };
+    celRel.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
+    ws.getRow(2).height = 22;
 
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, relLabel.slice(0, 31));
+    // ── Linhas 3-5: Informações (fundo levemente azul) ─────────────────────
+    const infoStyle = {
+      font: { name: 'Calibri', size: 10, color: { argb: '334155' } },
+      fill: { type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb: 'F1F5FB' } },
+      alignment: { vertical: 'middle' as const, horizontal: 'left' as const, indent: 1 },
+    };
+    const infos: string[] = [`Gerado em: ${agora}`];
+    if (tipo !== 'estoque') infos.push(`Período: ${formatData(dataInicio)} a ${formatData(dataFim)}`);
+    if (filtroObra) infos.push(`Obra: ${filtroObra}`);
+    if (filtroStatus) infos.push(`Status filtrado: ${filtroStatus}`);
+    if (totalSelecionados > 0) infos.push(`Registros exportados: ${dados.length} de ${totalRegistros} (selecionados)`);
+    else infos.push(`Total de registros: ${dados.length}`);
 
-    const wbArray = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-    const blob = new Blob([wbArray], {
+    for (let li = 0; li < 3; li++) {
+      const rowNum = 3 + li;
+      ws.mergeCells(rowNum, 1, rowNum, cols.length);
+      const c = ws.getCell(`A${rowNum}`);
+      c.value = infos[li] ?? '';
+      Object.assign(c, infoStyle);
+      ws.getRow(rowNum).height = 18;
+    }
+
+    // Linha 6 em branco separadora
+    ws.mergeCells(6, 1, 6, cols.length);
+    ws.getCell('A6').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: AZUL_BIASI } };
+    ws.getRow(6).height = 4;
+
+    // ── Linha 7: Cabeçalho das colunas ─────────────────────────────────────
+    const rowHeader = ws.addRow(cols);
+    rowHeader.eachCell(cell => {
+      cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: BRANCO } };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: AZUL_BIASI } };
+      cell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: false };
+      cell.border = {
+        bottom: { style: 'thin', color: { argb: AZUL_CLARO } },
+        right:  { style: 'thin', color: { argb: '1E3A8A' } },
+      };
+    });
+    rowHeader.height = 22;
+
+    // ── Dados ───────────────────────────────────────────────────────────────
+    dados.forEach((record, idx) => {
+      const values = cols.map(c => {
+        const v = record[c];
+        // Tenta preservar número para colunas numéricas
+        if (typeof v === 'number') return v;
+        const n = Number(v);
+        if (!isNaN(n) && String(v).trim() !== '' && !String(v).includes('/')) return n;
+        return String(v ?? '-');
+      });
+      const dataRow = ws.addRow(values);
+      const isBg = idx % 2 === 0;
+
+      dataRow.eachCell({ includeEmpty: true }, (cell, colNum) => {
+        const colName = cols[colNum - 1] || '';
+        const val = String(record[colName] ?? '');
+
+        cell.font = { name: 'Calibri', size: 10 };
+        cell.fill = {
+          type: 'pattern', pattern: 'solid',
+          fgColor: { argb: isBg ? CINZA_LINHA : BRANCO },
+        };
+        cell.alignment = { vertical: 'middle', wrapText: false };
+        cell.border = {
+          bottom: { style: 'hair', color: { argb: 'E2E8F0' } },
+          right:  { style: 'hair', color: { argb: 'E2E8F0' } },
+        };
+
+        // Destaque status
+        if (val === 'BAIXO') {
+          cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: LARANJA } };
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF7ED' } };
+        } else if (val === 'OK') {
+          cell.font = { name: 'Calibri', size: 10, color: { argb: VERDE } };
+        } else if (val === 'Entrada') {
+          cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: VERDE } };
+        } else if (val === 'Saída') {
+          cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: VERMELHO } };
+        }
+        // Alinha números à direita
+        if (typeof values[colNum - 1] === 'number') {
+          cell.alignment = { vertical: 'middle', horizontal: 'right' };
+        }
+      });
+      dataRow.height = 18;
+    });
+
+    // ── Linha de totais (estoque e movimentações) ───────────────────────────
+    if (tipo === 'estoque' || tipo === 'movimentacoes') {
+      const totalRow = ws.addRow([]);
+      // Linha separadora antes do total
+      const sepRow = ws.addRow([]);
+      sepRow.eachCell({ includeEmpty: true }, cell => {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: AZUL_BIASI } };
+      });
+      sepRow.height = 3;
+
+      totalRow.getCell(1).value = 'TOTAL';
+      totalRow.getCell(1).font = { name: 'Calibri', size: 10, bold: true, color: { argb: BRANCO } };
+      totalRow.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: AZUL_BIASI } };
+
+      // Soma colunas numéricas
+      cols.forEach((col, ci) => {
+        const isNum = dados.every(r => {
+          const v = r[col];
+          return typeof v === 'number' || (!isNaN(Number(v)) && String(v).trim() !== '' && !String(v).includes('/'));
+        });
+        if (isNum && ci > 0) {
+          const sum = dados.reduce((acc, r) => acc + Number(r[col] ?? 0), 0);
+          const c = totalRow.getCell(ci + 1);
+          c.value = sum;
+          c.font = { name: 'Calibri', size: 10, bold: true, color: { argb: BRANCO } };
+          c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: AZUL_BIASI } };
+          c.alignment = { vertical: 'middle', horizontal: 'right' };
+        } else if (ci > 0) {
+          const c = totalRow.getCell(ci + 1);
+          c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: AZUL_BIASI } };
+        }
+      });
+      totalRow.height = 22;
+    }
+
+    // ── Larguras automáticas ───────────────────────────────────────────────
+    cols.forEach((col, i) => {
+      const maxLen = Math.max(
+        col.length + 2,
+        ...dados.map(r => String(r[col] ?? '').length),
+      );
+      ws.getColumn(i + 1).width = Math.min(Math.max(maxLen + 2, 10), 55);
+    });
+
+    // ── Exportar ───────────────────────────────────────────────────────────
+    const buffer = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
       type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     });
     const filename = `${EMPRESA} - ${relLabel} - ${new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')}.xlsx`;
