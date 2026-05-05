@@ -4,11 +4,21 @@ import { isCapacitorRuntime } from '../../utils/runtime';
 
 declare const __BUILD_VERSION__: string;
 
+type Phase = 'idle' | 'downloading' | 'ready' | 'error';
+
+const MOBILE_UPDATE_DISMISS_PREFIX = 'biasihub-mobile-update-dismissed:';
+
+function normalizeVersionTag(tag?: string | null) {
+  return String(tag || '').trim().replace(/^v/i, '');
+}
+
 function isNewerVersion(latestTag: string, currentTag: string) {
-  if (!latestTag) return false;
-  if (!currentTag || currentTag === 'dev') return true;
-  const latest = latestTag.replace(/^v/, '').split('.').map((n) => Number(n) || 0);
-  const current = currentTag.replace(/^v/, '').split('.').map((n) => Number(n) || 0);
+  const normalizedLatest = normalizeVersionTag(latestTag);
+  const normalizedCurrent = normalizeVersionTag(currentTag);
+  if (!normalizedLatest) return false;
+  if (!normalizedCurrent || normalizedCurrent === 'dev') return true;
+  const latest = normalizedLatest.split('.').map((n) => Number(n) || 0);
+  const current = normalizedCurrent.split('.').map((n) => Number(n) || 0);
   for (let i = 0; i < Math.max(latest.length, current.length); i++) {
     if ((latest[i] || 0) > (current[i] || 0)) return true;
     if ((latest[i] || 0) < (current[i] || 0)) return false;
@@ -16,15 +26,40 @@ function isNewerVersion(latestTag: string, currentTag: string) {
   return false;
 }
 
+function getMobileDismissKey(version?: string | null) {
+  const normalized = normalizeVersionTag(version);
+  return normalized ? `${MOBILE_UPDATE_DISMISS_PREFIX}${normalized}` : '';
+}
+
+function wasMobileUpdateDismissed(version?: string | null) {
+  try {
+    const key = getMobileDismissKey(version);
+    return Boolean(key && window.localStorage.getItem(key) === '1');
+  } catch {
+    return false;
+  }
+}
+
+function rememberMobileUpdateDismissed(version?: string | null) {
+  try {
+    const key = getMobileDismissKey(version);
+    if (key) window.localStorage.setItem(key, '1');
+  } catch {
+    // Ignora ambientes sem localStorage persistente.
+  }
+}
+
 export function UpdateChecker() {
   const [versaoNova, setVersaoNova] = useState<string | null>(null);
   const [downloadUrl, setDownloadUrl] = useState('');
   const [dispensado, setDispensado] = useState(false);
+  const [phase, setPhase] = useState<Phase>('idle');
+  const [errorMsg, setErrorMsg] = useState('');
 
   const bridge = (window as any).electronBridge;
   const isDesktop = !!bridge;
   const isCapacitor = isCapacitorRuntime();
-  const mobileCurrentVersion = (import.meta.env.VITE_MOBILE_RELEASE_TAG || 'dev').replace(/^v/, '');
+  const mobileCurrentVersion = normalizeVersionTag(import.meta.env.VITE_MOBILE_RELEASE_TAG || '');
 
   useEffect(() => {
     let cancelado = false;
@@ -47,11 +82,12 @@ export function UpdateChecker() {
           const res = await fetch('https://api.github.com/repos/BiasiD4V/biasihub/releases/latest', { cache: 'no-store' });
           if (!res.ok || cancelado) return;
           const release = await res.json();
-          const latestTag = String(release.tag_name || '').replace(/^v/, '');
+          const latestTag = normalizeVersionTag(release.tag_name);
           const apkAsset = (release.assets || []).find((asset: any) =>
             String(asset.name || '').toLowerCase().endsWith('.apk')
           );
           if (latestTag && apkAsset?.browser_download_url && isNewerVersion(latestTag, mobileCurrentVersion)) {
+            if (wasMobileUpdateDismissed(latestTag)) return;
             setVersaoNova(latestTag);
             setDownloadUrl(apkAsset.browser_download_url);
           }
@@ -81,18 +117,31 @@ export function UpdateChecker() {
     };
   }, [bridge, isDesktop, isCapacitor, mobileCurrentVersion]);
 
-  async function baixarApk() {
+  async function instalarApk() {
     if (!downloadUrl) return;
+    setPhase('downloading');
+    setErrorMsg('');
     try {
-      const browser = (window as any).Capacitor?.Plugins?.Browser;
-      if (browser?.open) {
-        await browser.open({ url: downloadUrl });
+      const nativeInstaller = (window as any).BiasiApkInstaller;
+      const fileName = downloadUrl.split('/').pop() || `biasihub-mobile-v${versaoNova}.apk`;
+      if (nativeInstaller?.installApk) {
+        nativeInstaller.installApk(downloadUrl, fileName);
+        setPhase('ready');
       } else {
-        window.open(downloadUrl, '_blank');
+        // Fallback: abre direto (Chrome vai baixar o APK)
+        window.location.href = downloadUrl;
+        setPhase('ready');
       }
-    } catch {
-      window.location.href = downloadUrl;
+    } catch (e: any) {
+      setPhase('error');
+      setErrorMsg(e?.message || 'Nao foi possivel iniciar a instalacao.');
     }
+  }
+
+  function dispensar() {
+    if (isCapacitor && versaoNova) rememberMobileUpdateDismissed(versaoNova);
+    setDispensado(true);
+    setPhase('idle');
   }
 
   if (!versaoNova || dispensado) return null;
@@ -103,20 +152,29 @@ export function UpdateChecker() {
         <div className="flex items-start gap-3">
           <Download size={18} className="text-blue-600 flex-shrink-0 mt-0.5" />
           <div className="flex-1">
-            <p className="font-semibold text-slate-800 text-sm">Atualizacao do APK disponivel</p>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Versao v{versaoNova}. Baixe o APK da release e instale por cima.
+            <p className="font-semibold text-slate-800 text-sm">
+              {phase === 'downloading' ? 'Baixando APK...' : phase === 'ready' ? 'Instalador aberto' : 'Atualizacao disponivel'}
             </p>
+            <p className="text-xs text-slate-500 mt-0.5">
+              {phase === 'ready'
+                ? 'Conclua a instalacao na tela do Android. Se pedir permissao, autorize e toque novamente.'
+                : `Versao v${versaoNova}. Instala direto no app, sem abrir o Chrome.`}
+            </p>
+            {phase === 'error' && errorMsg && (
+              <p className="text-xs text-red-500 mt-1">{errorMsg}</p>
+            )}
           </div>
-          <button onClick={() => setDispensado(true)} className="text-slate-300 hover:text-slate-500">
+          <button onClick={dispensar} className="text-slate-300 hover:text-slate-500">
             <X size={15} />
           </button>
         </div>
         <button
-          onClick={baixarApk}
-          className="mt-3 w-full py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg transition-colors"
+          onClick={phase === 'ready' ? instalarApk : instalarApk}
+          disabled={phase === 'downloading'}
+          className="mt-3 w-full py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
         >
-          Baixar APK
+          <Download size={13} className={phase === 'downloading' ? 'animate-pulse' : ''} />
+          {phase === 'downloading' ? 'Baixando...' : phase === 'ready' ? 'Abrir instalador novamente' : 'Instalar agora'}
         </button>
       </div>
     );

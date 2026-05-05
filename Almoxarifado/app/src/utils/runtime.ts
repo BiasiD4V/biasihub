@@ -29,26 +29,35 @@ type RecoverableSupabaseClient = {
 
 let connectionRecoveryInstalled = false;
 let recoveryTimer: number | undefined;
+let heartbeatTimer: number | undefined;
 let recoveryRunning = false;
 let lastRecoveryAt = 0;
-const RECOVERY_AUTH_TIMEOUT_MS = 5000;
+let lastVisibleAt = Date.now();
+
+// Timeout generoso: 8s pro auth (APK 4G pode ser lento)
+const RECOVERY_AUTH_TIMEOUT_MS = 8000;
+
+// Heartbeat a cada 45s — detecta quedas silenciosas (Electron sleep, APK background)
+const HEARTBEAT_INTERVAL_MS = 45_000;
+
+// Cooldown entre recuperações: 5s (era 15s — muito longo)
+const RECOVERY_COOLDOWN_MS = 5_000;
 
 function withRecoveryTimeout<T>(promise: Promise<T> | undefined): Promise<T | undefined> {
   if (!promise) return Promise.resolve(undefined);
 
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     const timer = window.setTimeout(() => resolve(undefined), RECOVERY_AUTH_TIMEOUT_MS);
 
     promise
       .then((result) => resolve(result))
-      .catch(reject)
+      .catch(() => resolve(undefined))
       .finally(() => window.clearTimeout(timer));
   });
 }
 
 export function installConnectionRecovery(supabase: RecoverableSupabaseClient) {
   if (typeof window === 'undefined') return;
-  if (!isCapacitorRuntime() && !isElectronRuntime()) return;
   if (connectionRecoveryInstalled) return;
 
   connectionRecoveryInstalled = true;
@@ -58,7 +67,9 @@ export function installConnectionRecovery(supabase: RecoverableSupabaseClient) {
     if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
 
     const now = Date.now();
-    if (reason !== 'online' && now - lastRecoveryAt < 15000) return;
+    // 'online' e 'heartbeat' nunca respeitam cooldown — prioridade máxima
+    const bypassCooldown = reason === 'online' || reason === 'heartbeat';
+    if (!bypassCooldown && now - lastRecoveryAt < RECOVERY_COOLDOWN_MS) return;
 
     recoveryRunning = true;
     lastRecoveryAt = now;
@@ -69,34 +80,61 @@ export function installConnectionRecovery(supabase: RecoverableSupabaseClient) {
       if (sessionResult?.data?.session) {
         await withRecoveryTimeout(supabase.auth?.refreshSession?.().catch(() => null));
       }
-    } catch (error) {
-      console.warn('[runtime] Falha ao renovar sessao durante recuperacao.', error);
+    } catch {
+      // silencioso — não interrompe o fluxo
     }
 
     try {
       supabase.realtime?.disconnect?.();
+      // Pequeno delay antes de reconectar para o WebSocket fechar limpo
+      await new Promise<void>((r) => window.setTimeout(r, 300));
       supabase.realtime?.connect?.();
-    } catch (error) {
-      console.warn('[runtime] Falha ao reconectar realtime durante recuperacao.', error);
+    } catch {
+      // silencioso
     } finally {
       window.dispatchEvent(new CustomEvent('biasi:connection-restored', { detail: { reason } }));
       recoveryRunning = false;
     }
   };
 
-  const scheduleRecovery = (reason: string) => {
+  const scheduleRecovery = (reason: string, delayMs = 600) => {
     if (recoveryTimer) window.clearTimeout(recoveryTimer);
     recoveryTimer = window.setTimeout(() => {
       void recover(reason);
-    }, 600);
+    }, delayMs);
   };
 
-  window.addEventListener('online', () => scheduleRecovery('online'));
+  // Eventos de rede e foco
+  window.addEventListener('online', () => scheduleRecovery('online', 300));
   window.addEventListener('focus', () => scheduleRecovery('focus'));
   window.addEventListener('pageshow', () => scheduleRecovery('pageshow'));
   document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) scheduleRecovery('visible');
+    if (!document.hidden) {
+      // Se ficou oculto por mais de 2 minutos, recupera imediatamente
+      const hiddenMs = Date.now() - lastVisibleAt;
+      const delay = hiddenMs > 120_000 ? 300 : 600;
+      scheduleRecovery('visible', delay);
+    } else {
+      lastVisibleAt = Date.now();
+    }
   });
+
+  // Heartbeat periódico — principal proteção contra quedas silenciosas
+  // (Electron ao acordar do sono, APK em background não dispara eventos de rede)
+  heartbeatTimer = window.setInterval(async () => {
+    if (document.hidden) return; // não bate enquanto app está em background
+    if (navigator.onLine === false) return;
+
+    try {
+      const result = await withRecoveryTimeout(supabase.auth?.getSession?.());
+      if (!result?.data?.session) {
+        // Sem sessão — pode ser queda silenciosa, tenta recuperar
+        scheduleRecovery('heartbeat', 0);
+      }
+    } catch {
+      scheduleRecovery('heartbeat', 0);
+    }
+  }, HEARTBEAT_INTERVAL_MS);
 }
 
 export async function purgeMobileWebCaches() {

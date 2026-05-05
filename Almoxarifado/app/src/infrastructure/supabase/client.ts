@@ -17,7 +17,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
   );
 }
 
-const SUPABASE_TIMEOUT_MS = 12000;
+const SUPABASE_TIMEOUT_MS = 20000;
 
 async function fetchWithTimeout(input: RequestInfo | URL, init?: RequestInit) {
   const controller = new AbortController();

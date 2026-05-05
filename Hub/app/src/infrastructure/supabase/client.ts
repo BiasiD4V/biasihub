@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
-const SUPABASE_TIMEOUT_MS = 12000
+const SUPABASE_TIMEOUT_MS = 20000
 
 if (!supabaseUrl || !supabaseAnonKey) {
   // Loga em vermelho pra ficar visível no DevTools (Vercel/Capacitor).

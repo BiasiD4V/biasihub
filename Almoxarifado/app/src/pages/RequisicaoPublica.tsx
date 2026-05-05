@@ -92,6 +92,18 @@ function normalizeDisplayText(value: string | null | undefined): string {
   return raw.replace(/\uFFFD/g, '').trim();
 }
 
+/** Trava o horário entre 07:00 e 16:00 (expediente). */
+function clampHorarioComercial(v: string): string {
+  if (!v) return v;
+  const [date, time] = v.split('T');
+  if (!date || !time) return v;
+  const h = parseInt(time.slice(0, 2), 10);
+  const m = parseInt(time.slice(3, 5), 10);
+  if (h < 7) return `${date}T07:00`;
+  if (h > 16 || (h === 16 && m > 0)) return `${date}T16:00`;
+  return v;
+}
+
 function datetimeLocalNow(): string {
   const now = new Date();
   now.setSeconds(0, 0);
@@ -625,6 +637,10 @@ export function RequisicaoPublica() {
         origem_id?: string;
         obra?: string;
         observacao?: string | null;
+        prazo?: string | null;
+        prioridade?: string | null;
+        cargo?: string | null;
+        entrega?: string | null;
         itens?: Array<{
           item_id?: string | null;
           tipo?: string;
@@ -647,16 +663,13 @@ export function RequisicaoPublica() {
       setCategoria(cat);
 
       if (dados.obra) setObra(dados.obra);
-      // Tira metas técnicas da observação antiga e mantém só o "obs:" humano
-      if (dados.observacao) {
-        const obsLimpo = String(dados.observacao)
-          .split('|')
-          .map(p => p.trim())
-          .filter(p => p.startsWith('obs:'))
-          .map(p => p.slice(4).trim())
-          .join(' ');
-        if (obsLimpo) setObservacao(obsLimpo);
-      }
+      if (dados.observacao) setObservacao(dados.observacao);
+      if (dados.prazo) setPrazo(dados.prazo.slice(0, 16)); // garante formato YYYY-MM-DDTHH:MM
+      if (dados.prioridade && ['normal', 'urgente', 'baixo'].includes(dados.prioridade))
+        setPrioridade(dados.prioridade as 'normal' | 'urgente' | 'baixo');
+      if (dados.cargo) setCargo(dados.cargo);
+      if (dados.entrega != null)
+        setEntregaSolicitada(['sim', 's', 'true', '1', 'yes'].includes(String(dados.entrega).toLowerCase()));
 
       const itensIniciais = (dados.itens || []).map(it => {
         const urlsExistentes = [
@@ -1292,14 +1305,11 @@ export function RequisicaoPublica() {
                   value={prazo}
                   required={categoria === 'frota'}
                   onChange={(e) => {
-                    const v = e.target.value;
-                    if (v && v < minPrazo) {
-                      setPrazo(minPrazo);
-                    } else {
-                      setPrazo(v);
-                    }
+                    const v = clampHorarioComercial(e.target.value);
+                    setPrazo(v && v < minPrazo ? minPrazo : v);
                   }}
                 />
+                <p className="m-0 text-[#89a2e2] text-[0.8rem]">Horário disponível: 07:00 às 16:00.</p>
               </div>
             </div>
 

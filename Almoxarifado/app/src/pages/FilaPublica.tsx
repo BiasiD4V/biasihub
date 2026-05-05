@@ -256,16 +256,28 @@ export function FilaPublica() {
   /** Abre o formulário de requisição pré-preenchido com os dados do pedido.
       Útil quando o almoxarifado negou e o solicitante quer corrigir e reenviar. */
   function editarPedido(p: Requisicao) {
-    const obsLimpo = String(p.observacao || '')
-      .split('|')
-      .map(s => s.trim())
-      .filter(s => s.startsWith('obs:'))
-      .map(s => s.slice(4).trim())
-      .join(' ');
+    // Extrai metas brutas da observação
+    const metaRaw: Record<string, string> = {};
+    const textoObs: string[] = [];
+    String(p.observacao || '').split('|').map(s => s.trim()).filter(Boolean).forEach(parte => {
+      const idx = parte.indexOf(':');
+      if (idx > 0) {
+        const chave = parte.slice(0, idx).trim();
+        const valor = parte.slice(idx + 1).trim();
+        metaRaw[chave] = valor;
+      } else {
+        textoObs.push(parte);
+      }
+    });
+    const obsLimpo = metaRaw.obs || textoObs.join(' ');
     const dados = {
       origem_id: p.id,
       obra: p.obra,
       observacao: obsLimpo,
+      prazo: metaRaw.prazo || null,
+      prioridade: metaRaw.prioridade || null,
+      cargo: metaRaw.cargo || null,
+      entrega: metaRaw.entrega || null,
       itens: (p.itens || []).map(it => ({
         item_id: it.item_id || null,
         descricao: it.descricao || it.nome || '',
