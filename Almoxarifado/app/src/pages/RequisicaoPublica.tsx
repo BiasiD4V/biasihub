@@ -638,9 +638,11 @@ export function RequisicaoPublica() {
         obra?: string;
         observacao?: string | null;
         prazo?: string | null;
+        devolucao?: string | null;
         prioridade?: string | null;
         cargo?: string | null;
         entrega?: string | null;
+        justificativa_urgencia?: string | null;
         itens?: Array<{
           item_id?: string | null;
           tipo?: string;
@@ -651,8 +653,11 @@ export function RequisicaoPublica() {
           observacao?: string | null;
           placa?: string | null;
           modelo?: string | null;
+          uso_frota?: string | null;
+          uso_frota_label?: string | null;
           foto_material?: string | null;
           fotos_urls?: string[];
+          justificativa_urgencia?: string | null;
         }>;
       };
       // Detecta categoria pelo primeiro item
@@ -664,9 +669,11 @@ export function RequisicaoPublica() {
 
       if (dados.obra) setObra(dados.obra);
       if (dados.observacao) setObservacao(dados.observacao);
-      if (dados.prazo) setPrazo(dados.prazo.slice(0, 16)); // garante formato YYYY-MM-DDTHH:MM
+      if (dados.prazo) setPrazo(dados.prazo.slice(0, 16));
+      if (dados.devolucao) setDevolucaoFrota(dados.devolucao.slice(0, 16));
       if (dados.prioridade && ['normal', 'urgente', 'baixo'].includes(dados.prioridade))
         setPrioridade(dados.prioridade as 'normal' | 'urgente' | 'baixo');
+      if (dados.justificativa_urgencia) setJustificativaUrgencia(dados.justificativa_urgencia);
       if (dados.cargo) setCargo(dados.cargo);
       if (dados.entrega != null)
         setEntregaSolicitada(['sim', 's', 'true', '1', 'yes'].includes(String(dados.entrega).toLowerCase()));
@@ -677,16 +684,16 @@ export function RequisicaoPublica() {
           it.foto_material || '',
         ].filter((url, idx, arr): url is string => !!url && arr.indexOf(url) === idx);
         return {
-        uid: uid(),
-        itemId: it.item_id || null,
-        codigo: null,
-        descricao: it.descricao || it.nome || '',
-        quantidade: String(it.quantidade ?? 1),
-        unidade: it.unidade || (cat === 'frota' ? 'uso' : 'un'),
-        observacao: it.observacao || '',
-        fotos: [] as File[],
-        fotosUrls: urlsExistentes,
-        usoFrota: null as string | null,
+          uid: uid(),
+          itemId: it.item_id || null,
+          codigo: null,
+          descricao: it.descricao || it.nome || '',
+          quantidade: String(it.quantidade ?? 1),
+          unidade: it.unidade || (cat === 'frota' ? 'uso' : 'un'),
+          observacao: it.observacao || '',
+          fotos: [] as File[],
+          fotosUrls: urlsExistentes,
+          usoFrota: it.uso_frota || null,
         };
       });
       if (itensIniciais.length > 0) setItens(itensIniciais);

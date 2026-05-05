@@ -270,14 +270,22 @@ export function FilaPublica() {
       }
     });
     const obsLimpo = metaRaw.obs || textoObs.join(' ');
+    // justificativa_urgencia: vem do primeiro item que tiver o campo preenchido
+    const justificativaUrgencia = (p.itens || []).reduce<string>((acc, it) => {
+      if (acc) return acc;
+      return (it as any).justificativa_urgencia || '';
+    }, '');
+
     const dados = {
       origem_id: p.id,
       obra: p.obra,
       observacao: obsLimpo,
       prazo: metaRaw.prazo || null,
+      devolucao: metaRaw.devolucao || null,
       prioridade: metaRaw.prioridade || null,
       cargo: metaRaw.cargo || null,
       entrega: metaRaw.entrega || null,
+      justificativa_urgencia: justificativaUrgencia || null,
       itens: (p.itens || []).map(it => ({
         item_id: it.item_id || null,
         descricao: it.descricao || it.nome || '',
@@ -291,6 +299,7 @@ export function FilaPublica() {
         modelo: it.modelo || null,
         uso_frota: it.uso_frota || null,
         uso_frota_label: it.uso_frota_label || null,
+        justificativa_urgencia: (it as any).justificativa_urgencia || null,
       })),
     };
     localStorage.setItem('biasi_repetir_v1', JSON.stringify(dados));
