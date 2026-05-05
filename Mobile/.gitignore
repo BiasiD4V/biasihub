@@ -4,3 +4,7 @@ android/
 ios/
 *.log
 .DS_Store
+*.keystore
+*.key
+*.crt
+*.b64

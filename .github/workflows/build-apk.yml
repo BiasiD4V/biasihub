@@ -75,26 +75,36 @@ jobs:
         working-directory: Mobile
         run: npx cap add android
 
-      - name: Patch Android permissions (camera/microfone)
+      - name: Decodifica keystore de release
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > Mobile/biasihub-release.keystore
+          echo "Keystore: $(wc -c < Mobile/biasihub-release.keystore) bytes"
+
+      - name: Patch Android permissions + signing config
         working-directory: Mobile
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ github.workspace }}/Mobile/biasihub-release.keystore
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
         run: npm run patch:android
 
       - name: Capacitor sync (copia www/ pro Android)
         working-directory: Mobile
         run: npx cap sync android
 
-      - name: Build APK debug (assinado com chave de debug)
+      - name: Build APK release (assinado com chave fixa)
         working-directory: Mobile/android
         run: |
           chmod +x ./gradlew
-          ./gradlew assembleDebug --no-daemon
+          ./gradlew assembleRelease --no-daemon
 
       - name: Renomeia o APK pra incluir versão
         id: rename
         run: |
           VERSION="${{ github.event.release.tag_name || github.event.inputs.tag || 'latest' }}"
           mkdir -p out
-          cp Mobile/android/app/build/outputs/apk/debug/app-debug.apk "out/biasihub-mobile-${VERSION}.apk"
+          cp Mobile/android/app/build/outputs/apk/release/app-release.apk "out/biasihub-mobile-${VERSION}.apk"
           echo "apk_path=out/biasihub-mobile-${VERSION}.apk" >> "$GITHUB_OUTPUT"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
 
