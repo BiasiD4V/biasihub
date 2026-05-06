@@ -4,6 +4,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { supabase } from './infrastructure/supabase/client';
 import { installConnectionRecovery, purgeMobileWebCaches } from './utils/runtime';
 import './styles/index.css';
+import './styles/aparencia.css';
 
 void purgeMobileWebCaches();
 installConnectionRecovery(supabase);

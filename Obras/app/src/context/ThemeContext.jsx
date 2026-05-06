@@ -1,24 +1,6 @@
-import { createContext, useContext, useEffect, useMemo, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 
-/**
- * Paletas disponíveis para o Hub.
- * O `accent` substitui o amarelo Biasi (#FFC82D) como cor de destaque.
- * O `bgFrom`/`bgTo` ajustam os gradientes do shell.
- */
-export type PaletaId = 'azul' | 'verde' | 'bege' | 'vinho' | 'mono';
-
-export interface Paleta {
-  id: PaletaId;
-  nome: string;
-  descricao: string;
-  amostras: string[];
-  accent: string;
-  accentDark: string;
-  bgFrom: string;
-  bgTo: string;
-}
-
-export const PALETAS: Paleta[] = [
+export const PALETAS = [
   {
     id: 'azul',
     nome: 'Biasi (Padrão)',
@@ -71,22 +53,10 @@ export const PALETAS: Paleta[] = [
   },
 ];
 
-interface ThemeState {
-  paleta: PaletaId;
-  minimalista: boolean;
-}
-
-interface ThemeContextValue extends ThemeState {
-  paletaAtual: Paleta;
-  setPaleta: (id: PaletaId) => void;
-  setMinimalista: (v: boolean) => void;
-  resetar: () => void;
-}
-
 const STORAGE_KEY = 'biasihub-hub-aparencia';
-const DEFAULT_STATE: ThemeState = { paleta: 'azul', minimalista: false };
+const DEFAULT_STATE = { paleta: 'azul', minimalista: false };
 
-function carregar(): ThemeState {
+function carregar() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return DEFAULT_STATE;
@@ -98,7 +68,7 @@ function carregar(): ThemeState {
   }
 }
 
-function aplicarNoDOM(paleta: Paleta, minimalista: boolean) {
+function aplicarNoDOM(paleta, minimalista) {
   const root = document.documentElement;
   root.style.setProperty('--biasi-accent', paleta.accent);
   root.style.setProperty('--biasi-accent-dark', paleta.accentDark);
@@ -108,10 +78,10 @@ function aplicarNoDOM(paleta: Paleta, minimalista: boolean) {
   root.classList.toggle('biasi-minimal', minimalista);
 }
 
-const ThemeContext = createContext<ThemeContextValue | null>(null);
+const ThemeContext = createContext(null);
 
-export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [estado, setEstado] = useState<ThemeState>(() => carregar());
+export function ThemeProvider({ children }) {
+  const [estado, setEstado] = useState(() => carregar());
 
   const paletaAtual = useMemo(
     () => PALETAS.find(p => p.id === estado.paleta) ?? PALETAS[0],
@@ -127,7 +97,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     }
   }, [paletaAtual, estado]);
 
-  const value: ThemeContextValue = {
+  const value = {
     ...estado,
     paletaAtual,
     setPaleta: (id) => setEstado(s => ({ ...s, paleta: id })),

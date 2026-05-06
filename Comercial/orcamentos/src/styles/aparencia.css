@@ -1,0 +1,136 @@
+/* ─────────────────────────────────────────────────────────────────────────
+   APARÊNCIA — Paletas e Modo Minimalista (controlado via ThemeContext)
+   Compartilhado entre Hub, Almoxarifado, Comercial e Obras.
+   ───────────────────────────────────────────────────────────────────────── */
+
+/* Defaults (paleta azul Biasi) */
+:root {
+  --biasi-accent: #FFC82D;
+  --biasi-accent-dark: #E0AE00;
+  --biasi-bg-900: #060f2a;
+  --biasi-bg-800: #0d1f4a;
+  --biasi-glow-1: rgba(99, 102, 241, 0.10);
+  --biasi-glow-2: rgba(2, 132, 199, 0.10);
+}
+
+html[data-paleta='azul'] {
+  --biasi-glow-1: rgba(0, 100, 148, 0.18);
+  --biasi-glow-2: rgba(27, 152, 224, 0.14);
+}
+
+html[data-paleta='verde'] {
+  --biasi-glow-1: rgba(122, 157, 61, 0.16);
+  --biasi-glow-2: rgba(184, 199, 106, 0.12);
+}
+
+html[data-paleta='bege'] {
+  --biasi-glow-1: rgba(194, 155, 123, 0.18);
+  --biasi-glow-2: rgba(241, 209, 209, 0.12);
+}
+
+html[data-paleta='vinho'] {
+  --biasi-glow-1: rgba(199, 44, 65, 0.18);
+  --biasi-glow-2: rgba(238, 69, 64, 0.14);
+}
+
+html[data-paleta='mono'] {
+  --biasi-glow-1: rgba(255, 255, 255, 0.06);
+  --biasi-glow-2: rgba(212, 212, 212, 0.05);
+}
+
+/* Substitui o amarelo Biasi (#FFC82D) pelo accent da paleta atual */
+.text-\[\#FFC82D\] { color: var(--biasi-accent); }
+.bg-\[\#FFC82D\] { background-color: var(--biasi-accent) !important; }
+
+.bg-\[\#FFC82D\]\/10,
+.bg-\[\#FFC82D\]\/12,
+.bg-\[\#FFC82D\]\/15,
+.bg-\[\#FFC82D\]\/20 {
+  background-color: color-mix(in srgb, var(--biasi-accent) 15%, transparent) !important;
+}
+
+.hover\:bg-\[\#FFC82D\]:hover { background-color: var(--biasi-accent) !important; }
+
+.border-\[\#FFC82D\] { border-color: var(--biasi-accent) !important; }
+.border-\[\#FFC82D\]\/30,
+.border-\[\#FFC82D\]\/35,
+.border-\[\#FFC82D\]\/40 {
+  border-color: color-mix(in srgb, var(--biasi-accent) 35%, transparent) !important;
+}
+
+.shadow-\[0_0_15px_rgba\(255\,200\,45\,0\.3\)\],
+.shadow-\[0_0_12px_rgba\(255\,200\,45\,0\.9\)\],
+.shadow-\[\#FFC82D\]\/20 {
+  box-shadow: 0 0 15px color-mix(in srgb, var(--biasi-accent) 30%, transparent) !important;
+}
+
+.group:hover .group-hover\:text-\[\#FFC82D\] { color: var(--biasi-accent) !important; }
+.group:hover .group-hover\:bg-\[\#FFC82D\] { background-color: var(--biasi-accent) !important; }
+
+/* Background do shell por paleta — substitui slate-950/slate-900 */
+html[data-paleta='verde'] body,
+html[data-paleta='verde'] .bg-slate-950,
+html[data-paleta='verde'] .bg-slate-900,
+html[data-paleta='bege'] body,
+html[data-paleta='bege'] .bg-slate-950,
+html[data-paleta='bege'] .bg-slate-900,
+html[data-paleta='vinho'] body,
+html[data-paleta='vinho'] .bg-slate-950,
+html[data-paleta='vinho'] .bg-slate-900,
+html[data-paleta='mono'] body,
+html[data-paleta='mono'] .bg-slate-950,
+html[data-paleta='mono'] .bg-slate-900 {
+  background-color: var(--biasi-bg-900) !important;
+}
+
+html[data-paleta='verde'] .bg-slate-900\/40 { background-color: rgba(31, 61, 42, 0.55) !important; }
+html[data-paleta='bege']  .bg-slate-900\/40 { background-color: rgba(42, 31, 31, 0.55) !important; }
+html[data-paleta='vinho'] .bg-slate-900\/40 { background-color: rgba(45, 19, 44, 0.55) !important; }
+html[data-paleta='mono']  .bg-slate-900\/40 { background-color: rgba(20, 20, 20, 0.65) !important; }
+
+html:not([data-paleta='azul']) .bg-indigo-600\/10,
+html:not([data-paleta='azul']) .bg-indigo-500\/10 {
+  background-color: var(--biasi-glow-1) !important;
+}
+html:not([data-paleta='azul']) .bg-sky-600\/10,
+html:not([data-paleta='azul']) .bg-sky-500\/10 {
+  background-color: var(--biasi-glow-2) !important;
+}
+
+/* === MODO MINIMALISTA ===
+   Esconde apenas divs DECORATIVOS — nunca a sidebar (backdrop-blur-3xl). */
+html.biasi-minimal .pointer-events-none[class~='blur-3xl'],
+html.biasi-minimal .pointer-events-none[class~='blur-xl'],
+html.biasi-minimal .pointer-events-none[class*='blur-[110px]'],
+html.biasi-minimal .pointer-events-none[class*='blur-[120px]'],
+html.biasi-minimal .pointer-events-none[class*='blur-[150px]'],
+html.biasi-minimal .absolute[class~='blur-3xl']:not(aside):not(nav),
+html.biasi-minimal .absolute[class~='blur-xl']:not(aside):not(nav),
+html.biasi-minimal .fixed[class*='blur-[150px]'],
+html.biasi-minimal .fixed[class*='blur-[120px]'] {
+  display: none !important;
+}
+
+html.biasi-minimal [class*='shadow-2xl'],
+html.biasi-minimal [class*='shadow-xl'],
+html.biasi-minimal [class*='shadow-lg'] {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08) !important;
+}
+
+html.biasi-minimal [class*='border-2'] {
+  border-width: 1px !important;
+}
+
+html.biasi-minimal button:not(.biasi-keep-style) {
+  box-shadow: none !important;
+}
+
+html.biasi-minimal .biasi-card {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  box-shadow: none !important;
+}
+
+html.biasi-minimal .animate-pulse {
+  animation: none !important;
+}

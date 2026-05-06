@@ -1,12 +1,11 @@
 import { Check, Palette, Sparkles, RotateCcw } from 'lucide-react';
-import { useTheme, PALETAS, type PaletaId } from '../context/ThemeContext';
+import { useTheme, PALETAS } from '../context/ThemeContext';
 
-export function Aparencia() {
+export default function Aparencia() {
   const { paleta, paletaAtual, minimalista, setPaleta, setMinimalista, resetar } = useTheme();
 
   return (
     <div className="p-4 lg:p-8 max-w-5xl mx-auto">
-      {/* Header */}
       <div className="mb-8">
         <h1 className="text-2xl lg:text-3xl font-black text-white flex items-center gap-3 tracking-tight">
           <Palette style={{ color: 'var(--biasi-accent)' }} size={28} />
@@ -17,13 +16,10 @@ export function Aparencia() {
         </p>
       </div>
 
-      {/* Paletas */}
       <section className="mb-8">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h2 className="text-xs font-black uppercase tracking-[0.3em] text-[#8EA2D4]">
-              Paleta de cores
-            </h2>
+            <h2 className="text-xs font-black uppercase tracking-[0.3em] text-[#8EA2D4]">Paleta de cores</h2>
             <p className="text-xs text-[#9DB2E7] mt-1">Escolha o tema visual do aplicativo</p>
           </div>
           <button
@@ -39,7 +35,6 @@ export function Aparencia() {
           {PALETAS.map((p) => (
             <PaletaCard
               key={p.id}
-              paletaId={p.id}
               nome={p.nome}
               descricao={p.descricao}
               amostras={p.amostras}
@@ -50,11 +45,8 @@ export function Aparencia() {
         </div>
       </section>
 
-      {/* Modo Minimalista */}
       <section className="mb-8">
-        <h2 className="text-xs font-black uppercase tracking-[0.3em] text-[#8EA2D4] mb-4">
-          Modo Minimalista
-        </h2>
+        <h2 className="text-xs font-black uppercase tracking-[0.3em] text-[#8EA2D4] mb-4">Modo Minimalista</h2>
 
         <div className="biasi-card flex items-start gap-4 p-5 rounded-2xl border border-white/10 bg-white/5">
           <div
@@ -74,11 +66,8 @@ export function Aparencia() {
         </div>
       </section>
 
-      {/* Pré-visualização */}
       <section>
-        <h2 className="text-xs font-black uppercase tracking-[0.3em] text-[#8EA2D4] mb-4">
-          Pré-visualização
-        </h2>
+        <h2 className="text-xs font-black uppercase tracking-[0.3em] text-[#8EA2D4] mb-4">Pré-visualização</h2>
 
         <div className="biasi-card rounded-2xl border border-white/10 bg-white/5 p-6 space-y-4">
           <div className="flex items-center gap-3">
@@ -110,36 +99,13 @@ export function Aparencia() {
               Ação secundária
             </button>
           </div>
-
-          <div className="grid grid-cols-3 gap-3 pt-2">
-            {['Portal', 'Membros', 'Acessos'].map((label) => (
-              <div
-                key={label}
-                className="biasi-card rounded-xl border border-white/10 bg-white/5 p-3 text-center"
-              >
-                <p className="text-[9px] uppercase font-black tracking-[0.2em] text-[#9DB2E7]">
-                  {label}
-                </p>
-                <p className="text-lg font-black text-white mt-1">128</p>
-              </div>
-            ))}
-          </div>
         </div>
       </section>
     </div>
   );
 }
 
-interface PaletaCardProps {
-  paletaId: PaletaId;
-  nome: string;
-  descricao: string;
-  amostras: string[];
-  ativo: boolean;
-  onSelect: () => void;
-}
-
-function PaletaCard({ nome, descricao, amostras, ativo, onSelect }: PaletaCardProps) {
+function PaletaCard({ nome, descricao, amostras, ativo, onSelect }) {
   return (
     <button
       onClick={onSelect}
@@ -172,12 +138,7 @@ function PaletaCard({ nome, descricao, amostras, ativo, onSelect }: PaletaCardPr
   );
 }
 
-interface SwitchProps {
-  ativo: boolean;
-  onChange: (v: boolean) => void;
-}
-
-function Switch({ ativo, onChange }: SwitchProps) {
+function Switch({ ativo, onChange }) {
   return (
     <button
       onClick={() => onChange(!ativo)}

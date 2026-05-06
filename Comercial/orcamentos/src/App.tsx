@@ -4,6 +4,7 @@ import { HashRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { LayoutAutenticado } from './components/layout/LayoutAutenticado';
 import { AuthProvider } from './context/AuthContext';
+import { ThemeProvider } from './context/ThemeContext';
 import { CadastrosMestresProvider } from './context/CadastrosMestresContext';
 import { ClientesProvider } from './context/ClientesContext';
 import { NovoOrcamentoProvider } from './context/NovoOrcamentoContext';
@@ -36,6 +37,7 @@ const MeusDispositivos    = lazy(() => import('./pages/MeusDispositivos').then(m
 const Configuracoes       = lazy(() => import('./pages/Configuracoes').then(m => ({ default: m.Configuracoes })));
 const ConfiguracaoDebug   = lazy(() => import('./pages/ConfiguracaoDebug').then(m => ({ default: m.ConfiguracaoDebug })));
 const ConfiguradorUUIDs   = lazy(() => import('./pages/ConfiguradorUUIDs').then(m => ({ default: m.ConfiguradorUUIDs })));
+const Aparencia           = lazy(() => import('./pages/Aparencia').then(m => ({ default: m.Aparencia })));
 
 const PageLoader = () => (
   <div className="min-h-screen bg-slate-950 flex items-center justify-center">
@@ -46,6 +48,7 @@ const PageLoader = () => (
 export function App() {
   return (
     <AuthProvider>
+      <ThemeProvider>
       <CadastrosMestresProvider>
         <ClientesProvider>
           <NovoOrcamentoProvider>
@@ -92,6 +95,7 @@ export function App() {
                     <Route path="/indicacoes" element={<Indicacoes />} />
                     <Route path="/adm-central" element={<AdmCentral />} />
                     <Route path="/aprendizados" element={<Aprendizados />} />
+                    <Route path="/aparencia" element={<Aparencia />} />
                   </Route>
 
                   <Route path="*" element={<Navigate to="/dashboard" replace />} />
@@ -101,6 +105,7 @@ export function App() {
           </NovoOrcamentoProvider>
         </ClientesProvider>
       </CadastrosMestresProvider>
+      </ThemeProvider>
     </AuthProvider>
   );
 }

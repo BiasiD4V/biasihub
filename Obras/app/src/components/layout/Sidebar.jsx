@@ -30,6 +30,7 @@ import {
   Menu,
   X,
   BarChart3,
+  Palette,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
@@ -75,6 +76,7 @@ const grupos = [
     titulo: 'Administracao',
     itens: [
       { path: '/agentes', icone: Bot, label: 'Agentes' },
+      { path: '/aparencia', icone: Palette, label: 'Aparencia' },
       { path: '/audit-log', icone: ShieldCheck, label: 'Auditoria' },
       { path: '/sienge-sync', icone: Database, label: 'Integracao Sienge' },
     ],

@@ -4,6 +4,7 @@ import App from './App.jsx'
 import { supabase } from './lib/supabase.js'
 import { installConnectionRecovery, purgeMobileWebCaches } from './utils/runtime.js'
 import './index.css'
+import './styles/aparencia.css'
 
 void purgeMobileWebCaches()
 installConnectionRecovery(supabase)

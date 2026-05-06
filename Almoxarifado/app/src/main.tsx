@@ -1,6 +1,7 @@
 import { StrictMode, Suspense, lazy } from 'react'
 import { createRoot } from 'react-dom/client'
 import './styles/index.css'
+import './styles/aparencia.css'
 import { supabase } from './infrastructure/supabase/client'
 import { installConnectionRecovery, isCapacitorRuntime, purgeMobileWebCaches } from './utils/runtime'
 

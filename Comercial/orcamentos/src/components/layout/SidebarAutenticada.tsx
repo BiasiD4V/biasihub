@@ -25,6 +25,7 @@ import {
   BarChart2,
   BarChart3,
   Calendar,
+  Palette,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../infrastructure/supabase/client';
@@ -86,6 +87,7 @@ const MENU: SecaoMenu[] = [
     titulo: 'Sistema',
     itens: [
       { rotulo: 'Configura\u00e7\u00f5es', para: '/configuracoes', icone: Settings },
+      { rotulo: 'Apar\u00eancia', para: '/aparencia', icone: Palette },
       { rotulo: 'Meus dispositivos', para: '/meus-dispositivos', icone: Smartphone },
     ],
   },
