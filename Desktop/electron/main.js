@@ -1476,8 +1476,19 @@ function createWindow() {
 
   mainWindow = win;
 
-  // Sempre carrega via app:// (builds estáticos — sem dev servers)
-  win.loadURL(resolveInitialUrl());
+  // Modo dev de arquivo avulso (ex: Fornecedores.html)
+  const devFileArg = process.argv.find((a) => typeof a === 'string' && a.startsWith('--dev-file='));
+  const devFile = devFileArg ? devFileArg.slice('--dev-file='.length) : process.env.BIASI_DEV_FILE;
+  if (devFile) {
+    win.loadFile(devFile);
+    win.webContents.on('before-input-event', (_e, input) => {
+      if (input.key === 'F12') win.webContents.openDevTools();
+      if (input.key === 'F5') win.webContents.reloadIgnoringCache();
+    });
+  } else {
+    // Sempre carrega via app:// (builds estáticos — sem dev servers)
+    win.loadURL(resolveInitialUrl());
+  }
 
   // Abre links externos no browser padrão do sistema
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -1489,7 +1500,7 @@ function createWindow() {
 
   // Permite navegação somente entre os apps internos
   win.webContents.on('will-navigate', (event, url) => {
-    if (url.startsWith('app://') || url.includes('localhost') || url.includes('127.0.0.1')) return; // permitido
+    if (url.startsWith('app://') || url.startsWith('file://') || url.includes('localhost') || url.includes('127.0.0.1')) return; // permitido
     event.preventDefault();
     if (url.startsWith('https://') || url.startsWith('http://')) {
       shell.openExternal(url);
@@ -1536,7 +1547,40 @@ function createWindow() {
 }
 
 // ── IPC handlers ─────────────────────────────────────────────────────────────
+const APPEARANCE_STORE_KEY = 'appearance';
+const VALID_APPEARANCE_PALETTES = new Set(['azul', 'verde', 'bege', 'vinho', 'mono']);
+
+function normalizeAppearance(appearance) {
+  if (!appearance || typeof appearance !== 'object') return null;
+  const paleta = String(appearance.paleta || '').trim();
+  if (!VALID_APPEARANCE_PALETTES.has(paleta)) return null;
+  return {
+    paleta,
+    minimalista: Boolean(appearance.minimalista),
+  };
+}
+
 function setupIPC() {
+  ipcMain.handle('appearance:get', async () => {
+    const cfg = await getStore();
+    return normalizeAppearance(cfg.get(APPEARANCE_STORE_KEY));
+  });
+
+  ipcMain.handle('appearance:set', async (event, appearance) => {
+    const normalized = normalizeAppearance(appearance);
+    if (!normalized) return false;
+
+    const cfg = await getStore();
+    cfg.set(APPEARANCE_STORE_KEY, normalized);
+
+    BrowserWindow.getAllWindows().forEach((win) => {
+      if (win.isDestroyed() || win.webContents.id === event.sender.id) return;
+      win.webContents.send('appearance:changed', normalized);
+    });
+
+    return true;
+  });
+
   ipcMain.handle('config:getAnthropicKey', async () => {
     const cfg = await getStore();
     return cfg.get('anthropicKey') || '';

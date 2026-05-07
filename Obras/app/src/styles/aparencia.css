@@ -11,31 +11,79 @@
   --biasi-bg-800: #0d1f4a;
   --biasi-glow-1: rgba(99, 102, 241, 0.10);
   --biasi-glow-2: rgba(2, 132, 199, 0.10);
+  --biasi-shell: #060f2a;
+  --biasi-shell-2: #0d1f4a;
+  --biasi-card: #132a5f;
+  --biasi-card-2: #143269;
+  --biasi-input: #0d1f4a;
+  --biasi-button: #3b82f6;
+  --biasi-button-hover: #0ea5e9;
+  --biasi-border-accent: rgba(113, 154, 255, 0.28);
+  --biasi-border-strong: #6366f1;
 }
 
 html[data-paleta='azul'] {
   --biasi-glow-1: rgba(0, 100, 148, 0.18);
   --biasi-glow-2: rgba(27, 152, 224, 0.14);
+  --biasi-button: #3b82f6;
+  --biasi-button-hover: #0ea5e9;
+  --biasi-border-strong: #6366f1;
 }
 
 html[data-paleta='verde'] {
   --biasi-glow-1: rgba(122, 157, 61, 0.16);
   --biasi-glow-2: rgba(184, 199, 106, 0.12);
+  --biasi-shell: #0f2218;
+  --biasi-shell-2: #1a2f1f;
+  --biasi-card: #25402c;
+  --biasi-card-2: #2f4f35;
+  --biasi-input: #17291c;
+  --biasi-button: #7a9d3d;
+  --biasi-button-hover: #b8c76a;
+  --biasi-border-accent: rgba(122, 157, 61, 0.42);
+  --biasi-border-strong: #7a9d3d;
 }
 
 html[data-paleta='bege'] {
   --biasi-glow-1: rgba(194, 155, 123, 0.18);
   --biasi-glow-2: rgba(241, 209, 209, 0.12);
+  --biasi-shell: #1a1212;
+  --biasi-shell-2: #221818;
+  --biasi-card: #3a2c2c;
+  --biasi-card-2: #463434;
+  --biasi-input: #2d2222;
+  --biasi-button: #c29b7b;
+  --biasi-button-hover: #d6b496;
+  --biasi-border-accent: rgba(194, 155, 123, 0.42);
+  --biasi-border-strong: #c29b7b;
 }
 
 html[data-paleta='vinho'] {
   --biasi-glow-1: rgba(199, 44, 65, 0.18);
   --biasi-glow-2: rgba(238, 69, 64, 0.14);
+  --biasi-shell: #1a0e1a;
+  --biasi-shell-2: #221221;
+  --biasi-card: #381833;
+  --biasi-card-2: #461e40;
+  --biasi-input: #2c1429;
+  --biasi-button: #c72c41;
+  --biasi-button-hover: #ee4540;
+  --biasi-border-accent: rgba(199, 44, 65, 0.42);
+  --biasi-border-strong: #c72c41;
 }
 
 html[data-paleta='mono'] {
   --biasi-glow-1: rgba(255, 255, 255, 0.06);
   --biasi-glow-2: rgba(212, 212, 212, 0.05);
+  --biasi-shell: #0a0a0a;
+  --biasi-shell-2: #141414;
+  --biasi-card: #1f1f1f;
+  --biasi-card-2: #292929;
+  --biasi-input: #171717;
+  --biasi-button: #3a3a3a;
+  --biasi-button-hover: #5a5a5a;
+  --biasi-border-accent: rgba(255, 255, 255, 0.22);
+  --biasi-border-strong: #6a6a6a;
 }
 
 /* Substitui o amarelo Biasi (#FFC82D) pelo accent da paleta atual */
@@ -95,6 +143,101 @@ html:not([data-paleta='azul']) .bg-indigo-500\/10 {
 html:not([data-paleta='azul']) .bg-sky-600\/10,
 html:not([data-paleta='azul']) .bg-sky-500\/10 {
   background-color: var(--biasi-glow-2) !important;
+}
+
+/* Paleta global dos módulos: tira azuis fixos das páginas sem mexer nas cores
+   próprias do fluxo de Orçamento Comercial (.orcamento-page). */
+html:not([data-paleta='azul']) body,
+html:not([data-paleta='azul']) #root,
+html:not([data-paleta='azul']) .biasi-theme,
+html:not([data-paleta='azul']) .biasi-shell-bg {
+  background:
+    radial-gradient(1200px 600px at 8% -10%, var(--biasi-glow-1), transparent 60%),
+    radial-gradient(900px 500px at 100% 0%, var(--biasi-glow-2), transparent 55%),
+    linear-gradient(135deg, var(--biasi-shell) 0%, var(--biasi-shell-2) 48%, var(--biasi-shell) 100%) !important;
+}
+
+html:not([data-paleta='azul']) :where(
+  .bg-blue-950,
+  .bg-blue-900,
+  .bg-blue-800,
+  .bg-blue-700,
+  .bg-sky-950,
+  .bg-sky-900,
+  .bg-indigo-950,
+  .bg-indigo-900,
+  .bg-slate-950,
+  .bg-slate-900,
+  .bg-slate-800,
+  [class*='bg-[#060f2a]'],
+  [class*='bg-[#0d1f4a]'],
+  [class*='bg-[#081432]'],
+  [class*='bg-[#0f2454]'],
+  [class*='bg-[#0a183c]'],
+  [class*='bg-[#13293D]'],
+  [class*='bg-[#0A1A2A]'],
+  [class*='bg-[#132a5f]'],
+  [class*='bg-[#143269]']
+):not(.orcamento-page):not(.orcamento-page *) {
+  background: linear-gradient(
+    160deg,
+    color-mix(in srgb, var(--biasi-card) 94%, transparent),
+    color-mix(in srgb, var(--biasi-card-2) 90%, transparent)
+  ) !important;
+}
+
+html:not([data-paleta='azul']) :where(
+  [class*='bg-blue-'],
+  [class*='bg-sky-'],
+  [class*='bg-indigo-']
+):not(.orcamento-page):not(.orcamento-page *):not(.bg-green-500):not(.bg-emerald-500):not(.bg-red-500):not(.bg-rose-500):not(.bg-amber-500):not(.bg-orange-500) {
+  background-color: color-mix(in srgb, var(--biasi-button) 30%, transparent) !important;
+}
+
+html:not([data-paleta='azul']) :where(
+  .border-blue-950,
+  .border-blue-900,
+  .border-blue-800,
+  .border-blue-700,
+  .border-blue-600,
+  .border-blue-500,
+  .border-sky-700,
+  .border-sky-600,
+  .border-indigo-700,
+  .border-indigo-600,
+  [class*='border-blue-'],
+  [class*='border-sky-'],
+  [class*='border-indigo-'],
+  [class*='border-[#27498B]'],
+  [class*='border-[#4A69A8]']
+):not(.orcamento-page):not(.orcamento-page *) {
+  border-color: var(--biasi-border-accent) !important;
+}
+
+html:not([data-paleta='azul']) :where(
+  .text-blue-800,
+  .text-blue-700,
+  .text-blue-600,
+  .text-blue-500,
+  .text-sky-700,
+  .text-sky-600,
+  .text-indigo-700,
+  .text-indigo-600,
+  [class*='text-blue-'],
+  [class*='text-sky-'],
+  [class*='text-indigo-'],
+  [class*='text-[#233772]'],
+  [class*='text-[#13293D]'],
+  [class*='text-[#006494]'],
+  [class*='text-[#1B98E0]']
+):not(.orcamento-page):not(.orcamento-page *) {
+  color: var(--biasi-accent) !important;
+}
+
+html:not([data-paleta='azul']) :where(input, textarea, select):not(.orcamento-page *),
+html:not([data-paleta='azul']) :where(.bg-white, .bg-slate-50, .bg-slate-100):not(.orcamento-page):not(.orcamento-page *) {
+  background-color: var(--biasi-input) !important;
+  border-color: var(--biasi-border-accent) !important;
 }
 
 /* === MODO MINIMALISTA ===

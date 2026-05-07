@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState, ReactNode } from 'react';
+import { supabase } from '../infrastructure/supabase/client';
 
 /**
  * Paletas disponíveis para o Hub.
@@ -86,7 +87,7 @@ interface ThemeContextValue extends ThemeState {
 const STORAGE_KEY = 'biasihub-hub-aparencia';
 const DEFAULT_STATE: ThemeState = { paleta: 'azul', minimalista: false };
 
-function carregar(): ThemeState {
+function carregarLocal(): ThemeState {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return DEFAULT_STATE;
@@ -96,6 +97,13 @@ function carregar(): ThemeState {
   } catch {
     return DEFAULT_STATE;
   }
+}
+
+function normalizarEstado(raw: any): ThemeState | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const paleta = PALETAS.find(p => p.id === raw.paleta) ? (raw.paleta as PaletaId) : null;
+  if (!paleta) return null;
+  return { paleta, minimalista: !!raw.minimalista };
 }
 
 function aplicarNoDOM(paleta: Paleta, minimalista: boolean) {
@@ -111,12 +119,40 @@ function aplicarNoDOM(paleta: Paleta, minimalista: boolean) {
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [estado, setEstado] = useState<ThemeState>(() => carregar());
+  const [estado, setEstado] = useState<ThemeState>(() => carregarLocal());
 
   const paletaAtual = useMemo(
     () => PALETAS.find(p => p.id === estado.paleta) ?? PALETAS[0],
     [estado.paleta]
   );
+
+  // No Electron, Hub e módulos rodam em origens app:// diferentes.
+  // A ponte mantém a aparência escolhida no Hub disponível para todos.
+  useEffect(() => {
+    let cancelado = false;
+    const bridge = window.electronBridge;
+
+    const appearancePromise = bridge?.getAppearance?.();
+    appearancePromise
+      ?.then((aparencia) => {
+        if (cancelado) return;
+        const compartilhado = normalizarEstado(aparencia);
+        if (compartilhado) setEstado(compartilhado);
+      })
+      .catch(() => {
+        /* ignore */
+      });
+
+    bridge?.onAppearanceChanged?.((aparencia) => {
+      if (cancelado) return;
+      const compartilhado = normalizarEstado(aparencia);
+      if (compartilhado) setEstado(compartilhado);
+    });
+
+    return () => {
+      cancelado = true;
+    };
+  }, []);
 
   useEffect(() => {
     aplicarNoDOM(paletaAtual, estado.minimalista);
@@ -126,6 +162,36 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       /* ignore */
     }
   }, [paletaAtual, estado]);
+
+  // Sincroniza via Supabase user_metadata (configurado no Hub > Aparência)
+  useEffect(() => {
+    if (window.electronBridge?.getAppearance) return;
+
+    let cancelado = false;
+
+    async function carregarRemoto() {
+      try {
+        const { data } = await supabase.auth.getUser();
+        if (cancelado) return;
+        const remoto = normalizarEstado(data.user?.user_metadata?.aparencia);
+        if (remoto) setEstado(remoto);
+      } catch {
+        /* offline ou sem sessão — usa localStorage */
+      }
+    }
+
+    carregarRemoto();
+
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      const remoto = normalizarEstado(session?.user?.user_metadata?.aparencia);
+      if (remoto) setEstado(remoto);
+    });
+
+    return () => {
+      cancelado = true;
+      sub.subscription.unsubscribe();
+    };
+  }, []);
 
   const value: ThemeContextValue = {
     ...estado,

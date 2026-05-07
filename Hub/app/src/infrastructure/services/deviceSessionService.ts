@@ -95,7 +95,9 @@ export async function validateRememberedSession(): Promise<{
       await supabase.auth.refreshSession({ refresh_token: storedRefreshToken });
 
     if (refreshError || !refreshData.session) {
-      clearRememberedSession();
+      const message = String(refreshError?.message || '').toLowerCase();
+      const tokenInvalid = message.includes('refresh token') || message.includes('invalid') || message.includes('expired');
+      if (tokenInvalid) clearRememberedSession();
       return { valid: false };
     }
 

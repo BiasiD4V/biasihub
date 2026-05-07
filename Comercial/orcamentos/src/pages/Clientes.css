@@ -624,6 +624,101 @@
 .clientes-pdf-kpis strong { font-size: 16px; }
 .clientes-pdf-summary { padding: 12px; margin: 0; font-size: 13px; line-height: 1.6; }
 
+html:not([data-paleta='azul']) .clientes-page {
+  --bg: var(--biasi-shell);
+  --bg2: var(--biasi-shell-2);
+  --panel: var(--biasi-card);
+  --panel2: var(--biasi-card-2);
+  --line: color-mix(in srgb, var(--biasi-border-accent) 72%, transparent);
+  --blue: var(--biasi-button);
+  background: linear-gradient(180deg, var(--biasi-shell), var(--biasi-shell-2)) !important;
+}
+
+html:not([data-paleta='azul']) .clientes-topbar {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--biasi-card-2) 72%, transparent),
+    color-mix(in srgb, var(--biasi-card) 48%, transparent)
+  ) !important;
+  border-color: color-mix(in srgb, var(--biasi-border-accent) 50%, transparent) !important;
+}
+
+html:not([data-paleta='azul']) .clientes-search,
+html:not([data-paleta='azul']) .clientes-search input,
+html:not([data-paleta='azul']) .clientes-filters select,
+html:not([data-paleta='azul']) .clientes-toolbar input,
+html:not([data-paleta='azul']) .clientes-edit-grid input,
+html:not([data-paleta='azul']) .clientes-edit-grid select,
+html:not([data-paleta='azul']) .clientes-toggle-body textarea {
+  background: var(--biasi-input) !important;
+  border-color: var(--biasi-border-accent) !important;
+}
+
+html:not([data-paleta='azul']) .clientes-empty,
+html:not([data-paleta='azul']) .clientes-table-shell,
+html:not([data-paleta='azul']) .clientes-compact-box,
+html:not([data-paleta='azul']) .clientes-toggle-card,
+html:not([data-paleta='azul']) .clientes-report-grid > div,
+html:not([data-paleta='azul']) .clientes-mini-grid div,
+html:not([data-paleta='azul']) .clientes-mini-kpis div,
+html:not([data-paleta='azul']) .clientes-center-grid div,
+html:not([data-paleta='azul']) .clientes-center-foot span,
+html:not([data-paleta='azul']) .clientes-hero-kpis > div,
+html:not([data-paleta='azul']) .clientes-report-legend p {
+  background: color-mix(in srgb, var(--biasi-card) 84%, transparent) !important;
+  border-color: color-mix(in srgb, var(--biasi-border-accent) 72%, transparent) !important;
+}
+
+html:not([data-paleta='azul']) .clientes-table-shell th,
+html:not([data-paleta='azul']) .clientes-expand-wrap,
+html:not([data-paleta='azul']) .clientes-toggle-card header {
+  background: linear-gradient(180deg, var(--biasi-card-2), var(--biasi-card)) !important;
+}
+
+html:not([data-paleta='azul']) .clientes-row {
+  background: linear-gradient(180deg, var(--biasi-card-2), var(--biasi-card)) !important;
+}
+
+html:not([data-paleta='azul']) .clientes-row:hover,
+html:not([data-paleta='azul']) .clientes-row.open {
+  background: linear-gradient(180deg, var(--biasi-card-3), var(--biasi-card-2)) !important;
+}
+
+html:not([data-paleta='azul']) .clientes-expand-row td,
+html:not([data-paleta='azul']) .clientes-status-total::after {
+  background: var(--biasi-card) !important;
+}
+
+html:not([data-paleta='azul']) .clientes-orcamento-center {
+  background:
+    radial-gradient(circle at 96% 0%, color-mix(in srgb, var(--biasi-button) 24%, transparent), transparent 34%),
+    linear-gradient(135deg, color-mix(in srgb, var(--biasi-card-2) 86%, transparent), color-mix(in srgb, var(--biasi-card) 86%, transparent)) !important;
+  border-color: var(--biasi-border-accent) !important;
+}
+
+html:not([data-paleta='azul']) .clientes-top-btn,
+html:not([data-paleta='azul']) .clientes-side-actions button,
+html:not([data-paleta='azul']) .clientes-toggle-card header button,
+html:not([data-paleta='azul']) .clientes-center-head a {
+  background: var(--biasi-button) !important;
+  color: var(--biasi-accent-text) !important;
+}
+
+html:not([data-paleta='azul']) .clientes-segment-pill,
+html:not([data-paleta='azul']) .clientes-hero-kpis i.blue,
+html:not([data-paleta='azul']) .clientes-report-legend span {
+  background: color-mix(in srgb, var(--biasi-button) 28%, transparent) !important;
+  color: #fff !important;
+}
+
+html:not([data-paleta='azul']) .clientes-svg-line-blue {
+  stroke: var(--biasi-button) !important;
+}
+
+html:not([data-paleta='azul']) .clientes-svg-point-blue {
+  fill: var(--biasi-button) !important;
+}
+
 .clientes-print-area { display: none; }
 
 @media (max-width: 1200px) {

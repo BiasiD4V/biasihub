@@ -1173,7 +1173,19 @@ export function CentralOrcamentoDinamica({
 
               <div className="core">
                 <div className="ux-steps stepper-v4">
-                  {stepper.map((step) => <button type="button" key={step.id} className={`ux-step ${currentView === step.id ? 'active' : ''}`} onClick={() => updateView(step.id)}><small>{step.number}</small><strong>{step.title}</strong><span>{step.text}</span></button>)}
+                  {stepper.map((step) => (
+                    <button
+                      type="button"
+                      key={step.id}
+                      className={`ux-step ${currentView === step.id ? 'active' : ''}`}
+                      style={{ '--step-color': accentByView[step.id] } as CSSProperties}
+                      onClick={() => updateView(step.id)}
+                    >
+                      <small>{step.number}</small>
+                      <strong>{step.title}</strong>
+                      <span>{step.text}</span>
+                    </button>
+                  ))}
                 </div>
 
                 <div className="launch-panel launch-panel-v4" id="centralLancamentos">

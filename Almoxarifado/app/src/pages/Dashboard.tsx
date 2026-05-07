@@ -85,7 +85,7 @@ export function Dashboard() {
 
     setStatusFrota([
       { name: 'Disponível', value: disponiveis, color: '#22c55e' },
-      { name: 'Em Uso', value: emUso, color: '#3b82f6' },
+      { name: 'Em Uso', value: emUso, color: 'var(--biasi-button)' },
       { name: 'Manutenção', value: manutencao, color: '#f59e0b' },
     ].filter(s => s.value > 0));
 
@@ -160,7 +160,7 @@ export function Dashboard() {
                     <XAxis type="number" tick={{ fontSize: 11 }} />
                     <YAxis dataKey="descricao" type="category" tick={{ fontSize: 10 }} width={110} />
                     <Tooltip formatter={(v) => [v, 'Qtd']} />
-                    <Bar dataKey="estoque_atual" fill="#3b82f6" radius={[0, 4, 4, 0]} />
+                    <Bar dataKey="estoque_atual" fill="var(--biasi-button)" radius={[0, 4, 4, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               ) : (

@@ -13,6 +13,9 @@ interface ImportMeta {
 }
 
 interface ElectronBridge {
+  getAppearance: () => Promise<{ paleta: string; minimalista: boolean } | null>;
+  setAppearance: (appearance: { paleta: string; minimalista: boolean }) => Promise<boolean>;
+  onAppearanceChanged: (cb: (appearance: { paleta: string; minimalista: boolean }) => void) => void;
   getAnthropicKey: () => Promise<string>;
   setAnthropicKey: (key: string) => Promise<boolean>;
   getOllamaModel: () => Promise<string>;

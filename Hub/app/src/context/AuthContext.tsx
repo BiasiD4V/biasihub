@@ -43,7 +43,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         inicializado.current = true;
         setLoading(false);
       }
-    }, 10000);
+    }, 30000);
 
     let subscription: { unsubscribe: () => void } | null = null;
     let disposed = false;
@@ -81,7 +81,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (_event === 'INITIAL_SESSION') {
             let erroInicial: string | null = null;
             if (session?.user) {
-              const ok = await withTimeout(loadUserProfile(session.user.id), 8000, false);
+              // Tenta carregar perfil com timeout generoso; retry uma vez se falhar
+              let ok = await withTimeout(loadUserProfile(session.user.id), 12000, false);
+              if (!ok) {
+                await new Promise(resolve => setTimeout(resolve, 3000));
+                ok = await withTimeout(loadUserProfile(session.user.id), 15000, false);
+              }
               if (!ok) {
                 setUsuario(null);
                 erroInicial = 'Não foi possível carregar o perfil no tempo esperado.';
@@ -89,11 +94,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             } else {
               const remembered = await withTimeout(
                 validateRememberedSession(),
-                8000,
+                12000,
                 { valid: false as const }
               );
               if (remembered.valid && remembered.userId) {
-                const ok = await withTimeout(loadUserProfile(remembered.userId), 8000, false);
+                let ok = await withTimeout(loadUserProfile(remembered.userId), 12000, false);
+                if (!ok) {
+                  await new Promise(resolve => setTimeout(resolve, 3000));
+                  ok = await withTimeout(loadUserProfile(remembered.userId), 15000, false);
+                }
                 if (!ok) {
                   setUsuario(null);
                   erroInicial = 'Não foi possível recuperar a sessão salva neste dispositivo.';

@@ -137,18 +137,22 @@ export function UpdateChecker() {
 
   async function handleStartDownload() {
     if (isCapacitor && updateStatus?.downloadUrl) {
-      rememberMobileUpdateDismissed(updateStatus.version);
-      setShowNotification(false);
-      setDismissed(true);
+      setPhase('downloading');
+      setErrorMsg('');
       try {
-        const browser = (window as any).Capacitor?.Plugins?.Browser;
-        if (browser?.open) {
-          await browser.open({ url: updateStatus.downloadUrl });
+        const nativeInstaller = (window as any).BiasiApkInstaller;
+        const fileName = updateStatus.downloadUrl.split('/').pop() || `biasihub-mobile-v${updateStatus.version}.apk`;
+
+        if (nativeInstaller?.installApk) {
+          nativeInstaller.installApk(updateStatus.downloadUrl, fileName);
+          setPhase('ready');
         } else {
-          window.open(updateStatus.downloadUrl, '_blank');
+          window.location.href = updateStatus.downloadUrl;
+          setPhase('ready');
         }
-      } catch {
-        window.location.href = updateStatus.downloadUrl;
+      } catch (e: any) {
+        setPhase('error');
+        setErrorMsg(e?.message || 'Nao foi possivel iniciar a instalacao.');
       }
       return;
     }
@@ -191,9 +195,13 @@ export function UpdateChecker() {
               <Download className="w-5 h-5" />
             </div>
             <div className="flex-1 min-w-0">
-              <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">Atualizacao do APK</h3>
+              <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">
+                {phase === 'downloading' ? 'Baixando APK' : phase === 'ready' ? 'Instalador aberto' : 'Atualizacao do APK'}
+              </h3>
               <p className="text-xs text-slate-500 mt-1">
-                Nova versao v{updateStatus.version} disponivel. Baixe o APK da release e instale por cima.
+                {phase === 'ready'
+                  ? 'Conclua a instalacao na tela do Android. Se o sistema pedir permissao, autorize e toque novamente aqui.'
+                  : `Nova versao v${updateStatus.version} disponivel. Instale pelo proprio app, sem abrir o Chrome.`}
               </p>
             </div>
             <button onClick={handleDismiss} className="text-slate-400 hover:text-slate-700">
@@ -202,11 +210,15 @@ export function UpdateChecker() {
           </div>
           <button
             onClick={handleStartDownload}
+            disabled={phase === 'downloading'}
             className="mt-3 w-full h-11 flex items-center justify-center gap-2 bg-indigo-600 text-white font-black text-xs uppercase tracking-[0.18em] rounded-2xl"
           >
-            <Download className="w-4 h-4" />
-            Baixar APK
+            <Download className={`w-4 h-4 ${phase === 'downloading' ? 'animate-pulse' : ''}`} />
+            {phase === 'downloading' ? 'Baixando...' : phase === 'ready' ? 'Abrir instalador novamente' : 'Instalar agora'}
           </button>
+          {phase === 'error' && errorMsg && (
+            <p className="mt-2 text-[11px] font-bold text-rose-600">{errorMsg}</p>
+          )}
         </div>
       </div>
     );

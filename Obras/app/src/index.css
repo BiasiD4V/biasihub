@@ -21,9 +21,9 @@
     min-height: 100vh;
     font-family: 'Montserrat', 'Inter', system-ui, -apple-system, sans-serif;
     background:
-      radial-gradient(1200px 620px at 12% -12%, rgba(53, 95, 196, 0.28), transparent 60%),
-      radial-gradient(900px 520px at 100% 0%, rgba(255, 200, 45, 0.12), transparent 55%),
-      linear-gradient(135deg, var(--biasi-bg-900) 0%, var(--biasi-bg-800) 50%, #0a1638 100%);
+      radial-gradient(1200px 620px at 12% -12%, var(--biasi-glow-1, rgba(53, 95, 196, 0.28)), transparent 60%),
+      radial-gradient(900px 520px at 100% 0%, var(--biasi-glow-2, rgba(255, 200, 45, 0.12)), transparent 55%),
+      linear-gradient(135deg, var(--biasi-shell, var(--biasi-bg-900)) 0%, var(--biasi-shell-2, var(--biasi-bg-800)) 50%, var(--biasi-shell, #0a1638) 100%);
     color: #0f172a;
     overflow-x: hidden;
   }
@@ -37,9 +37,9 @@
 @layer components {
   .biasi-shell-bg {
     background:
-      radial-gradient(900px 500px at 0% 0%, rgba(56, 96, 200, 0.3), transparent 65%),
-      radial-gradient(680px 420px at 100% 100%, rgba(255, 200, 45, 0.12), transparent 65%),
-      linear-gradient(145deg, #081432 0%, #0f2454 52%, #0a183c 100%);
+      radial-gradient(900px 500px at 0% 0%, var(--biasi-glow-1, rgba(56, 96, 200, 0.3)), transparent 65%),
+      radial-gradient(680px 420px at 100% 100%, var(--biasi-glow-2, rgba(255, 200, 45, 0.12)), transparent 65%),
+      linear-gradient(145deg, var(--biasi-shell, #081432) 0%, var(--biasi-shell-2, #0f2454) 52%, var(--biasi-shell, #0a183c) 100%);
   }
 
   .biasi-theme {
@@ -52,14 +52,14 @@
   }
 
   .biasi-theme main .bg-white {
-    background: linear-gradient(160deg, rgba(20, 43, 92, 0.92), rgba(14, 33, 74, 0.88)) !important;
-    border-color: rgba(78, 114, 186, 0.7) !important;
+    background: linear-gradient(160deg, color-mix(in srgb, var(--biasi-card-2, #143269) 92%, transparent), color-mix(in srgb, var(--biasi-card, #132a5f) 88%, transparent)) !important;
+    border-color: var(--biasi-border-accent, rgba(78, 114, 186, 0.7)) !important;
     color: #eaf1ff !important;
   }
 
   .biasi-theme main [class*='bg-white/'] {
-    background: linear-gradient(160deg, rgba(20, 43, 92, 0.9), rgba(14, 33, 74, 0.86)) !important;
-    border-color: rgba(78, 114, 186, 0.62) !important;
+    background: linear-gradient(160deg, color-mix(in srgb, var(--biasi-card-2, #143269) 88%, transparent), color-mix(in srgb, var(--biasi-card, #132a5f) 84%, transparent)) !important;
+    border-color: var(--biasi-border-accent, rgba(78, 114, 186, 0.62)) !important;
     color: #eaf1ff !important;
   }
 
@@ -67,27 +67,27 @@
   .biasi-theme main .bg-slate-100,
   .biasi-theme main .bg-gray-50,
   .biasi-theme main .bg-gray-100 {
-    background-color: rgba(10, 24, 58, 0.72) !important;
+    background-color: color-mix(in srgb, var(--biasi-shell-2, #0d1f4a) 72%, transparent) !important;
   }
 
   .biasi-theme main [class*='bg-slate-50/'],
   .biasi-theme main [class*='bg-slate-100/'],
   .biasi-theme main [class*='bg-gray-50/'],
   .biasi-theme main [class*='bg-gray-100/'] {
-    background-color: rgba(12, 26, 62, 0.76) !important;
+    background-color: color-mix(in srgb, var(--biasi-shell-2, #0d1f4a) 76%, transparent) !important;
   }
 
   .biasi-theme main [class*='bg-blue-50'],
   .biasi-theme main [class*='bg-sky-50'],
   .biasi-theme main [class*='bg-cyan-50'] {
-    background-color: rgba(28, 66, 148, 0.26) !important;
-    border-color: rgba(97, 142, 236, 0.38) !important;
+    background-color: color-mix(in srgb, var(--biasi-button, #2d70ff) 24%, transparent) !important;
+    border-color: color-mix(in srgb, var(--biasi-button-hover, #76a4ff) 42%, transparent) !important;
   }
 
   .biasi-theme main [class*='bg-indigo-50'],
   .biasi-theme main [class*='bg-purple-50'] {
-    background-color: rgba(76, 63, 170, 0.24) !important;
-    border-color: rgba(137, 126, 238, 0.38) !important;
+    background-color: color-mix(in srgb, var(--biasi-button, #2d70ff) 22%, transparent) !important;
+    border-color: color-mix(in srgb, var(--biasi-button-hover, #76a4ff) 38%, transparent) !important;
   }
 
   .biasi-theme main [class*='bg-emerald-50'],
@@ -132,14 +132,14 @@
   .biasi-theme main .text-blue-600,
   .biasi-theme main .text-sky-700,
   .biasi-theme main .text-sky-600 {
-    color: #9bc0ff !important;
+    color: color-mix(in srgb, var(--biasi-button-hover, #9bc0ff) 80%, white) !important;
   }
 
   .biasi-theme main .text-indigo-700,
   .biasi-theme main .text-indigo-600,
   .biasi-theme main .text-purple-700,
   .biasi-theme main .text-purple-600 {
-    color: #b8b8ff !important;
+    color: color-mix(in srgb, var(--biasi-button-hover, #b8b8ff) 72%, white) !important;
   }
 
   .biasi-theme main .text-emerald-700,
@@ -184,8 +184,8 @@
   .biasi-theme main [style*='background-color: #ffffff'],
   .biasi-theme main [style*='background-color:white'],
   .biasi-theme main [style*='background-color: white'] {
-    background-color: rgba(20, 43, 92, 0.92) !important;
-    border-color: rgba(78, 114, 186, 0.62) !important;
+    background-color: color-mix(in srgb, var(--biasi-card, #132a5f) 90%, transparent) !important;
+    border-color: var(--biasi-border-accent, rgba(78, 114, 186, 0.62)) !important;
     color: #eaf1ff !important;
   }
 
@@ -214,7 +214,7 @@
   .biasi-theme main .border-slate-200,
   .biasi-theme main .border-gray-100,
   .biasi-theme main .border-gray-200 {
-    border-color: rgba(78, 114, 186, 0.55) !important;
+    border-color: var(--biasi-border-accent, rgba(78, 114, 186, 0.55)) !important;
   }
 
   .biasi-theme main .shadow,
@@ -257,16 +257,16 @@
   .biasi-theme main .bg-zinc-300,
   .biasi-theme main .bg-neutral-200,
   .biasi-theme main .bg-neutral-300 {
-    background-color: rgba(14, 31, 70, 0.86) !important;
-    border-color: rgba(88, 126, 202, 0.64) !important;
+    background-color: color-mix(in srgb, var(--biasi-card, #132a5f) 86%, transparent) !important;
+    border-color: var(--biasi-border-accent, rgba(88, 126, 202, 0.64)) !important;
   }
 
   .biasi-theme main [class*='bg-slate-200/'],
   .biasi-theme main [class*='bg-slate-300/'],
   .biasi-theme main [class*='bg-gray-200/'],
   .biasi-theme main [class*='bg-gray-300/'] {
-    background-color: rgba(16, 35, 78, 0.82) !important;
-    border-color: rgba(88, 126, 202, 0.62) !important;
+    background-color: color-mix(in srgb, var(--biasi-card, #132a5f) 82%, transparent) !important;
+    border-color: var(--biasi-border-accent, rgba(88, 126, 202, 0.62)) !important;
   }
 
   .biasi-theme main .text-slate-100,
@@ -289,9 +289,9 @@
   .biasi-theme main input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']):not([type='color']),
   .biasi-theme main select,
   .biasi-theme main textarea {
-    background-color: rgba(12, 27, 62, 0.9) !important;
+    background-color: color-mix(in srgb, var(--biasi-input, var(--biasi-shell-2, #0d1f4a)) 90%, transparent) !important;
     color: #f2f8ff !important;
-    border-color: rgba(97, 136, 210, 0.72) !important;
+    border-color: var(--biasi-border-accent, rgba(97, 136, 210, 0.72)) !important;
     box-shadow: inset 0 0 0 1px rgba(31, 62, 123, 0.12);
   }
 
@@ -304,12 +304,12 @@
   .biasi-theme main input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']):not([type='color']):disabled,
   .biasi-theme main select:disabled,
   .biasi-theme main textarea:disabled {
-    background-color: rgba(53, 77, 126, 0.52) !important;
+    background-color: color-mix(in srgb, var(--biasi-card-2, #143269) 52%, transparent) !important;
     color: #d4e2ff !important;
   }
 
   .biasi-theme main select option {
-    background-color: #11295c;
+    background-color: var(--biasi-input, #11295c);
     color: #edf4ff;
   }
 
@@ -320,8 +320,8 @@
   .biasi-theme main [style*='background:white'],
   .biasi-theme main [style*='background: white'],
   .biasi-theme main [style*='background: rgb(255, 255, 255)'] {
-    background: linear-gradient(160deg, rgba(20, 43, 92, 0.92), rgba(14, 33, 74, 0.88)) !important;
-    border-color: rgba(88, 126, 202, 0.66) !important;
+    background: linear-gradient(160deg, color-mix(in srgb, var(--biasi-card-2, #143269) 92%, transparent), color-mix(in srgb, var(--biasi-card, #132a5f) 88%, transparent)) !important;
+    border-color: var(--biasi-border-accent, rgba(88, 126, 202, 0.66)) !important;
     color: #eef5ff !important;
   }
 }

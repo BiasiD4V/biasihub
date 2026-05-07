@@ -29,6 +29,97 @@
 .orcamento-page[data-current-view="proposal"] { --step-accent: #28d2c0; }
 .orcamento-page[data-current-view="history"] { --step-accent: #ff8b5f; }
 
+/* A base do orçamento segue a paleta escolhida no Hub; as etapas mantêm suas cores próprias. */
+html:not([data-paleta='azul']) .orcamento-page {
+  --bg: var(--biasi-shell, #081735);
+  --bg-2: var(--biasi-shell-2, #0d1f48);
+  --bg-3: var(--biasi-card, #11285d);
+  --line: var(--biasi-border-accent, #28457f);
+  --card: var(--biasi-card, #0f2352);
+  background:
+    radial-gradient(circle at 16% 0%, var(--biasi-glow-1, rgba(49,111,255,.16)), transparent 30%),
+    radial-gradient(circle at 82% 10%, var(--biasi-glow-2, rgba(45,197,141,.10)), transparent 26%),
+    linear-gradient(180deg, var(--biasi-shell, #06122b) 0%, var(--biasi-shell-2, #071735) 100%) !important;
+}
+
+html:not([data-paleta='azul']) .orcamento-page .workspace {
+  background:
+    radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--step-accent) 8%, transparent), transparent 34%),
+    linear-gradient(180deg, color-mix(in srgb, var(--biasi-card, #0f2352) 94%, transparent), color-mix(in srgb, var(--biasi-shell, #06122b) 98%, black)) !important;
+  border-color: var(--biasi-border-accent, rgba(255,255,255,.10)) !important;
+}
+
+html:not([data-paleta='azul']) .orcamento-page .workspace-head {
+  background:
+    radial-gradient(circle at 12% 10%, rgba(255,255,255,.06), transparent 30%),
+    linear-gradient(135deg, color-mix(in srgb, var(--biasi-card-2, #11285d) 82%, transparent), rgba(255,255,255,.025)) !important;
+  border-color: var(--biasi-border-accent, rgba(255,255,255,.08)) !important;
+}
+
+html:not([data-paleta='azul']) .orcamento-page .panel,
+html:not([data-paleta='azul']) .orcamento-page .score-card,
+html:not([data-paleta='azul']) .orcamento-page .next-action-card,
+html:not([data-paleta='azul']) .orcamento-page .quiet-card,
+html:not([data-paleta='azul']) .orcamento-page .stage-main-card,
+html:not([data-paleta='azul']) .orcamento-page .stage-action-card,
+html:not([data-paleta='azul']) .orcamento-page .stage-task-card,
+html:not([data-paleta='azul']) .orcamento-page .doc,
+html:not([data-paleta='azul']) .orcamento-page .timeline-item,
+html:not([data-paleta='azul']) .orcamento-page .field,
+html:not([data-paleta='azul']) .orcamento-page .mini-card,
+html:not([data-paleta='azul']) .orcamento-page .kpi-box,
+html:not([data-paleta='azul']) .orcamento-page .quote-card,
+html:not([data-paleta='azul']) .orcamento-page .scope-item,
+html:not([data-paleta='azul']) .orcamento-page .area-card,
+html:not([data-paleta='azul']) .orcamento-page .detail-item {
+  background:
+    radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--step-accent) 6%, transparent), transparent 42%),
+    color-mix(in srgb, var(--biasi-card, #0f2352) 76%, transparent) !important;
+  border-color: color-mix(in srgb, var(--step-accent) 14%, var(--biasi-border-accent, rgba(255,255,255,.08))) !important;
+}
+
+html:not([data-paleta='azul']) .orcamento-page .ux-step,
+html:not([data-paleta='azul']) .orcamento-page .launch-btn,
+html:not([data-paleta='azul']) .orcamento-page .stage-choice,
+html:not([data-paleta='azul']) .orcamento-page .check-card,
+html:not([data-paleta='azul']) .orcamento-page .option-btn {
+  background: color-mix(in srgb, var(--biasi-card, #0f2352) 82%, transparent) !important;
+}
+
+html:not([data-paleta='azul']) .orcamento-page .ux-step.active {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--step-color) 26%, var(--biasi-card, #0f2352)), color-mix(in srgb, var(--biasi-card-2, #11285d) 86%, transparent)) !important;
+}
+
+html:not([data-paleta='azul']) .orcamento-page .launch-btn:hover,
+html:not([data-paleta='azul']) .orcamento-page .launch-btn.active,
+html:not([data-paleta='azul']) .orcamento-page .stage-choice:hover,
+html:not([data-paleta='azul']) .orcamento-page .stage-choice.active,
+html:not([data-paleta='azul']) .orcamento-page .scope-item.active,
+html:not([data-paleta='azul']) .orcamento-page .quote-card.considered,
+html:not([data-paleta='azul']) .orcamento-page .option-btn.active {
+  background: color-mix(in srgb, var(--step-accent) 24%, var(--biasi-card, #0f2352)) !important;
+  border-color: color-mix(in srgb, var(--step-accent) 58%, var(--biasi-border-accent, rgba(255,255,255,.12))) !important;
+}
+
+html:not([data-paleta='azul']) .orcamento-page .launch-panel,
+html:not([data-paleta='azul']) .orcamento-page .stage-main-card,
+html:not([data-paleta='azul']) .orcamento-page .stage-action-card,
+html:not([data-paleta='azul']) .orcamento-page .launch-detail-copy,
+html:not([data-paleta='azul']) .orcamento-page .score-card {
+  background:
+    radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--step-accent) 18%, transparent), transparent 38%),
+    color-mix(in srgb, var(--biasi-card, #0f2352) 80%, transparent) !important;
+}
+
+html:not([data-paleta='azul']) .orcamento-page input,
+html:not([data-paleta='azul']) .orcamento-page select,
+html:not([data-paleta='azul']) .orcamento-page textarea {
+  background:
+    radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--step-accent) 12%, transparent), transparent 44%),
+    color-mix(in srgb, var(--step-accent) 8%, var(--biasi-input, rgba(3,13,34,.78))) !important;
+}
+
 .orcamento-page *,
 .orcamento-page *::before,
 .orcamento-page *::after { box-sizing: border-box; }
@@ -191,6 +282,7 @@
 }
 
 .orcamento-page .ux-step {
+  --step-color: rgba(255,255,255,.22);
   display: flex;
   align-items: center;
   gap: 10px;
@@ -199,11 +291,31 @@
   padding: 11px 12px;
   border-radius: 16px;
   background: rgba(255,255,255,.045);
-  border: 1px solid rgba(255,255,255,.075);
+  border: 1px solid color-mix(in srgb, var(--step-color) 22%, rgba(255,255,255,.075));
   color: #edf4ff;
   text-align: left;
   cursor: pointer;
+  position: relative;
+  overflow: hidden;
   transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease, background .18s ease;
+}
+
+.orcamento-page .ux-step::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: linear-gradient(180deg, var(--step-color), transparent);
+  opacity: .72;
+}
+
+.orcamento-page .ux-step::after {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--step-color) 70%, transparent), transparent);
+  opacity: .7;
 }
 
 .orcamento-page .ux-step:hover,
@@ -225,24 +337,44 @@
   display: grid;
   place-items: center;
   border-radius: 13px;
-  background: rgba(255,255,255,.08);
-  color: #b8c9ec;
+  background: color-mix(in srgb, var(--step-color) 22%, rgba(255,255,255,.08));
+  color: color-mix(in srgb, var(--step-color) 56%, #f8fbff);
   font-size: 12px;
   font-weight: 950;
 }
 
-.orcamento-page .ux-step strong { display: block; font-size: 13px; line-height: 1.25; letter-spacing: -.01em; }
+.orcamento-page .ux-step strong {
+  display: block;
+  font-size: 13px;
+  line-height: 1.25;
+  letter-spacing: -.01em;
+  color: color-mix(in srgb, var(--step-color) 34%, #f7fbff);
+}
 .orcamento-page .ux-step span { display: none; }
 
 .orcamento-page .ux-step.active {
-  background: linear-gradient(135deg, color-mix(in srgb, var(--step-accent) 34%, #122b62), rgba(255,255,255,.075));
-  border-color: color-mix(in srgb, var(--step-accent) 58%, rgba(255,255,255,.15));
-  box-shadow: 0 16px 34px color-mix(in srgb, var(--step-accent) 22%, transparent);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--step-color) 34%, #122b62), rgba(255,255,255,.075));
+  border-color: color-mix(in srgb, var(--step-color) 58%, rgba(255,255,255,.15));
+  box-shadow: 0 16px 34px color-mix(in srgb, var(--step-color) 22%, transparent);
 }
 
 .orcamento-page .ux-step.active small {
-  background: var(--step-accent);
+  background: var(--step-color);
   color: #06152d;
+}
+
+.orcamento-page .ux-step.active strong { color: #fff; }
+
+.orcamento-page .score-card,
+.orcamento-page .side .panel,
+.orcamento-page .progress-card {
+  border-color: color-mix(in srgb, var(--step-accent) 24%, rgba(255,255,255,.08));
+}
+
+.orcamento-page .score-card {
+  background:
+    radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--step-accent) 20%, transparent), transparent 34%),
+    rgba(255,255,255,.045);
 }
 .orcamento-page .launch-panel {
   position: relative;
@@ -504,17 +636,35 @@
   outline: none;
   border-radius: 12px;
   padding: 11px 12px;
-  background: rgba(3,13,34,.72);
+  background:
+    radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--step-accent) 14%, transparent), transparent 44%),
+    color-mix(in srgb, var(--step-accent) 10%, rgba(3,13,34,.78)) !important;
   color: #eff4ff;
   font-size: 13px;
   font-weight: 750;
   min-width: 0;
   max-width: 100%;
+  border-color: color-mix(in srgb, var(--step-accent) 30%, rgba(255,255,255,.08)) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.055);
+}
+
+.orcamento-page input:focus,
+.orcamento-page select:focus,
+.orcamento-page textarea:focus {
+  border-color: color-mix(in srgb, var(--step-accent) 68%, rgba(255,255,255,.16)) !important;
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--step-accent) 16%, transparent),
+    inset 0 1px 0 rgba(255,255,255,.08);
+}
+
+.orcamento-page select option {
+  background: #0b1836;
+  color: #eff4ff;
 }
 
 .orcamento-page input[readonly] {
   color: color-mix(in srgb, var(--step-accent) 78%, #fff);
-  background: color-mix(in srgb, var(--step-accent) 12%, rgba(3,13,34,.72));
+  background: color-mix(in srgb, var(--step-accent) 16%, rgba(3,13,34,.72)) !important;
 }
 
 .orcamento-page .stage-action-card:focus-within,

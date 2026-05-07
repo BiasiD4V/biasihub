@@ -34,7 +34,6 @@ import DespesasIndiretas from './pages/DespesasIndiretas'
 import AdmCentral from './pages/AdmCentral'
 import Resultado from './pages/Resultado'
 import Agentes from './pages/Agentes'
-import Aparencia from './pages/Aparencia'
 // Módulo Planejamento
 import DashboardPlanejamento from './pages/planejamento/DashboardPlanejamento'
 import CronogramaPlanejamento from './pages/planejamento/CronogramaPlanejamento'
@@ -215,7 +214,6 @@ function AppRoutes() {
         } />
         {/* Módulo Planejamento */}
         <Route path="agentes" element={<Agentes />} />
-        <Route path="aparencia" element={<Aparencia />} />
         <Route path="planejamento" element={
           <ProtectedRoute permissao="ver_planejamento">
             <DashboardPlanejamento />

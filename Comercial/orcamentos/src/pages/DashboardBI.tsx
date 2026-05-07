@@ -235,10 +235,10 @@ export function DashboardBI() {
   // ── Funil comercial ──
   const chartFunil = useMemo(() => {
     const etapas = [
-      { key: 'RECEBIDO', label: 'Recebido', cor: '#06b6d4' },
+      { key: 'RECEBIDO', label: 'Recebido', cor: 'var(--biasi-accent)' },
       { key: 'ORÇAMENTO', label: 'Orçamento', cor: '#f97316' },
       { key: 'EM REVISÃO', label: 'Em Revisão', cor: '#eab308' },
-      { key: 'ENVIADO', label: 'Enviado', cor: '#3b82f6' },
+      { key: 'ENVIADO', label: 'Enviado', cor: 'var(--biasi-button)' },
       { key: 'NEGOCIAÇÃO FUTURA', label: 'Negociação', cor: '#a855f7' },
       { key: 'FECHADO', label: 'Fechado', cor: '#22c55e' },
     ];
@@ -421,7 +421,7 @@ export function DashboardBI() {
                     <Tooltip content={<CustomTooltip />} />
                     <Legend wrapperStyle={{ fontSize: 11 }} />
                     <Bar dataKey="fechadas" stackId="a" fill="#22c55e" name="Fechadas" radius={[0, 0, 0, 0]} />
-                    <Bar dataKey="outras" stackId="a" fill="#3b82f6" name="Em andamento" />
+                    <Bar dataKey="outras" stackId="a" fill="var(--biasi-button)" name="Em andamento" />
                     <Bar dataKey="naoFechadas" stackId="a" fill="#ef4444" name="Perdidas" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
@@ -461,8 +461,8 @@ export function DashboardBI() {
                   <AreaChart data={chartMensal}>
                     <defs>
                       <linearGradient id="gradientQtd" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.2} />
-                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                        <stop offset="5%" stopColor="var(--biasi-button)" stopOpacity={0.2} />
+                        <stop offset="95%" stopColor="var(--biasi-button)" stopOpacity={0} />
                       </linearGradient>
                       <linearGradient id="gradientFech" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="#22c55e" stopOpacity={0.2} />
@@ -474,7 +474,7 @@ export function DashboardBI() {
                     <YAxis tick={{ fontSize: 10, fill: '#64748b' }} />
                     <Tooltip content={<CustomTooltip />} />
                     <Legend wrapperStyle={{ fontSize: 11 }} />
-                    <Area type="monotone" dataKey="quantidade" stroke="#3b82f6" fill="url(#gradientQtd)" name="Total" strokeWidth={2} />
+                    <Area type="monotone" dataKey="quantidade" stroke="var(--biasi-button)" fill="url(#gradientQtd)" name="Total" strokeWidth={2} />
                     <Area type="monotone" dataKey="fechadas" stroke="#22c55e" fill="url(#gradientFech)" name="Fechadas" strokeWidth={2} />
                   </AreaChart>
                 </ResponsiveContainer>
@@ -533,7 +533,7 @@ export function DashboardBI() {
                     <Tooltip content={<CustomTooltip />} />
                     <Legend wrapperStyle={{ fontSize: 11 }} />
                     <Bar dataKey="fechadas" fill="#22c55e" name="Fechadas" radius={[0, 0, 0, 0]} />
-                    <Bar dataKey="total" fill="#3b82f6" name="Total" radius={[0, 4, 4, 0]} />
+                    <Bar dataKey="total" fill="var(--biasi-button)" name="Total" radius={[0, 4, 4, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </Painel>
@@ -552,7 +552,7 @@ export function DashboardBI() {
                       tickFormatter={(v: string) => v.length > 16 ? v.slice(0, 16) + '…' : v}
                     />
                     <Tooltip formatter={(value: any) => FMT_BRL(Number(value))} />
-                    <Bar dataKey="valor" fill="#6366f1" name="Valor Orçado" radius={[0, 6, 6, 0]}>
+                    <Bar dataKey="valor" fill="var(--biasi-border-strong)" name="Valor Orçado" radius={[0, 6, 6, 0]}>
                       {chartDisciplina.map((_, i) => (
                         <Cell key={i} fill={CORES_GRAFICO[i % CORES_GRAFICO.length]} />
                       ))}
@@ -580,7 +580,7 @@ export function DashboardBI() {
                     <YAxis tick={{ fontSize: 10, fill: '#64748b' }} tickFormatter={(v: number) => FMT_BRL_SHORT(v)} />
                     <Tooltip formatter={(value: any) => FMT_BRL(Number(value))} />
                     <Legend wrapperStyle={{ fontSize: 11 }} />
-                    <Bar dataKey="valor" fill="#0ea5e9" name="Valor Total" radius={[4, 4, 0, 0]}>
+                    <Bar dataKey="valor" fill="var(--biasi-button-hover)" name="Valor Total" radius={[4, 4, 0, 0]}>
                       {chartClientes.map((_, i) => (
                         <Cell key={i} fill={CORES_GRAFICO[i % CORES_GRAFICO.length]} />
                       ))}

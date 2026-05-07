@@ -111,7 +111,7 @@ export function Login() {
                   onChange={(e) => setEmail(e.target.value)}
                   required
                   placeholder="seu@biasiengenharia.com.br"
-                  className="w-full h-12 rounded-xl border border-[#C8D5F2] px-4 text-[#233772] bg-white focus:outline-none focus:ring-2 focus:ring-[#233772]/20"
+                  className="login-input w-full h-12 rounded-xl border border-[#C8D5F2] px-4 text-[#233772] bg-white focus:outline-none focus:ring-2 focus:ring-[#233772]/20"
                 />
               </div>
 
@@ -124,7 +124,7 @@ export function Login() {
                     onChange={(e) => setSenha(e.target.value)}
                     required
                     placeholder="••••••••"
-                    className="w-full h-12 rounded-xl border border-[#C8D5F2] px-4 pr-12 text-[#233772] bg-white focus:outline-none focus:ring-2 focus:ring-[#233772]/20"
+                    className="login-input w-full h-12 rounded-xl border border-[#C8D5F2] px-4 pr-12 text-[#233772] bg-white focus:outline-none focus:ring-2 focus:ring-[#233772]/20"
                   />
                   <button
                     type="button"
@@ -217,7 +217,7 @@ export function Login() {
                       value={nomeNovo}
                       onChange={(e) => setNomeNovo(e.target.value)}
                       required
-                      className="w-full h-11 rounded-xl border border-[#C8D5F2] px-4 text-[#233772] focus:outline-none focus:ring-2 focus:ring-[#233772]/20"
+                      className="login-input w-full h-11 rounded-xl border border-[#C8D5F2] px-4 text-[#233772] focus:outline-none focus:ring-2 focus:ring-[#233772]/20"
                     />
                   </div>
                   <div>
@@ -227,7 +227,7 @@ export function Login() {
                       value={emailNovo}
                       onChange={(e) => setEmailNovo(e.target.value)}
                       required
-                      className="w-full h-11 rounded-xl border border-[#C8D5F2] px-4 text-[#233772] focus:outline-none focus:ring-2 focus:ring-[#233772]/20"
+                      className="login-input w-full h-11 rounded-xl border border-[#C8D5F2] px-4 text-[#233772] focus:outline-none focus:ring-2 focus:ring-[#233772]/20"
                     />
                   </div>
 

@@ -17,6 +17,7 @@ const OrcamentoDetalhe    = lazy(() => import('./pages/OrcamentoDetalhe').then(m
 const Bira                = lazy(() => import('./pages/Bira').then(m => ({ default: m.Bira })));
 const Aprovacoes          = lazy(() => import('./pages/Aprovacoes').then(m => ({ default: m.Aprovacoes })));
 const Reunioes            = lazy(() => import('./pages/Reunioes').then(m => ({ default: m.Reunioes })));
+const CalendarioComercial = lazy(() => import('./pages/CalendarioComercial').then(m => ({ default: m.CalendarioComercial })));
 const ArenaComercial      = lazy(() => import('./pages/ArenaComercial').then(m => ({ default: m.ArenaComercial })));
 const Clientes            = lazy(() => import('./pages/Clientes').then(m => ({ default: m.Clientes })));
 const Fornecedores        = lazy(() => import('./pages/Fornecedores').then(m => ({ default: m.Fornecedores })));
@@ -37,7 +38,6 @@ const MeusDispositivos    = lazy(() => import('./pages/MeusDispositivos').then(m
 const Configuracoes       = lazy(() => import('./pages/Configuracoes').then(m => ({ default: m.Configuracoes })));
 const ConfiguracaoDebug   = lazy(() => import('./pages/ConfiguracaoDebug').then(m => ({ default: m.ConfiguracaoDebug })));
 const ConfiguradorUUIDs   = lazy(() => import('./pages/ConfiguradorUUIDs').then(m => ({ default: m.ConfiguradorUUIDs })));
-const Aparencia           = lazy(() => import('./pages/Aparencia').then(m => ({ default: m.Aparencia })));
 
 const PageLoader = () => (
   <div className="min-h-screen bg-slate-950 flex items-center justify-center">
@@ -83,6 +83,7 @@ export function App() {
                     <Route path="/bira" element={<Bira />} />
                     <Route path="/arena" element={<ArenaComercial />} />
                     <Route path="/reunioes" element={<Reunioes />} />
+                    <Route path="/calendario" element={<CalendarioComercial />} />
                     <Route path="/rdo" element={<DiarioDeObra />} />
                     <Route path="/obras" element={<Navigate to="/dashboard" replace />} />
                     <Route path="/bi" element={<Navigate to="/dashboard" replace />} />
@@ -95,7 +96,6 @@ export function App() {
                     <Route path="/indicacoes" element={<Indicacoes />} />
                     <Route path="/adm-central" element={<AdmCentral />} />
                     <Route path="/aprendizados" element={<Aprendizados />} />
-                    <Route path="/aparencia" element={<Aparencia />} />
                   </Route>
 
                   <Route path="*" element={<Navigate to="/dashboard" replace />} />

@@ -2,6 +2,13 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 // Expõe para o renderer de forma segura
 contextBridge.exposeInMainWorld('electronBridge', {
+  // Aparência compartilhada entre Hub e módulos
+  getAppearance: () => ipcRenderer.invoke('appearance:get'),
+  setAppearance: (appearance) => ipcRenderer.invoke('appearance:set', appearance),
+  onAppearanceChanged: (cb) => {
+    ipcRenderer.on('appearance:changed', (_e, appearance) => cb(appearance));
+  },
+
   // Config da IA (Anthropic + Ollama)
   getAnthropicKey: () => ipcRenderer.invoke('config:getAnthropicKey'),
   setAnthropicKey: (key) => ipcRenderer.invoke('config:setAnthropicKey', key),

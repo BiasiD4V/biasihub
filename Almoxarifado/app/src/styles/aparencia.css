@@ -11,31 +11,79 @@
   --biasi-bg-800: #0d1f4a;
   --biasi-glow-1: rgba(99, 102, 241, 0.10);
   --biasi-glow-2: rgba(2, 132, 199, 0.10);
+  --biasi-shell: #060f2a;
+  --biasi-shell-2: #0d1f4a;
+  --biasi-card: #132a5f;
+  --biasi-card-2: #143269;
+  --biasi-input: #0d1f4a;
+  --biasi-button: #3b82f6;
+  --biasi-button-hover: #0ea5e9;
+  --biasi-border-accent: rgba(113, 154, 255, 0.28);
+  --biasi-border-strong: #6366f1;
 }
 
 html[data-paleta='azul'] {
   --biasi-glow-1: rgba(0, 100, 148, 0.18);
   --biasi-glow-2: rgba(27, 152, 224, 0.14);
+  --biasi-button: #3b82f6;
+  --biasi-button-hover: #0ea5e9;
+  --biasi-border-strong: #6366f1;
 }
 
 html[data-paleta='verde'] {
   --biasi-glow-1: rgba(122, 157, 61, 0.16);
   --biasi-glow-2: rgba(184, 199, 106, 0.12);
+  --biasi-shell: #0f2218;
+  --biasi-shell-2: #1a2f1f;
+  --biasi-card: #25402c;
+  --biasi-card-2: #2f4f35;
+  --biasi-input: #17291c;
+  --biasi-button: #7a9d3d;
+  --biasi-button-hover: #b8c76a;
+  --biasi-border-accent: rgba(122, 157, 61, 0.42);
+  --biasi-border-strong: #7a9d3d;
 }
 
 html[data-paleta='bege'] {
   --biasi-glow-1: rgba(194, 155, 123, 0.18);
   --biasi-glow-2: rgba(241, 209, 209, 0.12);
+  --biasi-shell: #1a1212;
+  --biasi-shell-2: #221818;
+  --biasi-card: #3a2c2c;
+  --biasi-card-2: #463434;
+  --biasi-input: #2d2222;
+  --biasi-button: #c29b7b;
+  --biasi-button-hover: #d6b496;
+  --biasi-border-accent: rgba(194, 155, 123, 0.42);
+  --biasi-border-strong: #c29b7b;
 }
 
 html[data-paleta='vinho'] {
   --biasi-glow-1: rgba(199, 44, 65, 0.18);
   --biasi-glow-2: rgba(238, 69, 64, 0.14);
+  --biasi-shell: #1a0e1a;
+  --biasi-shell-2: #221221;
+  --biasi-card: #381833;
+  --biasi-card-2: #461e40;
+  --biasi-input: #2c1429;
+  --biasi-button: #c72c41;
+  --biasi-button-hover: #ee4540;
+  --biasi-border-accent: rgba(199, 44, 65, 0.42);
+  --biasi-border-strong: #c72c41;
 }
 
 html[data-paleta='mono'] {
   --biasi-glow-1: rgba(255, 255, 255, 0.06);
   --biasi-glow-2: rgba(212, 212, 212, 0.05);
+  --biasi-shell: #0a0a0a;
+  --biasi-shell-2: #141414;
+  --biasi-card: #1f1f1f;
+  --biasi-card-2: #292929;
+  --biasi-input: #171717;
+  --biasi-button: #3a3a3a;
+  --biasi-button-hover: #5a5a5a;
+  --biasi-border-accent: rgba(255, 255, 255, 0.22);
+  --biasi-border-strong: #6a6a6a;
 }
 
 /* Substitui o amarelo Biasi (#FFC82D) pelo accent da paleta atual */
@@ -95,6 +143,257 @@ html:not([data-paleta='azul']) .bg-indigo-500\/10 {
 html:not([data-paleta='azul']) .bg-sky-600\/10,
 html:not([data-paleta='azul']) .bg-sky-500\/10 {
   background-color: var(--biasi-glow-2) !important;
+}
+
+/* Paleta global dos módulos: tira azuis fixos das páginas sem mexer nas cores
+   próprias do fluxo de Orçamento Comercial (.orcamento-page). */
+html:not([data-paleta='azul']) body,
+html:not([data-paleta='azul']) #root,
+html:not([data-paleta='azul']) .biasi-theme,
+html:not([data-paleta='azul']) .biasi-shell-bg {
+  background:
+    radial-gradient(1200px 600px at 8% -10%, var(--biasi-glow-1), transparent 60%),
+    radial-gradient(900px 500px at 100% 0%, var(--biasi-glow-2), transparent 55%),
+    linear-gradient(135deg, var(--biasi-shell) 0%, var(--biasi-shell-2) 48%, var(--biasi-shell) 100%) !important;
+}
+
+html:not([data-paleta='azul']) :where(
+  .bg-blue-950,
+  .bg-blue-900,
+  .bg-blue-800,
+  .bg-blue-700,
+  .bg-sky-950,
+  .bg-sky-900,
+  .bg-indigo-950,
+  .bg-indigo-900,
+  .bg-slate-950,
+  .bg-slate-900,
+  .bg-slate-800,
+  [class*='bg-[#060f2a]'],
+  [class*='bg-[#0d1f4a]'],
+  [class*='bg-[#081432]'],
+  [class*='bg-[#0f2454]'],
+  [class*='bg-[#0a183c]'],
+  [class*='bg-[#13293D]'],
+  [class*='bg-[#0A1A2A]'],
+  [class*='bg-[#132a5f]'],
+  [class*='bg-[#143269]'],
+  [class*='bg-[#071b49]'],
+  [class*='bg-[#0b2260]'],
+  [class*='bg-[#0d2258]'],
+  [class*='bg-[#12285A]'],
+  [class*='bg-[#08142F]'],
+  [class*='bg-[#172540]'],
+  [class*='bg-[linear-gradient']
+):not(.orcamento-page):not(.orcamento-page *) {
+  background: linear-gradient(
+    160deg,
+    color-mix(in srgb, var(--biasi-card) 94%, transparent),
+    color-mix(in srgb, var(--biasi-card-2) 90%, transparent)
+  ) !important;
+}
+
+html:not([data-paleta='azul']) :where(
+  [class*='from-blue-'],
+  [class*='via-blue-'],
+  [class*='to-blue-'],
+  [class*='from-sky-'],
+  [class*='via-sky-'],
+  [class*='to-sky-'],
+  [class*='from-indigo-'],
+  [class*='via-indigo-'],
+  [class*='to-indigo-'],
+  [class*='from-[#071b49]'],
+  [class*='to-[#0b2260]'],
+  [class*='from-[#0d2258]'],
+  [class*='to-[#0d2258]'],
+  [class*='from-[#132a5f]'],
+  [class*='to-[#143269]']
+):not(.orcamento-page):not(.orcamento-page *) {
+  --tw-gradient-from: color-mix(in srgb, var(--biasi-card) 96%, transparent) var(--tw-gradient-from-position) !important;
+  --tw-gradient-via: color-mix(in srgb, var(--biasi-card-2) 92%, transparent) var(--tw-gradient-via-position) !important;
+  --tw-gradient-to: color-mix(in srgb, var(--biasi-shell-2) 92%, transparent) var(--tw-gradient-to-position) !important;
+}
+
+html:not([data-paleta='azul']) :where(
+  button[class*='bg-[linear-gradient'],
+  a[class*='bg-[linear-gradient'],
+  .bg-blue-600,
+  .bg-blue-700,
+  [class*='bg-blue-600'],
+  [class*='bg-blue-700']
+):not(.orcamento-page):not(.orcamento-page *):not([class*='bg-green-']):not([class*='bg-emerald-']):not([class*='bg-red-']):not([class*='bg-rose-']):not([class*='bg-amber-']):not([class*='bg-orange-']) {
+  background: linear-gradient(
+    160deg,
+    var(--biasi-button),
+    var(--biasi-button-hover)
+  ) !important;
+  border-color: color-mix(in srgb, var(--biasi-button-hover) 55%, transparent) !important;
+}
+
+html:not([data-paleta='azul']) :where(
+  [class*='bg-blue-'],
+  [class*='bg-sky-'],
+  [class*='bg-indigo-']
+):not(.orcamento-page):not(.orcamento-page *):not(.bg-green-500):not(.bg-emerald-500):not(.bg-red-500):not(.bg-rose-500):not(.bg-amber-500):not(.bg-orange-500) {
+  background-color: color-mix(in srgb, var(--biasi-button) 30%, transparent) !important;
+}
+
+html:not([data-paleta='azul']) :where(
+  [class*='bg-[rgba(10,30,77'],
+  [class*='bg-[rgba(10,31,78'],
+  [class*='bg-[rgba(7,22,64'],
+  [class*='bg-[rgba(8,24,64'],
+  [class*='bg-[rgba(12,29,77'],
+  [class*='bg-[rgba(17,47,115'],
+  [class*='bg-[rgba(18,45,109'],
+  [class*='bg-[rgba(20,47,110'],
+  [class*='bg-[rgba(24,55,120'],
+  [class*='bg-[rgba(24,59,141'],
+  [class*='bg-[rgba(20,50,120']
+):not(.orcamento-page):not(.orcamento-page *) {
+  background-color: color-mix(in srgb, var(--biasi-card) 72%, transparent) !important;
+}
+
+html:not([data-paleta='azul']) :where(
+  [class*='bg-[rgba(61,182,255'],
+  [class*='bg-[rgba(92,155,255'],
+  [class*='bg-[rgba(113,154,255'],
+  [class*='bg-[rgba(113,210,255'],
+  [class*='bg-[rgba(120,160,255'],
+  [class*='bg-[#5c9bff]'],
+  [class*='bg-[#173a87]'],
+  [class*='bg-[#1f56c0]'],
+  [class*='bg-[#294b95]']
+):not(.orcamento-page):not(.orcamento-page *) {
+  background-color: color-mix(in srgb, var(--biasi-button) 20%, transparent) !important;
+}
+
+html:not([data-paleta='azul']) :where(
+  .border-blue-950,
+  .border-blue-900,
+  .border-blue-800,
+  .border-blue-700,
+  .border-blue-600,
+  .border-blue-500,
+  .border-sky-700,
+  .border-sky-600,
+  .border-indigo-700,
+  .border-indigo-600,
+  [class*='border-blue-'],
+  [class*='border-sky-'],
+  [class*='border-indigo-'],
+  [class*='border-[#27498B]'],
+  [class*='border-[#4A69A8]'],
+  [class*='border-[#3D5EA8]'],
+  [class*='border-[#3560b8]'],
+  [class*='border-[rgba(113,154,255'],
+  [class*='border-[rgba(92,137,255'],
+  [class*='border-[rgba(92,155,255'],
+  [class*='border-[rgba(113,210,255'],
+  [class*='border-[rgba(120,160,255']
+):not(.orcamento-page):not(.orcamento-page *) {
+  border-color: var(--biasi-border-accent) !important;
+}
+
+html:not([data-paleta='azul']) :where(
+  .text-blue-800,
+  .text-blue-700,
+  .text-blue-600,
+  .text-blue-500,
+  .text-sky-700,
+  .text-sky-600,
+  .text-indigo-700,
+  .text-indigo-600,
+  [class*='text-blue-'],
+  [class*='text-sky-'],
+  [class*='text-indigo-'],
+  [class*='text-[#233772]'],
+  [class*='text-[#13293D]'],
+  [class*='text-[#006494]'],
+  [class*='text-[#1B98E0]'],
+  [class*='text-[#4f80f5]'],
+  [class*='text-[#5c9bff]'],
+  [class*='text-[#7d93d1]'],
+  [class*='text-[#89a2e2]'],
+  [class*='text-[#89b6ff]'],
+  [class*='text-[#89b7ff]'],
+  [class*='text-[#8aa3e2]'],
+  [class*='text-[#9db2e7]'],
+  [class*='text-[#b8c5eb]'],
+  [class*='text-[#b8c8f7]'],
+  [class*='text-[#b8c8ff]'],
+  [class*='text-[#cad8ff]'],
+  [class*='text-[#cbd6ff]'],
+  [class*='text-[#cfe0ff]'],
+  [class*='text-[#d4e0ff]'],
+  [class*='text-[#dbe7ff]'],
+  [class*='text-[#dce6ff]'],
+  [class*='text-[#9fb0db]'],
+  [class*='text-[#b8d3ff]']
+):not(.orcamento-page):not(.orcamento-page *) {
+  color: color-mix(in srgb, var(--biasi-button-hover) 56%, white) !important;
+}
+
+html:not([data-paleta='azul']) :where(
+  [class*='placeholder:text-[#7d93d1]'],
+  [class*='placeholder:text-[#9db2e7]'],
+  [class*='placeholder:text-[#9fb0db]'],
+  [class*='placeholder:text-[#b8c5eb]']
+):not(.orcamento-page):not(.orcamento-page *)::placeholder {
+  color: color-mix(in srgb, var(--biasi-button-hover) 42%, white) !important;
+}
+
+html:not([data-paleta='azul']) :where(input, textarea, select):not(.orcamento-page *),
+html:not([data-paleta='azul']) :where(.bg-white, .bg-slate-50, .bg-slate-100):not(.orcamento-page):not(.orcamento-page *) {
+  background-color: var(--biasi-input) !important;
+  border-color: var(--biasi-border-accent) !important;
+}
+
+/* Rastreio usa CSS interno (.rt-*) com azul fixo; paleta deve mandar nele tambem. */
+html:not([data-paleta='azul']) .rt-page {
+  background:
+    radial-gradient(1000px 520px at 10% -10%, var(--biasi-glow-1), transparent 62%),
+    linear-gradient(135deg, var(--biasi-shell) 0%, var(--biasi-shell-2) 52%, var(--biasi-shell) 100%) !important;
+}
+
+html:not([data-paleta='azul']) :where(
+  .rt-pedido,
+  .rt-modal,
+  .rt-resumo-card,
+  .rt-fila-box,
+  .rt-etapa,
+  .rt-fotos-card,
+  .rt-item-card,
+  .rt-empty,
+  .rt-loading,
+  .rt-toast,
+  .rt-assinatura-input,
+  .rt-assinatura-canvas,
+  .rt-fotos-thumb
+) {
+  background: color-mix(in srgb, var(--biasi-card) 74%, transparent) !important;
+  border-color: var(--biasi-border-accent) !important;
+}
+
+html:not([data-paleta='azul']) :where(.rt-btn, .rt-btn-foto) {
+  background: linear-gradient(160deg, var(--biasi-button), var(--biasi-button-hover)) !important;
+  border-color: color-mix(in srgb, var(--biasi-button-hover) 55%, transparent) !important;
+}
+
+html:not([data-paleta='azul']) :where(
+  .rt-topo p,
+  .rt-resumo-card span,
+  .rt-meta,
+  .rt-fila-box,
+  .rt-etapa,
+  .rt-fotos-card h4,
+  .rt-detalhes,
+  .rt-empty,
+  .rt-loading,
+  .rt-modal p
+) {
+  color: color-mix(in srgb, var(--biasi-button-hover) 50%, white) !important;
 }
 
 /* === MODO MINIMALISTA ===

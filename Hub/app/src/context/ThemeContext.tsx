@@ -1,4 +1,5 @@
-import { createContext, useContext, useEffect, useMemo, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState, useRef, ReactNode } from 'react';
+import { supabase } from '../infrastructure/supabase/client';
 
 /**
  * Paletas disponíveis para o Hub.
@@ -86,7 +87,7 @@ interface ThemeContextValue extends ThemeState {
 const STORAGE_KEY = 'biasihub-hub-aparencia';
 const DEFAULT_STATE: ThemeState = { paleta: 'azul', minimalista: false };
 
-function carregar(): ThemeState {
+function carregarLocal(): ThemeState {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return DEFAULT_STATE;
@@ -96,6 +97,13 @@ function carregar(): ThemeState {
   } catch {
     return DEFAULT_STATE;
   }
+}
+
+function normalizarEstado(raw: any): ThemeState | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const paleta = PALETAS.find(p => p.id === raw.paleta) ? (raw.paleta as PaletaId) : null;
+  if (!paleta) return null;
+  return { paleta, minimalista: !!raw.minimalista };
 }
 
 function aplicarNoDOM(paleta: Paleta, minimalista: boolean) {
@@ -111,13 +119,16 @@ function aplicarNoDOM(paleta: Paleta, minimalista: boolean) {
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [estado, setEstado] = useState<ThemeState>(() => carregar());
+  const [estado, setEstado] = useState<ThemeState>(() => carregarLocal());
+  // Evita gravar no Supabase logo no primeiro render (antes de carregar do user_metadata)
+  const remotoCarregado = useRef(false);
 
   const paletaAtual = useMemo(
     () => PALETAS.find(p => p.id === estado.paleta) ?? PALETAS[0],
     [estado.paleta]
   );
 
+  // Aplica no DOM e salva no localStorage sempre que muda
   useEffect(() => {
     aplicarNoDOM(paletaAtual, estado.minimalista);
     try {
@@ -125,7 +136,55 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     } catch {
       /* ignore */
     }
+    const bridgeSave = window.electronBridge?.setAppearance?.(estado);
+    bridgeSave?.catch(() => {
+      /* ignore - ambiente web ou Electron indisponivel */
+    });
   }, [paletaAtual, estado]);
+
+  // Carrega de user_metadata (sincroniza entre apps via Supabase)
+  useEffect(() => {
+    let cancelado = false;
+
+    async function carregarRemoto() {
+      try {
+        const { data } = await supabase.auth.getUser();
+        if (cancelado) return;
+        const remoto = normalizarEstado(data.user?.user_metadata?.aparencia);
+        if (remoto) {
+          setEstado(remoto);
+        }
+      } catch {
+        /* offline ou sem sessão — usa localStorage */
+      } finally {
+        if (!cancelado) remotoCarregado.current = true;
+      }
+    }
+
+    carregarRemoto();
+
+    // Re-aplica quando login/logout/refresh acontece
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      const remoto = normalizarEstado(session?.user?.user_metadata?.aparencia);
+      if (remoto) setEstado(remoto);
+    });
+
+    return () => {
+      cancelado = true;
+      sub.subscription.unsubscribe();
+    };
+  }, []);
+
+  // Persiste no Supabase user_metadata quando o estado muda (depois do primeiro carregamento)
+  useEffect(() => {
+    if (!remotoCarregado.current) return;
+    const timeout = setTimeout(() => {
+      supabase.auth.updateUser({ data: { aparencia: estado } }).catch(() => {
+        /* ignore — já está no localStorage */
+      });
+    }, 250); // debounce simples
+    return () => clearTimeout(timeout);
+  }, [estado]);
 
   const value: ThemeContextValue = {
     ...estado,

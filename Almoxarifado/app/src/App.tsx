@@ -15,6 +15,7 @@ const Dashboard = lazy(() => import('./pages/Dashboard').then(m => ({ default: m
 const Estoque = lazy(() => import('./pages/Estoque').then(m => ({ default: m.Estoque })));
 const Ferramentas = lazy(() => import('./pages/Ferramentas').then(m => ({ default: m.Ferramentas })));
 const Movimentacoes = lazy(() => import('./pages/Movimentacoes').then(m => ({ default: m.Movimentacoes })));
+const KanbanAlmoxarifado = lazy(() => import('./pages/KanbanAlmoxarifado').then(m => ({ default: m.KanbanAlmoxarifado })));
 const Requisicoes = lazy(() => import('./pages/Requisicoes').then(m => ({ default: m.Requisicoes })));
 const GerenciadorSolicitacoes = lazy(() => import('./pages/GerenciadorSolicitacoes').then(m => ({ default: m.GerenciadorSolicitacoes })));
 const RastreioEntregaMateriais = lazy(() => import('./pages/RastreioEntregaMateriais').then(m => ({ default: m.RastreioEntregaMateriais })));
@@ -28,7 +29,6 @@ const Reunioes = lazy(() => import('./pages/Reunioes').then(m => ({ default: m.R
 const Membros = lazy(() => import('./pages/Membros').then(m => ({ default: m.Membros })));
 const Obras = lazy(() => import('./pages/Obras').then(m => ({ default: m.Obras })));
 const Agentes = lazy(() => import('./pages/Agentes').then(m => ({ default: m.Agentes })));
-const Aparencia = lazy(() => import('./pages/Aparencia').then(m => ({ default: m.Aparencia })));
 
 const IS_ELECTRON = navigator.userAgent.includes('Electron');
 const IS_CAPACITOR = isCapacitorRuntime();
@@ -75,6 +75,7 @@ export default function App() {
               <Route path="/estoque" element={<Estoque />} />
               <Route path="/ferramentas" element={<Ferramentas />} />
               <Route path="/movimentacoes" element={<Movimentacoes />} />
+              <Route path="/kanban" element={<KanbanAlmoxarifado />} />
               <Route path="/obras" element={<Obras />} />
               <Route path="/requisicoes" element={<Requisicoes />} />
               <Route path="/solicitacoes" element={<Navigate to="/solicitacoes/gerenciar" replace />} />
@@ -89,7 +90,6 @@ export default function App() {
               <Route path="/reunioes" element={<Reunioes />} />
               <Route path="/membros" element={<Membros />} />
               <Route path="/agentes" element={<Agentes />} />
-              <Route path="/aparencia" element={<Aparencia />} />
             </Route>
             <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>

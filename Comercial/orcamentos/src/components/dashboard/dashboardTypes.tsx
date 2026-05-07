@@ -39,8 +39,8 @@ export interface Filtros {
 
 export const STATUS_CORES: Record<string, string> = {
   FECHADO: '#22c55e',
-  ENVIADO: '#3b82f6',
-  RECEBIDO: '#06b6d4',
+  ENVIADO: 'var(--biasi-button)',
+  RECEBIDO: 'var(--biasi-accent)',
   'EM REVISÃO': '#eab308',
   CANCELADO: '#f87171',
   'NÃO FECHADO': '#ef4444',
@@ -52,9 +52,9 @@ export const STATUS_CORES: Record<string, string> = {
 };
 
 export const CORES_GRAFICO = [
-  '#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6',
-  '#06b6d4', '#ec4899', '#f97316', '#14b8a6', '#6366f1',
-  '#84cc16', '#e11d48', '#0ea5e9', '#d946ef', '#facc15',
+  'var(--biasi-button)', '#22c55e', '#f59e0b', '#ef4444', 'var(--biasi-accent)',
+  'var(--biasi-border-strong)', '#ec4899', '#f97316', '#14b8a6', 'var(--biasi-card-3)',
+  '#84cc16', '#e11d48', 'var(--biasi-button-hover)', '#d946ef', '#facc15',
 ];
 
 /* ─────────────────────── Formatadores ─────────────────────── */

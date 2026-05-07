@@ -24,24 +24,25 @@ const IS_CAPACITOR = isCapacitorRuntime();
 const IS_DEV = import.meta.env.DEV;
 
 // URLs por ambiente:
-//   - Electron: protocol custom app:// que serve cada módulo em subdomínio
+//   - Electron dev: servidores Vite locais dos módulos
+//   - Electron prod: protocol custom app:// que serve cada módulo em subdomínio
 //   - Capacitor (Android): bundle local com módulos em subpaths (/almox/, etc.)
 //   - Web/Vercel: cada módulo num subdomínio próprio
 // No Capacitor, o servidor de assets não resolve index.html pra diretórios
 // automaticamente. Precisa do caminho explícito pro arquivo.
 const URLS = {
   comercial: IS_ELECTRON
-    ? 'app://comercial.local/'
+    ? (IS_DEV ? 'http://localhost:5174/' : 'app://comercial.local/')
     : IS_CAPACITOR
       ? '/comercial/index.html'
       : 'https://biasihub-comercial.vercel.app',
   almoxarifado: IS_ELECTRON
-    ? 'app://almoxarifado.local/'
+    ? (IS_DEV ? 'http://localhost:5173/' : 'app://almoxarifado.local/')
     : IS_CAPACITOR
       ? '/almox/index.html#/dashboard'
       : 'https://biasihub-almoxarifado-weld.vercel.app',
   obras: IS_ELECTRON
-    ? 'app://obras.local/'
+    ? (IS_DEV ? 'http://localhost:5175/' : 'app://obras.local/')
     : IS_CAPACITOR
       ? '/obras/index.html'
       : 'https://erp-gestaodeobras.vercel.app',

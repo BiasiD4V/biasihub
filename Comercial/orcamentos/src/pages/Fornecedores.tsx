@@ -16,6 +16,27 @@ function specKey(r: BaseFornecedor) {
   return r.especifico + ' | Un.: ' + (r.unidade || 'N/D');
 }
 
+const THEME = {
+  pageBg:
+    'radial-gradient(circle at 12% 4%,var(--biasi-glow-1),transparent 30%),radial-gradient(circle at 82% 8%,var(--biasi-glow-2),transparent 26%),linear-gradient(180deg,var(--biasi-shell) 0%,var(--biasi-shell-2) 52%,var(--biasi-shell) 100%)',
+  panelBg:
+    'linear-gradient(180deg,color-mix(in srgb, var(--biasi-card-2) 88%, transparent),color-mix(in srgb, var(--biasi-card) 92%, transparent))',
+  panelBgSoft: 'color-mix(in srgb, var(--biasi-card) 72%, transparent)',
+  panelBgSofter: 'color-mix(in srgb, var(--biasi-card) 55%, transparent)',
+  inputBg: 'var(--biasi-input)',
+  border: 'var(--biasi-border-accent)',
+  borderSoft: 'color-mix(in srgb, var(--biasi-border-accent) 45%, transparent)',
+  accent: 'var(--biasi-accent)',
+  accentSoft: 'color-mix(in srgb, var(--biasi-accent) 18%, transparent)',
+  buttonBg: 'linear-gradient(135deg,var(--biasi-button),var(--biasi-button-hover))',
+  buttonText: 'var(--biasi-accent-text)',
+};
+
+const INPUT_STYLE: CSSProperties = {
+  borderColor: THEME.borderSoft,
+  background: THEME.inputBg,
+};
+
 // ─── group rows into discipline → generic → specific → rows ──────────────────
 type SpecMap = Record<string, BaseFornecedor[]>;
 type GenMap  = Record<string, SpecMap>;
@@ -41,10 +62,10 @@ interface ModalField { name: string; label: string; value?: string; wide?: boole
 function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,.62)' }} onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="w-full max-w-2xl max-h-[90vh] overflow-auto rounded-[22px] border shadow-2xl" style={{ borderColor: 'rgba(126,172,255,.34)', background: 'linear-gradient(180deg,rgba(13,34,76,.98),rgba(7,19,43,.98))' }}>
-        <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: 'rgba(126,172,255,.18)' }}>
+      <div className="w-full max-w-2xl max-h-[90vh] overflow-auto rounded-[22px] border shadow-2xl" style={{ borderColor: THEME.borderSoft, background: THEME.panelBg }}>
+        <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: THEME.borderSoft }}>
           <h3 className="text-white font-black text-lg">{title}</h3>
-          <button onClick={onClose} className="w-9 h-9 flex items-center justify-center rounded-xl border text-white text-xl" style={{ borderColor: 'rgba(126,172,255,.22)', background: 'rgba(255,255,255,.08)' }}>×</button>
+          <button onClick={onClose} className="w-9 h-9 flex items-center justify-center rounded-xl border text-white text-xl" style={{ borderColor: THEME.borderSoft, background: THEME.panelBgSoft }}>×</button>
         </div>
         <div className="p-5">{children}</div>
       </div>
@@ -64,11 +85,11 @@ function FormModal({ title, fields, onSave, onClose }: { title: string; fields: 
             {f.type === 'textarea' ? (
               <textarea value={vals[f.name]} onChange={e => set(f.name, e.target.value)} rows={3}
                 className="w-full rounded-xl border px-3 py-2 text-sm text-white outline-none resize-vertical"
-                style={{ borderColor: 'rgba(132,180,255,.38)', background: '#092154' }} />
+                style={INPUT_STYLE} />
             ) : (
               <input value={vals[f.name]} onChange={e => set(f.name, e.target.value)}
                 className="w-full rounded-xl border px-3 py-2 text-sm text-white outline-none"
-                style={{ borderColor: 'rgba(132,180,255,.38)', background: '#092154' }} />
+                style={INPUT_STYLE} />
             )}
           </div>
         ))}
@@ -84,7 +105,7 @@ function FormModal({ title, fields, onSave, onClose }: { title: string; fields: 
 function ConfirmModal({ title, msg, onYes, onClose }: { title: string; msg: string; onYes: () => void; onClose: () => void }) {
   return (
     <Modal title={title} onClose={onClose}>
-      <div className="rounded-xl border px-4 py-3 text-sm mb-4" style={{ borderColor: 'rgba(126,172,255,.16)', background: 'rgba(6,19,47,.5)', color: '#dce9ff' }}>{msg}</div>
+      <div className="rounded-xl border px-4 py-3 text-sm mb-4" style={{ borderColor: THEME.borderSoft, background: THEME.panelBgSoft, color: '#dce9ff' }}>{msg}</div>
       <div className="flex gap-3">
         <Btn cls="danger" onClick={onYes}>Confirmar</Btn>
         <Btn onClick={onClose}>Cancelar</Btn>
@@ -97,7 +118,7 @@ function DetailsModal({ title, pairs, onClose }: { title: string; pairs: [string
   return (
     <Modal title={title} onClose={onClose}>
       {pairs.map(([k, v]) => (
-        <div key={k} className="rounded-xl border px-4 py-2.5 text-sm mb-2" style={{ borderColor: 'rgba(126,172,255,.16)', background: 'rgba(6,19,47,.5)', color: '#dce9ff' }}>
+        <div key={k} className="rounded-xl border px-4 py-2.5 text-sm mb-2" style={{ borderColor: THEME.borderSoft, background: THEME.panelBgSoft, color: '#dce9ff' }}>
           <b className="text-white">{k}:</b> {v || '—'}
         </div>
       ))}
@@ -127,35 +148,35 @@ function MoverModal({ row, allRows, onSave, onClose }: { row: BaseFornecedor; al
 
   return (
     <Modal title={'Mover fornecedor: ' + row.fornecedor} onClose={onClose}>
-      <div className="rounded-xl border px-4 py-2.5 text-sm mb-4" style={{ borderColor: 'rgba(126,172,255,.16)', background: 'rgba(6,19,47,.5)', color: '#dce9ff' }}>
+      <div className="rounded-xl border px-4 py-2.5 text-sm mb-4" style={{ borderColor: THEME.borderSoft, background: THEME.panelBgSoft, color: '#dce9ff' }}>
         <b className="text-white">Local atual:</b> {row.disciplina} › {row.generico} › {row.especifico}
       </div>
       <div className="flex flex-col gap-3">
         <div>
           <label className="block text-[11px] font-black uppercase tracking-wider mb-1.5" style={{ color: '#bcd2ff' }}>Disciplina</label>
-          <select value={disc} onChange={e => onDiscChange(e.target.value)} className="w-full rounded-xl border px-3 py-2.5 text-sm text-white outline-none" style={{ borderColor: 'rgba(132,180,255,.38)', background: '#092154' }}>
+          <select value={disc} onChange={e => onDiscChange(e.target.value)} className="w-full rounded-xl border px-3 py-2.5 text-sm text-white outline-none" style={INPUT_STYLE}>
             {discs.map(d => <option key={d} value={d}>{d}</option>)}
             <option value="__new__">+ Nova disciplina…</option>
           </select>
-          {disc === '__new__' && <input value={newDisc} onChange={e => setNewDisc(e.target.value)} placeholder="Nome da nova disciplina" className="w-full mt-2 rounded-xl border px-3 py-2 text-sm text-white outline-none" style={{ borderColor: 'rgba(132,180,255,.38)', background: '#092154' }} />}
+          {disc === '__new__' && <input value={newDisc} onChange={e => setNewDisc(e.target.value)} placeholder="Nome da nova disciplina" className="w-full mt-2 rounded-xl border px-3 py-2 text-sm text-white outline-none" style={INPUT_STYLE} />}
         </div>
         <div>
           <label className="block text-[11px] font-black uppercase tracking-wider mb-1.5" style={{ color: '#bcd2ff' }}>Material genérico</label>
-          <select value={gen} onChange={e => onGenChange(e.target.value)} className="w-full rounded-xl border px-3 py-2.5 text-sm text-white outline-none" style={{ borderColor: 'rgba(132,180,255,.38)', background: '#092154' }}>
+          <select value={gen} onChange={e => onGenChange(e.target.value)} className="w-full rounded-xl border px-3 py-2.5 text-sm text-white outline-none" style={INPUT_STYLE}>
             <option value="">Selecione…</option>
             {gens.map(g => <option key={g} value={g}>{g}</option>)}
             <option value="__new__">+ Novo genérico…</option>
           </select>
-          {gen === '__new__' && <input value={newGen} onChange={e => setNewGen(e.target.value)} placeholder="Ex: Tubos PVC" className="w-full mt-2 rounded-xl border px-3 py-2 text-sm text-white outline-none" style={{ borderColor: 'rgba(132,180,255,.38)', background: '#092154' }} />}
+          {gen === '__new__' && <input value={newGen} onChange={e => setNewGen(e.target.value)} placeholder="Ex: Tubos PVC" className="w-full mt-2 rounded-xl border px-3 py-2 text-sm text-white outline-none" style={INPUT_STYLE} />}
         </div>
         <div>
           <label className="block text-[11px] font-black uppercase tracking-wider mb-1.5" style={{ color: '#bcd2ff' }}>Material específico</label>
-          <select value={spec} onChange={e => setSpec(e.target.value)} className="w-full rounded-xl border px-3 py-2.5 text-sm text-white outline-none" style={{ borderColor: 'rgba(132,180,255,.38)', background: '#092154' }}>
+          <select value={spec} onChange={e => setSpec(e.target.value)} className="w-full rounded-xl border px-3 py-2.5 text-sm text-white outline-none" style={INPUT_STYLE}>
             <option value="">Selecione…</option>
             {specs.map(s => <option key={s} value={s}>{s}</option>)}
             <option value="__new__">+ Novo específico…</option>
           </select>
-          {spec === '__new__' && <input value={newSpec} onChange={e => setNewSpec(e.target.value)} placeholder="Ex: TUBO PVC DN 100MM" className="w-full mt-2 rounded-xl border px-3 py-2 text-sm text-white outline-none" style={{ borderColor: 'rgba(132,180,255,.38)', background: '#092154' }} />}
+          {spec === '__new__' && <input value={newSpec} onChange={e => setNewSpec(e.target.value)} placeholder="Ex: TUBO PVC DN 100MM" className="w-full mt-2 rounded-xl border px-3 py-2 text-sm text-white outline-none" style={INPUT_STYLE} />}
         </div>
       </div>
       <div className="flex gap-3 mt-5">
@@ -168,11 +189,11 @@ function MoverModal({ row, allRows, onSave, onClose }: { row: BaseFornecedor; al
 
 // ─── button ───────────────────────────────────────────────────────────────────
 const BTN_STYLES: Record<string, CSSProperties> = {
-  primary: { background: 'linear-gradient(135deg,#23d8c8,#1b78d4)', color: '#061630', borderColor: 'rgba(47,225,208,.42)' },
-  blue:    { background: 'linear-gradient(135deg,#477dff,#6b7dff)', color: '#fff' },
+  primary: { background: THEME.buttonBg, color: THEME.buttonText, borderColor: THEME.borderSoft },
+  blue:    { background: THEME.buttonBg, color: THEME.buttonText, borderColor: THEME.borderSoft },
   danger:  { background: 'linear-gradient(135deg,#ff5c7a,#d93d65)', color: '#fff', borderColor: 'rgba(255,92,122,.42)' },
   move:    { background: 'linear-gradient(135deg,#ff9a3c,#e06b00)', color: '#fff', borderColor: 'rgba(255,154,60,.42)' },
-  default: { background: 'rgba(15,37,82,.92)', color: '#fff' },
+  default: { background: THEME.panelBgSoft, color: '#fff', borderColor: THEME.borderSoft },
 };
 
 function Btn({ cls = 'default', onClick, children, style }: { cls?: string; onClick: () => void; children: ReactNode; style?: CSSProperties }) {
@@ -181,7 +202,7 @@ function Btn({ cls = 'default', onClick, children, style }: { cls?: string; onCl
       type="button"
       onClick={e => { e.stopPropagation(); onClick(); }}
       className="inline-flex items-center justify-center gap-1.5 rounded-xl border px-3 font-black text-[11px] transition-all hover:brightness-110 hover:-translate-y-px active:translate-y-0"
-      style={{ minHeight: 32, borderColor: 'rgba(126,172,255,.22)', ...(BTN_STYLES[cls] ?? BTN_STYLES.default), ...style }}
+      style={{ minHeight: 32, borderColor: THEME.borderSoft, ...(BTN_STYLES[cls] ?? BTN_STYLES.default), ...style }}
     >
       {children}
     </button>
@@ -242,8 +263,8 @@ function SupplierRow({ r, onEdit, onDelete, onMove }: {
       )}
       <div className="rounded-[13px] border" style={{
         minHeight: 86,
-        borderColor: 'rgba(207,226,255,.42)',
-        background: 'rgba(11,31,74,.86)',
+        borderColor: THEME.borderSoft,
+        background: THEME.panelBgSoft,
         display: 'grid',
         gridTemplateColumns: '44px 1.25fr .72fr .68fr .68fr auto',
         alignItems: 'center',
@@ -270,12 +291,12 @@ function SupplierRow({ r, onEdit, onDelete, onMove }: {
         </div>
         <div className="hidden md:block">
           <div className="text-[10px] font-black uppercase tracking-wide mb-1" style={{ color: '#8fa8d4' }}>Último valor</div>
-          <div className="text-sm font-black" style={{ color: '#2fe1d0' }}>{r.ultimo_valor || '—'}</div>
+          <div className="text-sm font-black" style={{ color: THEME.accent }}>{r.ultimo_valor || '—'}</div>
           <span className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-black mt-1" style={{ borderColor: 'rgba(47,225,208,.24)', background: 'rgba(47,225,208,.13)', color: '#98fff7' }}>Un.: {r.unidade || 'N/D'}</span>
         </div>
         <div className="hidden md:block">
           <div className="text-[10px] font-black uppercase tracking-wide mb-1" style={{ color: '#8fa8d4' }}>Variação</div>
-          <div className={`text-sm font-black ${varCls === 'negative' ? '' : ''}`} style={{ color: varCls === 'negative' ? '#79e8bd' : r.variacao ? '#2fe1d0' : '#bfd1f3' }}>{r.variacao || 'N/D'}</div>
+          <div className={`text-sm font-black ${varCls === 'negative' ? '' : ''}`} style={{ color: varCls === 'negative' ? '#79e8bd' : r.variacao ? THEME.accent : '#bfd1f3' }}>{r.variacao || 'N/D'}</div>
           <span className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-black mt-1" style={{ borderColor: 'rgba(47,225,208,.24)', background: 'rgba(47,225,208,.13)', color: '#98fff7' }}>Menor: {r.menor_valor || '—'}</span>
         </div>
         <div className="flex gap-2 flex-wrap justify-end">
@@ -305,10 +326,10 @@ function SpecificCard({ name, rows, open, onToggle, onAddSupplier, onDeleteSpeci
           pairs={[['Fornecedores', String(rows.length)], ['Classes', unique(rows.map(r => r.cls)).join(', ')]]}
           onClose={() => setShowDetails(false)} />
       )}
-      <div className="rounded-[14px] border overflow-hidden" style={{ borderColor: 'rgba(126,172,255,.2)', background: 'rgba(7,22,54,.62)' }}>
-        <div className="flex items-center justify-between gap-3 px-4 py-3 cursor-pointer border-b" style={{ minHeight: 58, borderColor: 'rgba(132,180,255,.16)' }} onClick={onToggle}>
+      <div className="rounded-[14px] border overflow-hidden" style={{ borderColor: THEME.borderSoft, background: THEME.panelBgSofter }}>
+        <div className="flex items-center justify-between gap-3 px-4 py-3 cursor-pointer border-b" style={{ minHeight: 58, borderColor: THEME.borderSoft }} onClick={onToggle}>
           <div className="flex items-center gap-3 min-w-0">
-            <span className="w-9 h-9 flex items-center justify-center rounded-xl border flex-none text-sm font-black" style={{ background: 'rgba(47,225,208,.12)', borderColor: 'rgba(47,225,208,.18)', color: '#2fe1d0' }}>
+            <span className="w-9 h-9 flex items-center justify-center rounded-xl border flex-none text-sm font-black" style={{ background: THEME.accentSoft, borderColor: THEME.borderSoft, color: THEME.accent }}>
               {open ? '⌄' : '›'}
             </span>
             <div className="min-w-0">
@@ -320,7 +341,7 @@ function SpecificCard({ name, rows, open, onToggle, onAddSupplier, onDeleteSpeci
             <Btn cls="primary" onClick={onAddSupplier}>+ Fornecedor</Btn>
             <Btn cls="blue" onClick={() => setShowDetails(true)}>Ver</Btn>
             <Btn cls="danger" onClick={onDeleteSpecific}>Excluir</Btn>
-            <span className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-black" style={{ borderColor: 'rgba(47,225,208,.24)', background: 'rgba(47,225,208,.13)', color: '#98fff7' }}>A/B/C relativo</span>
+            <span className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-black" style={{ borderColor: THEME.borderSoft, background: THEME.accentSoft, color: THEME.accent }}>A/B/C relativo</span>
           </div>
         </div>
         {open && (
@@ -355,10 +376,10 @@ function GenericCard({ name, specs, open, onToggle, onAddSpecific, onDeleteGener
           pairs={[['Materiais específicos', String(specKeys.length)]]}
           onClose={() => setShowDetails(false)} />
       )}
-      <div className="rounded-[16px] border overflow-hidden" style={{ borderColor: 'rgba(132,180,255,.35)', background: 'rgba(9,25,57,.74)' }}>
-        <div className="flex items-center justify-between gap-3 px-4 py-3 cursor-pointer border-b" style={{ minHeight: 58, borderColor: 'rgba(132,180,255,.16)' }} onClick={onToggle}>
+      <div className="rounded-[16px] border overflow-hidden" style={{ borderColor: THEME.borderSoft, background: THEME.panelBgSoft }}>
+        <div className="flex items-center justify-between gap-3 px-4 py-3 cursor-pointer border-b" style={{ minHeight: 58, borderColor: THEME.borderSoft }} onClick={onToggle}>
           <div className="flex items-center gap-3 min-w-0">
-            <span className="w-9 h-9 flex items-center justify-center rounded-xl border flex-none text-sm font-black" style={{ background: 'rgba(47,225,208,.12)', borderColor: 'rgba(47,225,208,.18)', color: '#2fe1d0' }}>
+            <span className="w-9 h-9 flex items-center justify-center rounded-xl border flex-none text-sm font-black" style={{ background: THEME.accentSoft, borderColor: THEME.borderSoft, color: THEME.accent }}>
               {open ? '⌄' : '›'}
             </span>
             <div className="min-w-0">
@@ -418,10 +439,10 @@ function DisciplineCard({ name, generics, open, onToggle, onAddGeneric, onDelete
           pairs={[['Materiais genéricos', String(genKeys.length)], ['Linhas', String(total)]]}
           onClose={() => setShowDetails(false)} />
       )}
-      <div className="rounded-[18px] border overflow-hidden" style={{ borderColor: 'rgba(132,180,255,.45)', background: 'rgba(18,45,96,.6)' }}>
-        <div className="flex items-center justify-between gap-3 px-4 py-4 cursor-pointer border-b" style={{ minHeight: 68, background: 'rgba(12,31,70,.72)', borderColor: 'rgba(132,180,255,.2)' }} onClick={onToggle}>
+      <div className="rounded-[18px] border overflow-hidden" style={{ borderColor: THEME.borderSoft, background: THEME.panelBgSoft }}>
+        <div className="flex items-center justify-between gap-3 px-4 py-4 cursor-pointer border-b" style={{ minHeight: 68, background: THEME.panelBgSofter, borderColor: THEME.borderSoft }} onClick={onToggle}>
           <div className="flex items-center gap-3 min-w-0">
-            <span className="w-10 h-10 flex items-center justify-center rounded-xl border flex-none text-base font-black" style={{ background: 'rgba(47,225,208,.12)', borderColor: 'rgba(47,225,208,.18)', color: '#2fe1d0' }}>
+            <span className="w-10 h-10 flex items-center justify-center rounded-xl border flex-none text-base font-black" style={{ background: THEME.accentSoft, borderColor: THEME.borderSoft, color: THEME.accent }}>
               {open ? '⌄' : '›'}
             </span>
             <div className="min-w-0">
@@ -433,7 +454,7 @@ function DisciplineCard({ name, generics, open, onToggle, onAddGeneric, onDelete
             <Btn cls="primary" onClick={onAddGeneric}>+ Material genérico</Btn>
             <Btn cls="blue" onClick={() => setShowDetails(true)}>Ver</Btn>
             <Btn cls="danger" onClick={onDeleteDiscipline}>Excluir</Btn>
-            <span className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-black" style={{ borderColor: 'rgba(47,225,208,.24)', background: 'rgba(47,225,208,.13)', color: '#98fff7' }}>
+            <span className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-black" style={{ borderColor: THEME.borderSoft, background: THEME.accentSoft, color: THEME.accent }}>
               {genKeys.length} materiais genéricos
             </span>
           </div>
@@ -656,7 +677,7 @@ export function Fornecedores() {
 
   // ── render ────────────────────────────────────────────────────────────────
   return (
-    <div className="flex flex-col min-h-full" style={{ background: 'radial-gradient(circle at 12% 4%,rgba(62,127,255,.26),transparent 30%),radial-gradient(circle at 82% 8%,rgba(47,225,208,.14),transparent 26%),linear-gradient(180deg,#0b1f46 0%,#081730 52%,#061126 100%)', padding: 22 }}>
+    <div className="flex flex-col min-h-full" style={{ background: THEME.pageBg, padding: 22 }}>
 
       {/* ── modais ── */}
       {modal.kind === 'addDiscipline' && (
@@ -729,9 +750,9 @@ export function Fornecedores() {
       )}
 
       {/* ── header ── */}
-      <header style={{ display: 'flex', justifyContent: 'space-between', gap: 18, alignItems: 'flex-start', borderBottom: '1px solid rgba(126,172,255,.25)', paddingBottom: 18, marginBottom: 18 }}>
+      <header style={{ display: 'flex', justifyContent: 'space-between', gap: 18, alignItems: 'flex-start', borderBottom: `1px solid ${THEME.borderSoft}`, paddingBottom: 18, marginBottom: 18 }}>
         <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
-          <div style={{ width: 48, height: 48, borderRadius: 15, display: 'grid', placeItems: 'center', background: 'linear-gradient(135deg,#23d8c8,#477dff)', fontWeight: 900, fontSize: 20 }}>▦</div>
+          <div style={{ width: 48, height: 48, borderRadius: 15, display: 'grid', placeItems: 'center', background: THEME.buttonBg, color: THEME.buttonText, fontWeight: 900, fontSize: 20 }}>▦</div>
           <div>
             <h1 className="text-white font-black" style={{ fontSize: 'clamp(24px,3vw,34px)', lineHeight: 1.08 }}>Base de fornecedores para o BiasiHub</h1>
             <p style={{ marginTop: 8, color: '#d6e5ff', fontSize: 14, lineHeight: 1.45 }}>Prévia alimentada pela nova planilha <b>Base_BiasiHub_Fornecedores.xlsx</b>.</p>
@@ -752,8 +773,8 @@ export function Fornecedores() {
           { icon: '▣', label: 'Fornecedores', value: totalFornecedores, sub: 'Únicos' },
           { icon: '!', label: 'Linhas site', value: rows.length, sub: 'Base completa' },
         ].map(m => (
-          <div key={m.label} style={{ minHeight: 106, borderRadius: 20, border: '1px solid rgba(116,169,255,.36)', background: 'linear-gradient(180deg,rgba(17,43,94,.88),rgba(13,36,81,.94))', padding: 18, display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div style={{ width: 44, height: 44, borderRadius: 15, display: 'grid', placeItems: 'center', background: 'rgba(47,225,208,.13)', color: '#2fe1d0', fontSize: 21 }}>{m.icon}</div>
+          <div key={m.label} style={{ minHeight: 106, borderRadius: 20, border: `1px solid ${THEME.borderSoft}`, background: THEME.panelBg, padding: 18, display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div style={{ width: 44, height: 44, borderRadius: 15, display: 'grid', placeItems: 'center', background: THEME.accentSoft, color: THEME.accent, fontSize: 21 }}>{m.icon}</div>
             <div>
               <div style={{ color: '#c9d8f4', fontSize: 11, fontWeight: 950, letterSpacing: .5, textTransform: 'uppercase', marginBottom: 7 }}>{m.label}</div>
               <div style={{ fontSize: 25, fontWeight: 950, lineHeight: 1, letterSpacing: -.9 }}>{m.value}</div>
@@ -764,39 +785,39 @@ export function Fornecedores() {
       </div>
 
       {/* ── search panel ── */}
-      <div style={{ borderRadius: 22, border: '1px solid rgba(116,169,255,.32)', background: 'linear-gradient(180deg,rgba(16,42,92,.9),rgba(12,34,77,.92))', padding: 18, marginBottom: 18 }}>
+      <div style={{ borderRadius: 22, border: `1px solid ${THEME.borderSoft}`, background: THEME.panelBg, padding: 18, marginBottom: 18 }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 180px 220px 160px auto', gap: 12, alignItems: 'center' }}>
           <input value={busca} onChange={e => setBusca(e.target.value)}
             placeholder="Buscar fornecedor, material, unidade, pedido, obra, disciplina..."
-            style={{ width: '100%', minHeight: 46, borderRadius: 14, border: '1px solid rgba(132,180,255,.38)', background: '#092154', padding: '0 15px', color: '#fff', outline: 'none' }} />
+            style={{ width: '100%', minHeight: 46, borderRadius: 14, border: `1px solid ${THEME.borderSoft}`, background: THEME.inputBg, padding: '0 15px', color: '#fff', outline: 'none' }} />
           <select value={filtroDisc} onChange={e => { setFiltroDisc(e.target.value); setFiltroGen(''); }}
-            style={{ width: '100%', minHeight: 46, borderRadius: 14, border: '1px solid rgba(132,180,255,.38)', background: '#092154', padding: '0 15px', color: '#fff', outline: 'none' }}>
+            style={{ width: '100%', minHeight: 46, borderRadius: 14, border: `1px solid ${THEME.borderSoft}`, background: THEME.inputBg, padding: '0 15px', color: '#fff', outline: 'none' }}>
             <option value="">Todas as disciplinas</option>
             {allDiscs.map(d => <option key={d} value={d}>{d}</option>)}
           </select>
           <select value={filtroGen} onChange={e => setFiltroGen(e.target.value)}
-            style={{ width: '100%', minHeight: 46, borderRadius: 14, border: '1px solid rgba(132,180,255,.38)', background: '#092154', padding: '0 15px', color: '#fff', outline: 'none' }}>
+            style={{ width: '100%', minHeight: 46, borderRadius: 14, border: `1px solid ${THEME.borderSoft}`, background: THEME.inputBg, padding: '0 15px', color: '#fff', outline: 'none' }}>
             <option value="">Todos os materiais genéricos</option>
             {allGens.map(g => <option key={g} value={g}>{g}</option>)}
           </select>
           <select value={filtroClasse} onChange={e => setFiltroClasse(e.target.value as ClsFilter)}
-            style={{ width: '100%', minHeight: 46, borderRadius: 14, border: '1px solid rgba(132,180,255,.38)', background: '#092154', padding: '0 15px', color: '#fff', outline: 'none' }}>
+            style={{ width: '100%', minHeight: 46, borderRadius: 14, border: `1px solid ${THEME.borderSoft}`, background: THEME.inputBg, padding: '0 15px', color: '#fff', outline: 'none' }}>
             <option value="">Todas as classes</option>
             <option>A</option><option>B</option><option>C</option>
           </select>
           <button type="button" onClick={() => { setBusca(''); setFiltroDisc(''); setFiltroGen(''); setFiltroClasse(''); setOpenStates({}); status('Filtros limpos e árvore restaurada.'); }}
-            style={{ minHeight: 46, borderRadius: 12, cursor: 'pointer', background: 'linear-gradient(135deg,#23d8c8,#1b78d4)', color: '#061630', border: '1px solid rgba(47,225,208,.42)', padding: '0 18px', fontWeight: 950, fontSize: 12, whiteSpace: 'nowrap' }}>
+            style={{ minHeight: 46, borderRadius: 12, cursor: 'pointer', background: THEME.buttonBg, color: THEME.buttonText, border: `1px solid ${THEME.borderSoft}`, padding: '0 18px', fontWeight: 950, fontSize: 12, whiteSpace: 'nowrap' }}>
             Limpar filtros
           </button>
         </div>
       </div>
 
       {/* ── tree section ── */}
-      <div style={{ borderRadius: 22, border: '1px solid rgba(124,226,255,.62)', background: 'linear-gradient(180deg,rgba(16,42,92,.9),rgba(12,34,77,.92))', overflow: 'hidden', marginBottom: 18 }}>
+      <div style={{ borderRadius: 22, border: `1px solid ${THEME.border}`, background: THEME.panelBg, overflow: 'hidden', marginBottom: 18 }}>
         {/* tree head */}
-        <div style={{ minHeight: 86, padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(132,180,255,.22)', background: 'rgba(17,43,94,.35)', gap: 14, flexWrap: 'wrap' }}>
+        <div style={{ minHeight: 86, padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `1px solid ${THEME.borderSoft}`, background: THEME.panelBgSofter, gap: 14, flexWrap: 'wrap' }}>
           <div>
-            <div style={{ fontSize: 19, fontWeight: 950, color: '#31d6d2', marginBottom: 4 }}>Árvore da base de dados</div>
+            <div style={{ fontSize: 19, fontWeight: 950, color: THEME.accent, marginBottom: 4 }}>Árvore da base de dados</div>
             <div style={{ color: '#eff6ff', fontSize: 12, fontWeight: 700 }}>Disciplina → Material genérico → Material específico → Fornecedores A/B/C</div>
             <div style={{ color: '#bfd2ff', fontSize: 12, fontWeight: 800, marginTop: 8 }}>{statusMsg}</div>
           </div>
@@ -810,7 +831,7 @@ export function Fornecedores() {
               </Btn>
             ))}
             <Btn cls={!filtroClasse ? 'blue' : 'default'} onClick={() => { setFiltroClasse(''); status('Mostrando todas as classes.'); }}>Todas</Btn>
-            <span className="inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-black" style={{ background: 'rgba(47,225,208,.13)', borderColor: 'rgba(47,225,208,.24)', color: '#98fff7' }}>Amostra real da planilha</span>
+            <span className="inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-black" style={{ background: THEME.accentSoft, borderColor: THEME.borderSoft, color: THEME.accent }}>Amostra real da planilha</span>
           </div>
         </div>
 
@@ -819,7 +840,7 @@ export function Fornecedores() {
           {loading && (
             <div className="flex items-center justify-center py-16">
               <div className="flex flex-col items-center gap-3">
-                <div className="w-10 h-10 border-2 rounded-full animate-spin" style={{ borderColor: 'rgba(47,225,208,.3)', borderTopColor: '#2fe1d0' }} />
+                <div className="w-10 h-10 border-2 rounded-full animate-spin" style={{ borderColor: THEME.borderSoft, borderTopColor: THEME.accent }} />
                 <p className="text-sm font-black uppercase tracking-widest" style={{ color: '#8fa8d4' }}>Carregando...</p>
               </div>
             </div>

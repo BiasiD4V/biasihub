@@ -19,7 +19,6 @@ import {
   Wrench,
   Users,
   Building2,
-  Palette,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../infrastructure/supabase/client';
@@ -50,6 +49,7 @@ const NAV_SECTIONS = [
         { to: '/estoque', icon: Package, label: 'Itens' },
         { to: '/ferramentas', icon: Wrench, label: 'Ferramentas' },
         { to: '/movimentacoes', icon: ArrowLeftRight, label: 'Movimentações' },
+        { to: '/kanban', icon: ClipboardList, label: 'Tarefas do Almoxarifado' },
         { to: '/obras', icon: Building2, label: 'Obras' },
       ],
   },
@@ -75,7 +75,6 @@ const NAV_SECTIONS = [
     label: 'Sistema',
     items: [
       { to: '/agentes', icon: Bot, label: 'Agentes' },
-      { to: '/aparencia', icon: Palette, label: 'Aparência' },
       { to: '/meus-dispositivos', icon: Laptop, label: 'Meus dispositivos' },
     ],
   },
@@ -288,19 +287,19 @@ export function Sidebar({ onAbrirChat }: SidebarProps) {
 
   return (
     <>
-      <aside className="hidden h-full w-64 flex-shrink-0 lg:flex relative z-50">
+      <aside className="hidden h-full w-64 flex-shrink-0 md:flex relative z-50">
         <SidebarContent />
       </aside>
 
       <button
         onClick={() => setMobileOpen(true)}
-        className="lg:hidden fixed top-6 left-6 z-50 p-3 bg-slate-900/80 backdrop-blur-lg text-white rounded-2xl border border-white/10 shadow-2xl"
+        className="md:hidden fixed top-6 left-6 z-50 p-3 bg-slate-900/80 backdrop-blur-lg text-white rounded-2xl border border-white/10 shadow-2xl"
       >
         <Menu size={20} />
       </button>
 
       {mobileOpen && (
-        <div className="lg:hidden fixed inset-0 z-[100] flex">
+        <div className="md:hidden fixed inset-0 z-[100] flex">
           <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
           <aside className="relative w-64 h-full flex flex-col">
             <button
